@@ -1,0 +1,43 @@
+[build-system]
+requires      = ["maturin==1.14.1"]
+build-backend = "maturin"
+
+[project]
+name        = "rexlib-metadata"
+dynamic     = ["version"]
+description = "Read and write CryoEM metadata formats (STAR, XMD, SQLite) to Pandas/Polars DataFrames. Rust core, Python API, extensible by design."
+readme      = { file = "README.md", content-type = "text/markdown" }
+license     = { file = "LICENSE" }
+authors     = [
+    { name = "Martin Salinas", email = "ssalinasmartin@gmail.com" },
+]
+requires-python = ">=3.9"
+classifiers = [
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Rust",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pyarrow==24.0.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.1.1"]
+
+[project.urls]
+Homepage = "https://github.com/gigabit-clowns/rexlib-metadata"
+Issues   = "https://github.com/gigabit-clowns/rexlib-metadata/issues"
+
+[tool.maturin]
+python-source = "python"
+module-name   = "rexlib_metadata._rexlib"
+features      = ["pyo3/extension-module"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]

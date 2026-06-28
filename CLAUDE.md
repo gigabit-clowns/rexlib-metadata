@@ -140,22 +140,22 @@ pytest tests/python/
 ## Key dependencies
 
 - `pyo3` — Rust/Python bindings
-- `arrow-rs` — Apache Arrow implementation in Rust
-- `pyo3-arrow` — Arrow C Data Interface bridge (RecordBatch → Python)
+- `arrow-rs` (`arrow` crate) — Apache Arrow implementation in Rust. Do NOT enable the `pyarrow` feature: it pulls in `arrow-pyarrow` which pins pyo3 to an older version, conflicting with `pyo3-arrow`.
+- `pyo3-arrow` — Arrow C Data Interface bridge (RecordBatch → Python). This is the only bridge needed; arrow's own pyarrow feature is redundant and causes version conflicts.
 - `pyarrow` (Python, transitive) — required by pyo3-arrow for the Python side
 
 ## Implementation roadmap
 
 Ordered checklist. Start from the first unchecked item. Each phase must be complete (tests passing, CI green) before starting the next.
 
-### Phase 0 — Project skeleton + CI build
-- [ ] `Cargo.toml`: `[lib] crate-type = ["cdylib"]`, deps `pyo3` + `arrow-rs` + `pyo3-arrow`
-- [ ] `pyproject.toml`: Maturin build backend, `python-source = "python"`, `module-name = "rexlib_metadata._rexlib"`
-- [ ] `src/lib.rs`: minimal PyO3 module `_rexlib` with one smoke-test function (e.g. `version() -> &str`)
-- [ ] `python/rexlib_metadata/__init__.py`: imports `_rexlib`, re-exports smoke function
-- [ ] `python/rexlib_metadata/_rexlib.pyi`: stub for the smoke function
-- [ ] CI workflow: build matrix Linux/Mac/Windows, `python -c "import rexlib_metadata"` as smoke test
-- [ ] Verify locally: `maturin develop && python -c "import rexlib_metadata"`
+### Phase 0 — Project skeleton + CI build ✅
+- [x] `Cargo.toml`: `[lib] crate-type = ["cdylib"]`, deps `pyo3` + `arrow-rs` + `pyo3-arrow`
+- [x] `pyproject.toml`: Maturin build backend, `python-source = "python"`, `module-name = "rexlib_metadata._rexlib"`
+- [x] `src/lib.rs`: minimal PyO3 module `_rexlib` with one smoke-test function (e.g. `version() -> &str`)
+- [x] `python/rexlib_metadata/__init__.py`: imports `_rexlib`, re-exports smoke function
+- [x] `python/rexlib_metadata/_rexlib.pyi`: stub for the smoke function
+- [x] CI workflow: build matrix Linux/Mac/Windows, `python -c "import rexlib_metadata"` as smoke test
+- [x] Verify locally: `maturin develop && python -c "import rexlib_metadata"`
 
 ### Phase 1 — STAR reader (no convention) + CI tests
 - [ ] Define `RawSchema` in Rust: column names + Arrow `DataType`s as parsed from file
