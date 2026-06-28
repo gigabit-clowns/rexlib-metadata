@@ -27,7 +27,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install package and test dependencies
-        run: pip install .[test]
+        run: pip install .[test] -v
 
       - name: Run tests
         run: pytest tests/python/
