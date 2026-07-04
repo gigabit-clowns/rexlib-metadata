@@ -46,32 +46,110 @@ result.write("output.star", updates=df)
 
 `ReadResult` internally holds a full Arrow `RecordBatch` (all columns). `columns=` is a view/projection, not a memory optimization — all columns are always loaded to support write-forwarding. Selected columns are exposed; the rest are carried silently for pass-through on write.
 
+## Schema
+
+The schema is the WHAT layer: it defines the canonical column structure, independent of any file format.
+
+**`ColumnDescriptor`** — one canonical column: name, Arrow type, and optional default.
+```python
+@dataclass
+class ColumnDescriptor:
+    name: str
+    dtype: pa.DataType
+    default: Any | None = None  # None = column is required; any value = optional with that default
+```
+
+**`SchemaTrait`** — a named, reusable group of related columns (e.g. `EulerAngles`, `CartesianPosition`). Traits are a composition tool only; they flatten into `TableSchema`.
+
+**`TableSchema`** — a table's full column set, built by composing traits:
+- Same name + same type across traits → keep first, discard duplicate silently
+- Same name + different type → error at construction time
+
+**`Schema`** — one or more `TableSchema` instances. Multi-table formats (e.g. Relion4 STAR with `data_particles` + `data_optics`) produce a `Schema` with multiple tables.
+
 ## Convention system
 
-Conventions map file-specific column names to canonical names and enforce types. Schema validation is strict: unknown columns raise an error.
+Conventions are the HOW layer: they map file columns to canonical columns. Completely separate from the schema.
 
-**Detection order (short-circuit, first match wins):**
-1. Explicit `convention=` argument — applied directly, error if schema doesn't match
-2. Built-in conventions checked in priority order (most common first):
-   - `RexConvention` (once defined — users of this software use it most)
-   - `Relion4Convention`
-   - `XmdConvention`
-   - `Relion3Convention` (future)
-3. No match → `GenericStarConvention` (passthrough, no renaming)
+### Interfaces
 
-Each convention implements `matches(raw: RawSchema) -> bool`. The registry checks them in registration order; the first `True` wins. Registration order = priority.
-
-**Defining a custom convention:**
 ```python
-class MyConvention(Convention):
+class ReadConvention(ABC):
+    source_columns: list[str]   # file columns consumed
+    target_columns: list[str]   # canonical columns produced
+
+    def matches(self, raw: RawSchema) -> bool: ...
+    def load(self, raw: RecordBatch) -> dict[str, Array]: ...
+
+class WriteConvention(ABC):
+    source_columns: list[str]   # canonical columns consumed
+    target_columns: list[str]   # file columns produced
+
+    def store(self, canonical: dict[str, Array]) -> dict[str, Array]: ...
+```
+
+### ConventionBundle
+
+A `ConventionBundle` groups all conventions for one file format (e.g. Relion4). Invariant: no two `ReadConvention`s in the same bundle may declare the same element in `target_columns` — enforced at `register()`, raises on violation.
+
+```python
+class ConventionBundle:
+    name: str                               # e.g. "relion4"
+    read_conventions: list[ReadConvention]
+    write_conventions: list[WriteConvention]
+```
+
+### How conventions are applied (read path)
+
+Table-to-table matching is by column presence via `matches()`, not by raw table name string. The raw table `data_particles` is linked to the canonical `particles` table because the Relion4 euler convention's `matches()` returns `True` for its `RawSchema` — no string comparison needed.
+
+Engine (simplified):
+
+```python
+covered = {}  # canonical_col → Array
+
+for bundle in registry.bundles_for(extension):   # ordered: higher-priority first
+    for raw_table in file.tables:
+        for conv in bundle.read_conventions:
+            if conv.matches(raw_table.schema):
+                if any(t not in covered for t in conv.target_columns):
+                    result = conv.load(raw_table.batch)
+                    for col, array in result.items():
+                        covered.setdefault(col, array)  # first write wins
+
+for col in table_schema.required_columns:
+    if col.name not in covered and col.default is None:
+        raise ValueError(f"Required column '{col.name}' not produced by any convention")
+```
+
+### Bundle priority
+
+Bundles are registered in priority order (highest first). The first bundle whose convention produces a canonical column owns it — later bundles cannot overwrite it. Within a bundle, all non-overlapping matching conventions apply.
+
+```python
+registry.register_bundle(".star", Relion4Bundle())  # tried first
+registry.register_bundle(".star", Relion3Bundle())  # fallback
+```
+
+### Defining a custom bundle
+
+```python
+class MyEulerConvention(ReadConvention):
+    source_columns = ["myAngle1", "myAngle2", "myAngle3"]
+    target_columns = ["euler_rot", "euler_tilt", "euler_psi"]
+
     def matches(self, raw: RawSchema) -> bool:
-        return "myLabParticleId" in raw.column_names
+        return all(c in raw.column_names for c in self.source_columns)
 
-    def apply(self, raw: RawSchema) -> Schema: ...
-    def to_file_name(self, canonical: str) -> str: ...
-    def to_canonical_name(self, file_col: str) -> str: ...
+    def load(self, raw: RecordBatch) -> dict[str, Array]:
+        return {
+            "euler_rot":  raw.column("myAngle1"),
+            "euler_tilt": raw.column("myAngle2"),
+            "euler_psi":  raw.column("myAngle3"),
+        }
 
-global_registry.register_convention(MyConvention(), extensions=[".star"])
+bundle = ConventionBundle("mylab", read_conventions=[MyEulerConvention()])
+global_registry.register_bundle(".star", bundle, prepend=True)
 ```
 
 ## Registry
@@ -173,15 +251,16 @@ Ordered checklist. Start from the first unchecked item. Each phase must be compl
 - [ ] Write integration tests: `rm.read("test.star").to_pandas()` — check shape, column names, values
 - [ ] Add `pytest` to CI (runs on every PR)
 
-### Phase 2 — Convention system + Relion4
-- [ ] Implement `Convention.matches(raw: RawSchema) -> bool` and `Convention.apply(raw) -> Schema`
-- [ ] Add `Schema` type (canonical column names + validated Arrow `DataType`s)
-- [ ] Implement `Relion4Convention`: define required columns, `matches()`, `apply()` with type validation
-- [ ] `apply()` raises on unknown columns; raises on type mismatch
-- [ ] Add `register_convention(convention, extensions)` to `MetadataRegistry`; registration order = detection priority
-- [ ] Wire short-circuit detection into `rm.read()`: iterate registered conventions in order, first `True` wins, fallback to `GenericStarConvention`
-- [ ] Register `Relion4Convention` in `global_registry` for `.star`
-- [ ] Tests: auto-detect Relion4, check canonical column names; explicit `convention=`; unknown column raises; type mismatch raises
+### Phase 2 — Schema + Convention system + Relion4
+- [ ] Define `ColumnDescriptor`, `SchemaTrait`, `TableSchema`, `Schema` in `python/rexlib_metadata/schema.py`
+- [ ] `TableSchema.__init__` flattens traits, deduplicates by name (same type → keep first; different type → error)
+- [ ] Define `ReadConvention` and `WriteConvention` ABCs in `abc.py`: `source_columns`, `target_columns`, `matches()`, `load()` / `store()`
+- [ ] Define `ConventionBundle` in `abc.py`: `name`, `read_conventions`, `write_conventions`; `register()` validates no overlap in `target_columns` within the bundle
+- [ ] Add `register_bundle(extension, bundle, *, prepend=False)` to `MetadataRegistry`
+- [ ] Implement read engine: for each bundle (in order) × each raw table, apply all matching conventions; first write per canonical column wins; missing required columns raise
+- [ ] Implement `Relion4Bundle`: define `ReadConvention`s for all Relion4 column groups, `matches()` checks column presence (not table name)
+- [ ] Register `Relion4Bundle` in `global_registry` for `.star`
+- [ ] Tests: auto-detect Relion4, check canonical column names; explicit `bundle=`; missing required column raises; duplicate `target_columns` in bundle raises at registration
 
 ### Phase 3 — Write + roundtrip
 - [ ] Create `Writer` ABC in `abc.py`
@@ -241,6 +320,8 @@ Ordered checklist. Start from the first unchecked item. Each phase must be compl
 - `ReadResult` must never hold an open file handle after `rm.read()` returns.
 - Column selection (`columns=`) is always a view, never a load optimization. All columns are loaded internally to support write-forwarding.
 - Schema validation is always strict: unknown columns raise, never silently pass through.
-- Convention detection is always short-circuit: first `matches()` True wins, no scoring or ranking.
+- Table-to-table matching (raw table → canonical table) is always by column presence via `matches()`. Never match by raw table name string — table names are format-specific and not under our control.
+- Within a `ConventionBundle`, no two `ReadConvention`s may declare the same element in `target_columns`. Validated at registration, raises immediately on violation.
+- Convention priority is at the bundle level, not the column level. The first bundle whose convention produces a canonical column owns it; later bundles cannot overwrite it.
 - The public extension surface is Python ABCs only. Rust traits are internal implementation details.
 - The `_rexlib` module (compiled Rust artifact) is private. Users import only `rexlib_metadata`.
