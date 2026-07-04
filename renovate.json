@@ -6,8 +6,19 @@
   ],
   "minimumReleaseAge": "14 days",
   "internalChecksFilter": "strict",
+  "customManagers": [
+    {
+      "description": "Track maturin in [build-system].requires, which the poetry manager does not cover",
+      "customType": "regex",
+      "fileMatch": ["^pyproject\\.toml$"],
+      "matchStrings": ["\"maturin==(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "maturin",
+      "datasourceTemplate": "pypi"
+    }
+  ],
   "packageRules": [
     {
+      "description": "Python version in CI matrix is a manual decision",
       "matchDepNames": ["python"],
       "enabled": false
     },
@@ -15,6 +26,18 @@
       "description": "Security advisories bypass the 14-day delay",
       "matchUpdateTypes": ["security"],
       "minimumReleaseAge": "0 days"
+    },
+    {
+      "description": "pyarrow 21.x is the last release supporting Python 3.9 — do not bump",
+      "matchDepNames": ["pyarrow"],
+      "matchCurrentVersion": "==21.0.0",
+      "enabled": false
+    },
+    {
+      "description": "pytest 8.x is the last release supporting Python 3.9 — do not bump",
+      "matchDepNames": ["pytest"],
+      "matchCurrentVersion": "==8.3.5",
+      "enabled": false
     }
   ]
 }
