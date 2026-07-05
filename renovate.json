@@ -10,7 +10,9 @@
     {
       "description": "Track maturin in [build-system].requires, which the poetry manager does not cover",
       "customType": "regex",
-      "fileMatch": ["^pyproject\\.toml$"],
+      "managerFilePatterns": [
+        "/^pyproject\\.toml$/"
+      ],
       "matchStrings": ["\"maturin==(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "maturin",
       "datasourceTemplate": "pypi"
