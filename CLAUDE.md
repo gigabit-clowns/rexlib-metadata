@@ -235,21 +235,21 @@ Ordered checklist. Start from the first unchecked item. Each phase must be compl
 - [x] CI workflow: build matrix Linux/Mac/Windows, `python -c "import rexlib_metadata"` as smoke test
 - [x] Verify locally: `maturin develop && python -c "import rexlib_metadata"`
 
-### Phase 1 — STAR reader (no convention) + CI tests
-- [ ] Define `RawSchema` in Rust: column names + Arrow `DataType`s as parsed from file
-- [ ] Implement `StarParser` in Rust: `read_schema() -> RawSchema`, `read_all() -> RecordBatch`
-- [ ] Expose to Python via PyO3: `_rexlib._star_read_schema(path)`, `_rexlib._star_read(path, columns)`
-- [ ] Create `Reader` ABC in `python/rexlib_metadata/abc.py`
-- [ ] Create `Convention` ABC in `abc.py` (stubs for `matches`, `apply`, `to_file_name`, `to_canonical_name`)
-- [ ] Create `ReadResult` in `result.py`: lazy (stores path + config, no file handle), `to_pandas()`, `to_polars()`
-- [ ] Create `GenericStarConvention` (passthrough, `matches()` always False, `apply()` identity)
-- [ ] Create `StarReader` Python class satisfying `Reader` ABC, calling Rust under the hood
-- [ ] Create `MetadataRegistry` in `registry.py`: `register_reader(extensions, cls)`, detection by extension
-- [ ] Create `global_registry`, pre-register `StarReader` for `.star`
-- [ ] Implement `rm.read()` in `__init__.py`
-- [ ] Add test fixtures (small real `.star` files) under `tests/python/fixtures/`
-- [ ] Write integration tests: `rm.read("test.star").to_pandas()` — check shape, column names, values
-- [ ] Add `pytest` to CI (runs on every PR)
+### Phase 1 — STAR reader (no convention) + CI tests ✅
+- [x] Define `RawSchema` in Rust: column names as parsed from file
+- [x] Implement `StarParser` in Rust: `read_schema() -> RawSchema`, `read_all() -> RecordBatch` (all values as `Utf8`)
+- [x] Expose to Python via PyO3: `_rexlib._star_read_schema(path)`, `_rexlib._star_read(path)`
+- [x] Create `Reader` ABC in `python/rexlib_metadata/abc.py`
+- [x] Create `Convention` ABC in `abc.py` (stubs for `matches`, `apply`, `to_file_name`, `to_canonical_name`)
+- [x] Create `ReadResult` in `result.py`: lazy (stores path + reader, no file handle), `to_pandas()`, `to_polars()`
+- [x] Create `GenericStarConvention` (passthrough, `matches()` always False, `apply()` identity)
+- [x] Create `StarReader` Python class satisfying `Reader` ABC, calling Rust under the hood
+- [x] Create `MetadataRegistry` in `registry.py`: `register_reader(extensions, cls)`, detection by extension
+- [x] Create `global_registry`, pre-register `StarReader` for `.star`
+- [x] Implement `rm.read()` in `__init__.py`
+- [x] Add test fixtures (small real `.star` files) under `tests/python/fixtures/`
+- [x] Write integration tests: `rm.read("test.star").to_pandas()` — check shape, column names, values
+- [x] Add `pytest` to CI (runs on every PR)
 
 ### Phase 2 — Schema + Convention system + Relion4
 - [ ] Define `ColumnDescriptor`, `SchemaTrait`, `TableSchema`, `Schema` in `python/rexlib_metadata/schema.py`
