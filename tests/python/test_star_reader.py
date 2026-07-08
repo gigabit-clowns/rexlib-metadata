@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import polars as pl
 import pytest
 
 import rexlib_metadata as rm
@@ -49,26 +50,22 @@ def test_to_pandas_all_strings():
 
 
 def test_to_polars_shape():
-    pl = pytest.importorskip("polars")
     df = rm.read(str(MINI)).to_polars()
     assert df.shape == (EXPECTED_ROWS, len(EXPECTED_COLUMNS))
 
 
 def test_to_polars_column_names():
-    pytest.importorskip("polars")
     df = rm.read(str(MINI)).to_polars()
     assert df.columns == EXPECTED_COLUMNS
 
 
 def test_to_polars_values():
-    pytest.importorskip("polars")
     df = rm.read(str(MINI)).to_polars()
     assert df["_rlnAngleRot"].to_list() == ["10.5", "30.2", "50.7"]
     assert df["_rlnCoordinateX"].to_list() == ["1024.0", "2048.0", "3072.0"]
 
 
 def test_to_polars_all_strings():
-    pl = pytest.importorskip("polars")
     df = rm.read(str(MINI)).to_polars()
     for col in df.columns:
         assert df[col].dtype == pl.String
