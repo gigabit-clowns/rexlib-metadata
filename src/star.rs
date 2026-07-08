@@ -25,7 +25,7 @@ enum State {
 }
 
 pub fn read_schema(path: &str) -> Result<RawSchema, String> {
-    let file = File::open(path).map_err(|e| e.to_string())?;
+    let file = File::open(path).map_err(|e| format!("Cannot open '{path}': {e}"))?;
     let reader = BufReader::new(file);
     let mut state = State::Preamble;
 
@@ -58,11 +58,17 @@ pub fn read_schema(path: &str) -> Result<RawSchema, String> {
         };
     }
 
-    Err(format!("No data rows found in '{path}'"))
+    match state {
+        State::ReadingColumns { table_name, column_names } => {
+            let columns = column_names.into_iter().map(|name| RawColumn { name }).collect();
+            Ok(RawSchema { table_name, columns })
+        }
+        _ => Err(format!("No data rows found in '{path}'")),
+    }
 }
 
 pub fn read_all(path: &str) -> Result<RecordBatch, String> {
-    let file = File::open(path).map_err(|e| e.to_string())?;
+    let file = File::open(path).map_err(|e| format!("Cannot open '{path}': {e}"))?;
     let reader = BufReader::new(file);
     let mut state = State::Preamble;
 
@@ -91,8 +97,12 @@ pub fn read_all(path: &str) -> Result<RecordBatch, String> {
                 let row = parse_row(&column_names, line)?;
                 State::ReadingData { table_name, column_names, rows: vec![row] }
             }
-            State::ReadingData { column_names, rows, .. } if line.starts_with("data_") => {
-                return build_record_batch(&column_names, &rows);
+            State::ReadingData { .. } if line.starts_with("data_") => {
+                // Discard the previous block and start fresh with the new one.
+                // For multi-block STAR files (e.g. RELION 3.1+ data_optics + data_particles),
+                // this means only the last block is returned. Full multi-block support is Phase 6.
+                let name = line.strip_prefix("data_").expect("guard ensures starts_with(\"data_\")");
+                State::InBlock { table_name: name.to_string() }
             }
             State::ReadingData { table_name, column_names, mut rows } => {
                 rows.push(parse_row(&column_names, line)?);

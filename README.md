@@ -8,7 +8,7 @@ Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 
 - **Read STAR files** to Pandas or Polars DataFrames with a single call
 - **All values preserved as strings** — no silent type inference; type conversion is the convention system's job
-- **Lazy I/O** — `rm.read()` opens and closes the file immediately; row data is only loaded when you call `to_pandas()` or `to_polars()`
+- **Lazy I/O** — `rm.read()` returns immediately with no file I/O; data is only loaded when you call `to_pandas()` or `to_polars()`
 - **Extensible** — plug in custom readers and conventions by subclassing Python ABCs; no Rust required
 - **Fast core** — parsing and Arrow serialization in Rust via PyO3 + Maturin
 

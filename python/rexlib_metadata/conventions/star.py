@@ -16,12 +16,13 @@ def _to_pyarrow_table(obj) -> pa.Table:
         result = obj.to_pyarrow()
         if isinstance(result, pa.RecordBatch):
             return pa.Table.from_batches([result])
-        return result
+        if isinstance(result, pa.Table):
+            return result
+        raise TypeError(f"to_pyarrow() returned {type(result).__name__}, expected pa.Table or pa.RecordBatch")
     if hasattr(obj, '__arrow_c_stream__'):
         return pa.RecordBatchReader.from_stream(obj).read_all()
     if hasattr(obj, '__arrow_c_array__'):
-        batch = pa.record_batch(obj)
-        return pa.Table.from_batches([batch])
+        return pa.Table.from_batches([pa.record_batch(obj)])
     raise TypeError(f"Cannot convert {type(obj).__name__} to pyarrow.Table")
 
 
