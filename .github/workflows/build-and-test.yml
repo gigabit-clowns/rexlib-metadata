@@ -49,15 +49,18 @@ jobs:
       - name: Check formatting
         run: cargo fmt --check
 
-      - name: Run clippy
-        run: cargo clippy --all-targets -- -D warnings
-
-      # clippy only checks, so this is what proves the cdylib links.
+      # Whether the thing works comes before how it is written, so that a
+      # lint never hides a broken build. Building is also the only step that
+      # links: clippy stops at type checking and would not see a cdylib that
+      # fails to come together.
       - name: Build
         run: cargo build --verbose
 
       - name: Run tests
         run: cargo test --verbose
+
+      - name: Run clippy
+        run: cargo clippy --all-targets -- -D warnings
 
   build_with_pip:
     name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
