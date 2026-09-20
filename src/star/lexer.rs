@@ -2,10 +2,10 @@ use super::StarError;
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Token {
-    DataBlock(String), // "data_particles" → DataBlock("particles")
-    Loop,              // "loop_"
-    Column(String),    // "_rlnAngleRot"   → Column("_rlnAngleRot")
-    Value(String),     // any data value (bare or quoted)
+    DataBlock(String),
+    Loop,
+    Column(String),
+    Value(String),
 }
 
 pub(crate) fn tokenize_line(

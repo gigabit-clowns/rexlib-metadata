@@ -233,6 +233,25 @@ with clippy at `-D warnings`: run `cargo fmt` before pushing and leave no
 warning behind. The Python side has no linter yet, unlike the sibling
 repositories — `docs/roadmap.md` tracks it.
 
+### Comments
+
+As few as possible, and none at all wherever that is possible. A comment says
+**what**, never **why**. The why belongs in the commit message and the pull
+request, where it can be read against the change that motivated it instead of
+rotting in a file that moved on without it.
+
+And the what only when the code does not already say it. If a reader
+understands the line without the comment, the comment does not go in. A
+banner announcing that the types come next, a note restating the signature
+above it, an explanation of what a well-known macro generates — all of that
+is text to be kept true for no gain.
+
+The rule covers every file, not just the Rust and the Python: a workflow step
+whose name already says what it runs does not also need a paragraph above it.
+What does stay is the thing that is not a comment at all — a docstring, a
+`# noqa`, an attribute — and, where a contract has to be written down
+somewhere, `docs/` is where it goes.
+
 The package targets Python 3.9. Every module that annotates anything opens
 with `from __future__ import annotations`, and `X | None` is written only
 under it. pandas, polars and even pyarrow go inside `if TYPE_CHECKING:` where

@@ -19,12 +19,20 @@ the single `src/star.rs` with `src/star/{lexer,parser,builder,mod}.rs`, adds
 quoted values, comments, typed `StarError`s carrying path and line, and
 multi-block parsing. `tokenize_line` and `build_record_batch` are finished
 and tested; `parse_blocks` in `src/star/parser.rs` is a `todo!()` with its
-six tests already written and failing, which is the next thing to write. Its
-contract is spelled out in the comment above it: use the lexer, zero blocks
-is not an error at that level, a block with columns and no rows is valid, a
-`data_` token in `ReadingData` closes the block and opens the next, and a row
-whose value count disagrees with the column count is a `StarError::Parse`
-naming the line.
+seven tests already written and failing, which is the next thing to write.
+
+Its contract, since the code does not carry it:
+
+- Read the whole file and return every `data_` block in it.
+- Go through `tokenize_line`, which is what makes quoting and comments
+  somebody else's problem.
+- Zero blocks is not an error at this level; `read_schema` and `read_all`
+  are where an empty file becomes one.
+- A block with columns and no rows is valid.
+- A `Token::DataBlock` while rows are being read closes the block and opens
+  the next.
+- A row whose value count disagrees with the declared columns is a
+  `StarError::Parse` naming the line, counted from 1.
 
 `read_schema` and `read_all` in `src/star/mod.rs` still take the last block
 of the file and drop the rest. That stays until Phase 6 gives the Python side

@@ -4,33 +4,12 @@ use std::io::{BufRead, BufReader};
 use super::StarError;
 use super::lexer::{Token, tokenize_line};
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 #[derive(Debug)]
 pub(crate) struct StarBlock {
     pub name: String,
     pub columns: Vec<String>,
     pub rows: Vec<Vec<String>>,
 }
-
-// ---------------------------------------------------------------------------
-// parse_blocks — YOUR SECOND EXERCISE (after tokenize_line)
-// ---------------------------------------------------------------------------
-//
-// Reads the entire file and returns all data_ blocks found.
-//
-// State machine rules:
-//  · Use tokenize_line() to process each line — quoted-value support comes
-//    for free without any extra logic here.
-//  · A file may contain zero or more blocks; zero blocks is not an error here
-//    (read_schema / read_all handle that case).
-//  · A block with columns but zero data rows is valid.
-//  · In ReadingData state, a Token::DataBlock closes the current block and
-//    starts a new one (multi-block support).
-//  · If a data row has a different number of values than declared columns,
-//    return StarError::Parse with the line number and a descriptive message.
 
 pub(crate) fn parse_blocks(path: &str) -> Result<Vec<StarBlock>, StarError> {
     let file = File::open(path).map_err(|source| StarError::Io {
@@ -41,10 +20,6 @@ pub(crate) fn parse_blocks(path: &str) -> Result<Vec<StarBlock>, StarError> {
 
     todo!()
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

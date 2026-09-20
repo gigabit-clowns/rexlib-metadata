@@ -29,6 +29,5 @@ class MetadataRegistry:
 
 global_registry = MetadataRegistry()
 
-# Imported after global_registry to avoid circular imports
 from rexlib_metadata.conventions.star import StarReader  # noqa: E402
 global_registry.register_reader([".star"], StarReader)

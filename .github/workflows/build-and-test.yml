@@ -32,10 +32,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # pyo3 links against the interpreter it finds, so one has to be here
-      # even though nothing in this job runs Python. The extension-module
-      # feature, which would drop the link, is left to maturin: a test binary
-      # with it enabled resolves no Python symbol and does not link at all.
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
@@ -49,10 +45,6 @@ jobs:
       - name: Check formatting
         run: cargo fmt --check
 
-      # Whether the thing works comes before how it is written, so that a
-      # lint never hides a broken build. Building is also the only step that
-      # links: clippy stops at type checking and would not see a cdylib that
-      # fails to come together.
       - name: Build
         run: cargo build --verbose
 
