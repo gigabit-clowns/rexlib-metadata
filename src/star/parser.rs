@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 use super::StarError;
-use super::lexer::{tokenize_line, Token};
+use super::lexer::{Token, tokenize_line};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -101,7 +101,8 @@ data_particles\n\nloop_\n_rlnAngleRot\n10.5\n20.1\n";
 
     #[test]
     fn quoted_value_preserved() {
-        let content = "data_particles\n\nloop_\n_rlnMicrographName\n\"path with spaces/file.mrcs\"\n";
+        let content =
+            "data_particles\n\nloop_\n_rlnMicrographName\n\"path with spaces/file.mrcs\"\n";
         let blocks = parse(content);
         assert_eq!(blocks[0].rows[0][0], "path with spaces/file.mrcs");
     }
@@ -111,5 +112,14 @@ data_particles\n\nloop_\n_rlnAngleRot\n10.5\n20.1\n";
         let content = "data_particles\n\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n10.5\n";
         let err = parse_err(content);
         assert!(matches!(err, StarError::Parse { .. }));
+    }
+
+    #[test]
+    fn parse_error_reports_the_offending_line() {
+        let content = "data_particles\n\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n10.5 20.1\n10.5\n";
+        match parse_err(content) {
+            StarError::Parse { line, .. } => assert_eq!(line, 7),
+            other => panic!("expected a parse error, got {other:?}"),
+        }
     }
 }

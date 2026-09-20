@@ -30,6 +30,12 @@ naming the line.
 of the file and drop the rest. That stays until Phase 6 gives the Python side
 somewhere to put the others.
 
+CI is red on this branch on purpose, and knowing why saves reading the log:
+clippy runs at `-D warnings`, and with `parse_blocks` unwritten nothing calls
+the lexer, so every one of its functions is reported as dead code. The ten
+warnings are all that shape and all of them go away with the function. The
+`build_with_pip` job is unaffected, since `todo!()` compiles.
+
 ## Phase 0 — Skeleton and CI ✅
 
 - [x] `Cargo.toml`: `cdylib`, pyo3, arrow-rs, pyo3-arrow
@@ -141,16 +147,9 @@ somewhere to put the others.
 
 Not attached to a phase. Roughly in the order they hurt.
 
-- **`cargo test` does not run in CI.** The Rust suites only ever run on
-  someone's machine. Adding the job means resolving the point below first.
-- **`extension-module` is enabled twice**, in the `pyo3` dependency of
-  `Cargo.toml` and again in `[tool.maturin] features`. Enabled by default it
-  is what makes a plain `cargo test` link against a Python that is not there
-  on Linux and macOS. Moving it behind an optional feature that only maturin
-  turns on is the usual fix, and it is what a CI Rust job needs.
-- **No linter.** `rexlib-python` lints with ruff in CI and this repository
-  does not lint at all. Its `ruff.toml` is the one to copy from, minus the
-  tab-indentation ignore.
+- **No linter on the Python side.** `rexlib-python` lints with ruff in CI and
+  this repository lints only its Rust. Its `ruff.toml` is the one to copy
+  from, minus the tab-indentation ignore.
 - **`_rexlib.pyi` references `arro3.core`**, which is not a dependency and
   cannot be imported by a type checker here. The stub should describe what
   the caller is allowed to assume — an object exposing the Arrow protocol —

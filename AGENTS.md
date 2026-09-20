@@ -96,10 +96,15 @@ cargo test               # the Rust unit tests
 does the same build and brings pandas, polars and pytest with it, which is
 what CI runs.
 
-`cargo test` builds a test binary linking the whole crate, PyO3 included. It
-works locally on Windows; CI does not run it, and `extension-module` being on
-by default in `Cargo.toml` is the reason to verify before assuming it works
-on the other platforms — see `docs/roadmap.md`.
+PyO3's `extension-module` feature is enabled by maturin, through
+`[tool.maturin] features` in `pyproject.toml`, and is deliberately not on in
+`Cargo.toml`. Do not put it back there. The feature drops the link against
+libpython, which is right for a wheel loaded by an interpreter that already
+holds those symbols and fatal for anything else: a `cargo test` binary built
+with it resolves no Python symbol and does not link. Off by default, a plain
+`cargo build` or `cargo test` links against whichever interpreter the build
+script finds, which is why the Rust CI job sets Python up even though it runs
+none.
 
 ## The canonical representation
 
@@ -221,8 +226,12 @@ mandatory first full scan. SQLite and HDF5 get what they already have,
 
 Python is four spaces, Rust is four spaces, YAML is two, and lines stay
 within 80 columns; `.vscode/settings.json` is set up for exactly that and is
-the authority. No linter is configured yet, unlike the sibling repositories —
-`docs/roadmap.md` tracks it.
+the authority.
+
+On the Rust side `rustfmt` is the authority instead, and CI enforces it along
+with clippy at `-D warnings`: run `cargo fmt` before pushing and leave no
+warning behind. The Python side has no linter yet, unlike the sibling
+repositories — `docs/roadmap.md` tracks it.
 
 The package targets Python 3.9. Every module that annotates anything opens
 with `from __future__ import annotations`, and `X | None` is written only
@@ -266,16 +275,32 @@ them declares wider support, which is a decision for a person to take.
 
 ## Continuous integration
 
-One workflow, `build-and-test.yml`, on pull requests and on demand. It builds
-with `pip install .[test]` and runs `pytest tests/python/` across Linux,
-macOS and Windows on Python 3.9 through 3.14, with `fail-fast` off so that
-one broken cell does not hide the others. Actions are pinned by digest, and
-Renovate keeps both the digests and the dependencies moving, under a 14-day
-minimum release age that security advisories skip.
+One workflow, `build-and-test.yml`, on pull requests, on a push to `main`
+that touches something other than documentation, and on demand. A second push
+to the same ref cancels the run in flight.
 
-There is no Rust test job, no lint job, no coverage, no SonarQube scan and no
-deployment. All five are known gaps, all five are in `docs/roadmap.md`, and
-none of them is an absence to reproduce elsewhere.
+| Job | Does |
+|---|---|
+| `build_with_cargo` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, `cargo test`, on the three platforms |
+| `build_with_pip` | `pip install .[test]` and `pytest tests/python/`, three platforms × Python 3.9 to 3.14 |
+
+`fail-fast` is off in both, so one broken cell does not hide the others. The
+two jobs run in parallel and neither waits on the other: a Rust warning and a
+Python failure are independent pieces of news, and serialising them only
+delays one of the two.
+
+`build_with_cargo` compiles and links as well as checking, because clippy
+stops at type checking and would not notice a cdylib that fails to link. It
+sets Python up for the reason given under [Building and
+testing](#building-and-testing).
+
+Actions are pinned by digest, and Renovate keeps both the digests and the
+dependencies moving, under a 14-day minimum release age that security
+advisories skip.
+
+There is no coverage, no SonarQube scan and no deployment. All three are
+known gaps, all three are in `docs/roadmap.md`, and none of them is an
+absence to reproduce elsewhere.
 
 ## Design invariants — do not violate
 

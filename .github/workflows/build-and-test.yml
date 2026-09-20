@@ -1,11 +1,65 @@
 name: Build and test
 
 on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - .gitignore
+      - .vscode/**
+      - LICENSE
+      - renovate.json
+
   pull_request:
+
   workflow_dispatch:
 
+concurrency:
+  group: build-and-test-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build_and_test:
+  build_with_cargo:
+    name: Cargo / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # pyo3 links against the interpreter it finds, so one has to be here
+      # even though nothing in this job runs Python. The extension-module
+      # feature, which would drop the link, is left to maturin: a test binary
+      # with it enabled resolves no Python symbol and does not link at all.
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.14'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      # clippy only checks, so this is what proves the cdylib links.
+      - name: Build
+        run: cargo build --verbose
+
+      - name: Run tests
+        run: cargo test --verbose
+
+  build_with_pip:
     name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
     strategy:
       fail-fast: false

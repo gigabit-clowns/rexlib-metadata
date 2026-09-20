@@ -64,14 +64,11 @@ pub struct RawSchema {
 
 pub fn read_schema(path: &str) -> Result<RawSchema, StarError> {
     let blocks = parse_blocks(path)?;
-    let block = blocks
-        .into_iter()
-        .last()
-        .ok_or_else(|| StarError::Parse {
-            path: path.to_string(),
-            line: 0,
-            message: "no data blocks found".to_string(),
-        })?;
+    let block = blocks.into_iter().last().ok_or_else(|| StarError::Parse {
+        path: path.to_string(),
+        line: 0,
+        message: "no data blocks found".to_string(),
+    })?;
     let columns = block
         .columns
         .into_iter()
@@ -85,13 +82,10 @@ pub fn read_schema(path: &str) -> Result<RawSchema, StarError> {
 
 pub fn read_all(path: &str) -> Result<RecordBatch, StarError> {
     let blocks = parse_blocks(path)?;
-    let block = blocks
-        .into_iter()
-        .last()
-        .ok_or_else(|| StarError::Parse {
-            path: path.to_string(),
-            line: 0,
-            message: "no data blocks found".to_string(),
-        })?;
+    let block = blocks.into_iter().last().ok_or_else(|| StarError::Parse {
+        path: path.to_string(),
+        line: 0,
+        message: "no data blocks found".to_string(),
+    })?;
     build_record_batch(&block.columns, &block.rows)
 }

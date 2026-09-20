@@ -15,18 +15,23 @@ pub(crate) fn tokenize_line(
 ) -> Result<Vec<Token>, StarError> {
     let clean_line = line.split('#').next().unwrap_or("").trim();
     if clean_line.is_empty() {
-        return Ok(vec![]);
+        Ok(vec![])
     } else if clean_line.starts_with("data_") {
         ensure_single_word(clean_line, path, line_num, "data block header")?;
-        return Ok(vec![Token::DataBlock(clean_line.strip_prefix("data_").expect("guaranteed by starts_with").to_string())]);
+        Ok(vec![Token::DataBlock(
+            clean_line
+                .strip_prefix("data_")
+                .expect("guaranteed by starts_with")
+                .to_string(),
+        )])
     } else if clean_line.split_whitespace().next() == Some("loop_") {
         ensure_single_word(clean_line, path, line_num, "loop_ keyword")?;
-        return Ok(vec![Token::Loop]);
+        Ok(vec![Token::Loop])
     } else if clean_line.starts_with("_") {
         ensure_single_word(clean_line, path, line_num, "column name")?;
-        return Ok(vec![Token::Column(clean_line.to_string())]);
+        Ok(vec![Token::Column(clean_line.to_string())])
     } else {
-        return tokenize_values(line, path, line_num);
+        tokenize_values(line, path, line_num)
     }
 }
 
@@ -58,7 +63,12 @@ fn tokenize_values(line: &str, path: &str, line_num: usize) -> Result<Vec<Token>
     Ok(tokens)
 }
 
-fn process_quoted_char(ch: char, quote: char, current: &mut String, tokens: &mut Vec<Token>) -> Option<char> {
+fn process_quoted_char(
+    ch: char,
+    quote: char,
+    current: &mut String,
+    tokens: &mut Vec<Token>,
+) -> Option<char> {
     if ch == quote {
         tokens.push(Token::Value(std::mem::take(current)));
         None
@@ -68,7 +78,11 @@ fn process_quoted_char(ch: char, quote: char, current: &mut String, tokens: &mut
     }
 }
 
-fn process_unquoted_char(ch: char, current: &mut String, tokens: &mut Vec<Token>) -> (Option<char>, bool) {
+fn process_unquoted_char(
+    ch: char,
+    current: &mut String,
+    tokens: &mut Vec<Token>,
+) -> (Option<char>, bool) {
     match ch {
         '#' => (None, true),
         '"' | '\'' => {
@@ -92,7 +106,12 @@ fn flush_bare(current: &mut String, tokens: &mut Vec<Token>) {
     }
 }
 
-fn ensure_single_word(clean_line: &str, path: &str, line_num: usize, context: &str) -> Result<(), StarError> {
+fn ensure_single_word(
+    clean_line: &str,
+    path: &str,
+    line_num: usize,
+    context: &str,
+) -> Result<(), StarError> {
     if clean_line.split_whitespace().count() > 1 {
         return Err(StarError::Parse {
             path: path.to_string(),
@@ -128,12 +147,18 @@ mod tests {
 
     #[test]
     fn data_block() {
-        assert_eq!(tok("data_particles"), vec![Token::DataBlock("particles".into())]);
+        assert_eq!(
+            tok("data_particles"),
+            vec![Token::DataBlock("particles".into())]
+        );
     }
 
     #[test]
     fn data_block_with_comment() {
-        assert_eq!(tok("data_particles # Some comment"), vec![Token::DataBlock("particles".into())]);
+        assert_eq!(
+            tok("data_particles # Some comment"),
+            vec![Token::DataBlock("particles".into())]
+        );
     }
 
     #[test]
@@ -143,7 +168,10 @@ mod tests {
 
     #[test]
     fn column_name() {
-        assert_eq!(tok("_rlnAngleRot"), vec![Token::Column("_rlnAngleRot".into())]);
+        assert_eq!(
+            tok("_rlnAngleRot"),
+            vec![Token::Column("_rlnAngleRot".into())]
+        );
     }
 
     #[test]
@@ -214,6 +242,9 @@ mod tests {
 
     #[test]
     fn column_with_comment() {
-        assert_eq!(tok("_rlnAngleRot # comment"), vec![Token::Column("_rlnAngleRot".into())]);
+        assert_eq!(
+            tok("_rlnAngleRot # comment"),
+            vec![Token::Column("_rlnAngleRot".into())]
+        );
     }
 }
