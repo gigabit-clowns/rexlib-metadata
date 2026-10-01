@@ -289,8 +289,9 @@ arrow of its own, so the `RecordBatch` the parser builds and the one
 `PyRecordBatch::new` accepts are the same type only while both come from the
 same major; two majors in the graph and `lib.rs` stops compiling with a type
 mismatch on a `RecordBatch` that looks identical in the message. `arrow` is
-therefore capped in `renovate.json` at the major `pyo3-arrow` holds, and the
-cap is lifted by whoever raises `pyo3-arrow`, in that same pull request.
+therefore capped in `renovate.json` at the major `pyo3-arrow` holds. The cap
+stays; what moves is its bound, and it moves in the same pull request that
+raises `pyo3-arrow`, never on its own.
 
 Supporting Python 3.9 is what makes the pins in `pyproject.toml` look
 strange: pyarrow, pytest, pandas and polars each raised their floor above 3.9

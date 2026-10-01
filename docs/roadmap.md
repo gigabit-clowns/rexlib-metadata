@@ -155,6 +155,27 @@ warnings are all that shape and all of them go away with the function. The
 
 Not attached to a phase. Roughly in the order they hurt.
 
+- **arrow is capped below 60 until pyo3-arrow can hold it.** `renovate.json`
+  caps it and says why; the paragraph on the two of them in `AGENTS.md` says
+  what breaks without the cap. The cap is not a thing to delete when this
+  clears, it is a bound to move: arrow may never pass the major pyo3-arrow
+  pins, so the rule outlives any particular number. When a pyo3-arrow built
+  against a newer arrow appears, its own Renovate pull request is the signal,
+  and one pull request does all of it — raise pyo3-arrow, raise arrow, move
+  the bound, and rewrite the two versions the rule's description names.
+
+  The trail upstream, so that nobody has to find it twice. arrow-rs
+  [#10431](https://github.com/apache/arrow-rs/pull/10431) made the FFI struct
+  fields private and shipped in arrow 60, which is what broke pyo3-arrow;
+  its author answered with
+  [#11125](https://github.com/apache/arrow-rs/pull/11125), merged three days
+  after 60 went out and therefore still unreleased, due in the minor tracked
+  by [#10525](https://github.com/apache/arrow-rs/issues/10525). arro3
+  [#513](https://github.com/kylebarron/arro3/pull/513) is the pyo3-arrow side,
+  a draft waiting on that release.
+  [#11161](https://github.com/apache/arrow-rs/pull/11161) is the other road,
+  an `ArrayReader` concept upstream, which would fix the underlying problem
+  ([#6586](https://github.com/apache/arrow-rs/issues/6586)) and take longer.
 - **No linter on the Python side.** `rexlib-python` lints with ruff in CI and
   this repository lints only its Rust. Its `ruff.toml` is the one to copy
   from, minus the tab-indentation ignore.
