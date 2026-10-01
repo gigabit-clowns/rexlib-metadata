@@ -284,6 +284,14 @@ Do not enable arrow's `pyarrow` feature. It pulls in `arrow-pyarrow`, which
 pins an older pyo3 and conflicts with `pyo3-arrow`; `pyo3-arrow` is the only
 bridge needed, and the two together do not build.
 
+`arrow` and `pyo3-arrow` are one upgrade, not two. `pyo3-arrow` exports no
+arrow of its own, so the `RecordBatch` the parser builds and the one
+`PyRecordBatch::new` accepts are the same type only while both come from the
+same major; two majors in the graph and `lib.rs` stops compiling with a type
+mismatch on a `RecordBatch` that looks identical in the message. `arrow` is
+therefore capped in `renovate.json` at the major `pyo3-arrow` holds, and the
+cap is lifted by whoever raises `pyo3-arrow`, in that same pull request.
+
 Supporting Python 3.9 is what makes the pins in `pyproject.toml` look
 strange: pyarrow, pytest, pandas and polars each raised their floor above 3.9
 at some release, so each is pinned twice behind a PEP 508 marker. Renovate
