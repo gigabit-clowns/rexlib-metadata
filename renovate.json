@@ -63,6 +63,16 @@
       "enabled": false
     },
     {
+      "description": [
+        "arrow and pyo3-arrow are one upgrade and not two: pyo3-arrow re-exports no arrow of its own, so the RecordBatch our arrow builds and the one PyRecordBatch::new takes have to come from the same major, or lib.rs does not compile.",
+        "pyo3-arrow 0.19, the newest there is, pins arrow 59, which is why arrow stops there. The cap is lifted in the same pull request that raises pyo3-arrow, never on its own.",
+        "Only arrow is capped. A pyo3-arrow release built against a newer arrow should open a PR that fails CI, which is the signal to do both by hand, rather than freeze silently.",
+        "The constraint is a bare version: cargo ranges are matched against each release, and a range here would filter out every one of them."
+      ],
+      "matchDepNames": ["arrow"],
+      "allowedVersions": "<60"
+    },
+    {
       "description": "Security advisories bypass the 14-day delay",
       "matchUpdateTypes": ["security"],
       "minimumReleaseAge": "0 days"
