@@ -67,6 +67,7 @@ invariants at the end of this file already bind what gets written.
 | `tests/python/` | pytest suites, with their sample files in `fixtures/` |
 | `docs/` | Design notes and roadmap: everything too specific for this file |
 | `ruff.toml` | The lint rules of the Python, the authority on its style |
+| `clippy.toml` | The complexity threshold clippy holds the Rust to |
 | `CHANGELOG.md` | What a user of the package would notice, newest first |
 
 Rust unit tests live in a `mod tests` at the foot of the file they cover,
@@ -113,7 +114,8 @@ bash scripts/local-gate.sh   # all of it, in CI's order
 ```
 
 The gate is the one to run before pushing: `cargo fmt --check`, build, test,
-clippy at `-D warnings`, then ruff and pytest, stopping at the first failure.
+clippy at `-D warnings`, then ruff, the complexity check and pytest,
+stopping at the first failure.
 It rebuilds the extension before pytest, so that the suite is not run against
 yesterday's build, and it reaches for `.venv` or whichever environment is
 active and calls the tools through its interpreter rather than through the
@@ -184,6 +186,23 @@ error with a line number, so arithmetic over counts and offsets read from one
 is checked, and nothing indexes with a number the file supplied. `expect` is
 for what the code has just proven about itself, never for what a file
 promised.
+
+### Complexity
+
+Cognitive complexity, counted the way Sonar counts it: an `if`, a loop, a
+`try` or a boolean chain is one, plus one more for every level of nesting it
+sits inside. Three nested loops are 1 + 2 + 3, not 3.
+
+**Five per function is the aim. Seven is the ceiling**, for the particular
+case that earns it, and `complexipy` fails the gate above it.
+
+The nesting weight is why flattening pays more than it looks: the same three
+loops written as a generator expression score three where the nested form
+scores six, for identical behaviour and, measured, identical speed.
+
+On the Rust side `clippy::cognitive_complexity` is on at the same number.
+Clippy counts by its own approximation rather than Sonar's, so the figure
+means less there — it is a tripwire, not a measurement.
 
 ### Comments
 
