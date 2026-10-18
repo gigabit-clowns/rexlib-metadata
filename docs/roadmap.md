@@ -67,11 +67,13 @@ removes that.
 
 ## Phase 2 — Schema, conventions and Relion4
 
-- [ ] `ColumnDescriptor`, `SchemaTrait`, `TableSchema`, `Schema` in
+- [x] `ColumnDescriptor`, `SchemaTrait`, `TableSchema`, `Schema` in
       `python/rexlib_metadata/schema.py`, carrying the unit as well as the
       type, against the catalogue in `docs/canonical.md`
-- [ ] `TableSchema.__init__` flattens traits and deduplicates: same type
-      keeps the first, different type raises
+- [x] `TableSchema.__init__` flattens traits and deduplicates: an identical
+      declaration collapses, a disagreeing one raises
+- [ ] The catalogue of `docs/canonical.md` as traits and tables, once a real
+      file has settled the conventions it leaves open
 - [ ] `ReadConvention` and `WriteConvention` ABCs in `abc.py`, replacing the
       placeholder `Convention`
 - [ ] `ConventionBundle`, validating `target_columns` do not overlap within

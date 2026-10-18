@@ -149,35 +149,53 @@ the table and has no identity at run time. A `TableSchema` is one table's full
 column set, and a `Schema` is one or more tables, which is what a multi-block
 Relion file needs.
 
-Composition deduplicates: the same name with the same type across two traits
-keeps the first silently, the same name with a different type is an error at
-construction. Failing there rather than at read time is the point — a
-contradictory schema is a programming mistake, not a data problem.
+Composition deduplicates: the same name declared identically by two traits
+is the same declaration and collapses, and the same name declared two
+different ways is an error at construction. Failing there rather than at read
+time is the point — a contradictory schema is a programming mistake, not a
+data problem.
 
 Validation is strict in the other direction too. An unknown column raises; it
 is never passed through quietly.
 
 ### In code
 
+Written, in `python/rexlib_metadata/schema.py`.
+
 ```python
-@dataclass
+@dataclass(frozen=True)
 class ColumnDescriptor:
     name: str
     dtype: pa.DataType
-    default: Any | None = None  # None means required
+    unit: str | None = None
+    required: bool = False
+    default: Any = None
 ```
+
+A column is optional unless it says otherwise, which is the common case:
+`docs/canonical.md` requires almost nothing, since a file from picking has no
+pose and one from classification has no class. Required and defaulted at once
+is a contradiction and raises — a default is what makes a column optional.
+The unit sits here rather than in the name, so that a conversion can read it.
 
 `SchemaTrait` is a named, reusable group of related columns — `EulerAngles`,
 `CartesianPosition`. It is a composition tool only and flattens into the
 table.
 
-`TableSchema` is a table's full column set, built by composing traits:
+`TableSchema` is a table's full column set, composed from traits and loose
+columns in the order given:
 
-- same name, same type across traits → keep the first, discard silently
-- same name, different type → raise at construction
+- the same name declared identically twice → keep the first, silently
+- the same name declared two different ways → raise at construction, naming
+  the column and both declarations
 
-`Schema` is one or more `TableSchema`. A Relion4 file with `data_particles`
-and `data_optics` produces a `Schema` with two tables.
+The second rule covers every field, not the type alone. Two traits that
+disagree about a column's unit, or about whether it is required, disagree
+about what the column *is*, and the composer is the one who has to decide.
+
+`Schema` is one or more `TableSchema`, reached by name, and a name may not
+repeat. A Relion 4 file with `data_particles` and `data_optics` produces a
+`Schema` with two tables.
 
 ## The convention layer
 
