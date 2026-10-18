@@ -43,7 +43,8 @@ knowing which of the two it is talking about:
 | `Reader` ABC, `MetadataRegistry`, `ReadResult` | Built, minimal |
 | Convention layer (`ReadConvention`, `WriteConvention`, `ConventionBundle`) | Built, `python/rexlib_metadata/convention.py`; the engine that drives them is not |
 | Schema layer (`ColumnDescriptor`, `TableSchema`, …) | Built, `python/rexlib_metadata/schema.py`; the catalogue it will carry is `docs/canonical.md` |
-| The read engine, and the Relion bundle it drives | Designed, not written |
+| The read engine | Built, `python/rexlib_metadata/engine.py`, and driven by nothing yet |
+| The Relion bundle, and wiring the engine into a read | Waiting on a real file |
 | Writers, chunking, multi-table, XMD, SQLite, HDF5 | Designed, not written |
 
 `docs/roadmap.md` is the authority on what comes next and in which order.

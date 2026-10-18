@@ -23,6 +23,19 @@ class RawSchema:
         return all(name in self.column_names for name in names)
 
 
+@dataclass(frozen=True)
+class RawTable:
+    """One table as the file holds it, before any convention."""
+
+    schema: RawSchema
+    table: pa.Table
+
+    @classmethod
+    def of(cls, name: str, table: pa.Table) -> RawTable:
+        """Build a raw table from an Arrow table and the name it had."""
+        return cls(RawSchema(name, tuple(table.column_names)), table)
+
+
 class ReadConvention(ABC):
     """Turns the columns of one file format into canonical ones."""
 
