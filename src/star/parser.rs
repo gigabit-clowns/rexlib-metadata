@@ -1,0 +1,336 @@
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+
+use super::StarError;
+use super::lexer::{Token, tokenize_line};
+
+#[derive(Debug)]
+pub(crate) struct StarBlock {
+    pub name: String,
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<String>>,
+}
+
+enum State {
+    Preamble,
+    InBlock {
+        name: String,
+    },
+    ReadingColumns {
+        name: String,
+        columns: Vec<String>,
+    },
+    ReadingData {
+        name: String,
+        columns: Vec<String>,
+        rows: Vec<Vec<String>>,
+    },
+}
+
+impl State {
+    fn into_block(self) -> Option<StarBlock> {
+        match self {
+            State::Preamble => None,
+            State::InBlock { name } => Some(StarBlock {
+                name,
+                columns: Vec::new(),
+                rows: Vec::new(),
+            }),
+            State::ReadingColumns { name, columns } => Some(StarBlock {
+                name,
+                columns,
+                rows: Vec::new(),
+            }),
+            State::ReadingData {
+                name,
+                columns,
+                rows,
+            } => Some(StarBlock {
+                name,
+                columns,
+                rows,
+            }),
+        }
+    }
+}
+
+pub(crate) fn parse_blocks(path: &str) -> Result<Vec<StarBlock>, StarError> {
+    let file = File::open(path).map_err(|source| StarError::Io {
+        path: path.to_string(),
+        source,
+    })?;
+    let reader = BufReader::new(file);
+
+    let mut blocks = Vec::new();
+    let mut state = State::Preamble;
+
+    for (index, line) in reader.lines().enumerate() {
+        let line_num = index + 1;
+        let line = line.map_err(|source| StarError::Io {
+            path: path.to_string(),
+            source,
+        })?;
+
+        let tokens = tokenize_line(&line, path, line_num)?;
+        let Some(first) = tokens.first() else {
+            continue;
+        };
+
+        state = match first {
+            Token::DataBlock(name) => {
+                let name = name.clone();
+                blocks.extend(state.into_block());
+                State::InBlock { name }
+            }
+            Token::Loop => open_loop(state, path, line_num)?,
+            Token::Column(name) => declare_column(state, name.clone(), path, line_num)?,
+            Token::Value(_) => read_row(state, row_values(tokens), path, line_num)?,
+        };
+    }
+
+    blocks.extend(state.into_block());
+    Ok(blocks)
+}
+
+fn open_loop(state: State, path: &str, line: usize) -> Result<State, StarError> {
+    match state {
+        State::InBlock { name } => Ok(State::ReadingColumns {
+            name,
+            columns: Vec::new(),
+        }),
+        State::Preamble => Err(parse_error(path, line, "loop_ outside a data block")),
+        _ => Err(parse_error(
+            path,
+            line,
+            "a data block with more than one loop_ is not supported",
+        )),
+    }
+}
+
+fn declare_column(
+    state: State,
+    column: String,
+    path: &str,
+    line: usize,
+) -> Result<State, StarError> {
+    match state {
+        State::ReadingColumns { name, mut columns } => {
+            columns.push(column);
+            Ok(State::ReadingColumns { name, columns })
+        }
+        State::Preamble => Err(parse_error(
+            path,
+            line,
+            format!("column '{column}' outside a data block"),
+        )),
+        State::InBlock { .. } => Err(parse_error(
+            path,
+            line,
+            format!("column '{column}' outside a loop_"),
+        )),
+        State::ReadingData { .. } => Err(parse_error(
+            path,
+            line,
+            format!("column '{column}' after the first data row"),
+        )),
+    }
+}
+
+fn read_row(
+    state: State,
+    values: Vec<String>,
+    path: &str,
+    line: usize,
+) -> Result<State, StarError> {
+    match state {
+        State::ReadingColumns { name, columns } => {
+            check_row_width(&columns, &values, path, line)?;
+            Ok(State::ReadingData {
+                name,
+                columns,
+                rows: vec![values],
+            })
+        }
+        State::ReadingData {
+            name,
+            columns,
+            mut rows,
+        } => {
+            check_row_width(&columns, &values, path, line)?;
+            rows.push(values);
+            Ok(State::ReadingData {
+                name,
+                columns,
+                rows,
+            })
+        }
+        State::Preamble => Err(parse_error(path, line, "data row outside a data block")),
+        State::InBlock { .. } => Err(parse_error(path, line, "data row before loop_")),
+    }
+}
+
+fn check_row_width(
+    columns: &[String],
+    values: &[String],
+    path: &str,
+    line: usize,
+) -> Result<(), StarError> {
+    if values.len() != columns.len() {
+        return Err(parse_error(
+            path,
+            line,
+            format!(
+                "row has {} values but {} columns are declared",
+                values.len(),
+                columns.len()
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn row_values(tokens: Vec<Token>) -> Vec<String> {
+    tokens
+        .into_iter()
+        .filter_map(|token| match token {
+            Token::Value(value) => Some(value),
+            _ => None,
+        })
+        .collect()
+}
+
+fn parse_error(path: &str, line: usize, message: impl Into<String>) -> StarError {
+    StarError::Parse {
+        path: path.to_string(),
+        line,
+        message: message.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    fn parse(content: &str) -> Vec<StarBlock> {
+        let mut f = NamedTempFile::new().unwrap();
+        write!(f, "{content}").unwrap();
+        parse_blocks(f.path().to_str().unwrap()).unwrap()
+    }
+
+    fn parse_err(content: &str) -> StarError {
+        let mut f = NamedTempFile::new().unwrap();
+        write!(f, "{content}").unwrap();
+        parse_blocks(f.path().to_str().unwrap()).unwrap_err()
+    }
+
+    #[test]
+    fn single_block_shape() {
+        let blocks = parse("data_particles\n\nloop_\n_rlnAngleRot\n10.5\n20.1\n");
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].name, "particles");
+        assert_eq!(blocks[0].columns, vec!["_rlnAngleRot"]);
+        assert_eq!(blocks[0].rows.len(), 2);
+    }
+
+    #[test]
+    fn empty_block_has_zero_rows() {
+        let blocks = parse("data_particles\n\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n");
+        assert_eq!(blocks.len(), 1);
+        assert!(blocks[0].rows.is_empty());
+        assert_eq!(blocks[0].columns.len(), 2);
+    }
+
+    #[test]
+    fn empty_file_returns_no_blocks() {
+        let blocks = parse("");
+        assert!(blocks.is_empty());
+    }
+
+    #[test]
+    fn multi_block() {
+        let content = "\
+data_optics\n\nloop_\n_rlnVoltage\n300.0\n\n\
+data_particles\n\nloop_\n_rlnAngleRot\n10.5\n20.1\n";
+        let blocks = parse(content);
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0].name, "optics");
+        assert_eq!(blocks[1].name, "particles");
+        assert_eq!(blocks[1].rows.len(), 2);
+    }
+
+    #[test]
+    fn quoted_value_preserved() {
+        let content =
+            "data_particles\n\nloop_\n_rlnMicrographName\n\"path with spaces/file.mrcs\"\n";
+        let blocks = parse(content);
+        assert_eq!(blocks[0].rows[0][0], "path with spaces/file.mrcs");
+    }
+
+    #[test]
+    fn wrong_column_count_is_error() {
+        let content = "data_particles\n\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n10.5\n";
+        let err = parse_err(content);
+        assert!(matches!(err, StarError::Parse { .. }));
+    }
+
+    #[test]
+    fn block_without_loop_is_kept_empty() {
+        let blocks = parse("data_optics\n\ndata_particles\n\nloop_\n_rlnAngleRot\n10.5\n");
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0].name, "optics");
+        assert!(blocks[0].columns.is_empty());
+        assert!(blocks[0].rows.is_empty());
+        assert_eq!(blocks[1].rows.len(), 1);
+    }
+
+    #[test]
+    fn values_before_loop_are_an_error() {
+        assert!(matches!(
+            parse_err("data_particles\n10.5 20.1\n"),
+            StarError::Parse { .. }
+        ));
+    }
+
+    #[test]
+    fn column_outside_a_loop_is_an_error() {
+        assert!(matches!(
+            parse_err("data_particles\n_rlnAngleRot\n"),
+            StarError::Parse { .. }
+        ));
+    }
+
+    #[test]
+    fn column_after_the_first_row_is_an_error() {
+        assert!(matches!(
+            parse_err("data_particles\n\nloop_\n_rlnAngleRot\n10.5\n_rlnAngleTilt\n"),
+            StarError::Parse { .. }
+        ));
+    }
+
+    #[test]
+    fn second_loop_in_one_block_is_an_error() {
+        assert!(matches!(
+            parse_err("data_particles\n\nloop_\n_rlnAngleRot\n10.5\n\nloop_\n_rlnAngleTilt\n"),
+            StarError::Parse { .. }
+        ));
+    }
+
+    #[test]
+    fn content_outside_a_data_block_is_an_error() {
+        assert!(matches!(
+            parse_err("loop_\n_rlnAngleRot\n10.5\n"),
+            StarError::Parse { .. }
+        ));
+    }
+
+    #[test]
+    fn parse_error_reports_the_offending_line() {
+        let content = "data_particles\n\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n10.5 20.1\n10.5\n";
+        match parse_err(content) {
+            StarError::Parse { line, .. } => assert_eq!(line, 7),
+            other => panic!("expected a parse error, got {other:?}"),
+        }
+    }
+}

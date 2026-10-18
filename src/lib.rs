@@ -11,7 +11,7 @@ fn version() -> &'static str {
 #[pyfunction]
 fn _star_read_schema(path: &str) -> PyResult<(String, Vec<String>)> {
     let schema = star::read_schema(path)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e))?;
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
     let column_names = schema.columns.into_iter().map(|c| c.name).collect();
     Ok((schema.table_name, column_names))
 }
@@ -20,7 +20,7 @@ fn _star_read_schema(path: &str) -> PyResult<(String, Vec<String>)> {
 fn _star_read(path: &str) -> PyResult<PyRecordBatch> {
     star::read_all(path)
         .map(PyRecordBatch::new)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e))
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 
 #[pymodule]

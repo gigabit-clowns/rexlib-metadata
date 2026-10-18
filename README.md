@@ -12,17 +12,7 @@ Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 - **Extensible** — plug in custom readers and conventions by subclassing Python ABCs; no Rust required
 - **Fast core** — parsing and Arrow serialization in Rust via PyO3 + Maturin
 
-### Roadmap
-
-| Phase | Status |
-|-------|--------|
-| STAR reader | ✅ Done |
-| Schema + Relion4 convention system | Planned |
-| STAR writer + roundtrip | Planned |
-| Chunked / streaming reads | Planned |
-| XMD (Xmipp) | Planned |
-| SQLite | Planned |
-| HDF5 | Planned |
+Reading STAR files is what works today. Writing, the convention system, chunked reads, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
 
 ## Installation
 
@@ -50,7 +40,7 @@ df = result.to_pandas()   # pandas.DataFrame
 df = result.to_polars()   # polars.DataFrame
 ```
 
-All column values come back as strings. Type conversion is intentionally deferred to the convention system (Phase 2).
+All column values come back as strings. Type conversion is intentionally deferred to the [convention system](docs/design.md#the-convention-layer).
 
 ```python
 print(df.columns)
@@ -111,3 +101,7 @@ pytest
 ```bash
 cargo test
 ```
+
+### Contributing
+
+[AGENTS.md](AGENTS.md) is the place to start: the architecture, the conventions of the codebase and the design invariants, everything needed before writing a line here. [docs/design.md](docs/design.md) goes deeper into the schema and convention layers and the questions still open, and [docs/roadmap.md](docs/roadmap.md) says what comes next.
