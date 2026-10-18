@@ -42,7 +42,7 @@ knowing which of the two it is talking about:
 | Arrow as the canonical representation | Built |
 | `Reader` ABC, `MetadataRegistry`, `ReadResult` | Built, minimal |
 | `Convention` ABC in `abc.py` | A placeholder; Phase 2 replaces it |
-| Schema layer (`ColumnDescriptor`, `TableSchema`, …) | Designed, not written |
+| Schema layer (`ColumnDescriptor`, `TableSchema`, …) | Built, `python/rexlib_metadata/schema.py`; the catalogue it will carry is `docs/canonical.md` |
 | `ReadConvention` / `WriteConvention`, bundles, engine | Designed, not written |
 | Writers, chunking, multi-table, XMD, SQLite, HDF5 | Designed, not written |
 
