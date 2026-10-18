@@ -49,6 +49,7 @@ invariants at the end of this file already bind what gets written.
 | `python/rexlib_metadata/_rexlib.pyi` | Stubs for the compiled module |
 | `tests/python/` | pytest suites, with their sample files in `fixtures/` |
 | `docs/` | Design notes and roadmap: everything too specific for this file |
+| `ruff.toml` | The lint rules of the Python, the authority on its style |
 | `CHANGELOG.md` | What a user of the package would notice, newest first |
 
 Rust unit tests live in a `mod tests` at the foot of the file they cover,
@@ -243,10 +244,11 @@ names; for the ones it does not, Python among them, it defaults to tabs and
 the code does not follow it. Four spaces is what the code does and what to
 keep doing.
 
-On the Rust side `rustfmt` is the authority, and CI enforces it along with
-clippy at `-D warnings`: run `cargo fmt` before pushing and leave no warning
-behind. The Python side has no linter yet, unlike the sibling repositories —
-`docs/roadmap.md` tracks it.
+`rustfmt` is the authority on the Rust and `ruff.toml` on the Python, and CI
+enforces both: `cargo fmt --check` and clippy at `-D warnings` on one side,
+`ruff check .` on the other. Run them before pushing and leave nothing
+behind. The ruff rules are the ones rexlib-python settled on, minus what only
+a repository indenting with tabs needs.
 
 `_rexlib.pyi` is written by hand. A function added to `_rexlib` gets its stub
 in the same pull request, or the Python side is typed against something that
@@ -362,7 +364,7 @@ to the same ref cancels the run in flight.
 | Job | Does |
 |---|---|
 | `build_with_cargo` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, `cargo test`, on the three platforms |
-| `build_with_pip` | `pip install .[test]` and `pytest tests/python/`, three platforms × Python 3.9 to 3.14 |
+| `build_with_pip` | `pip install .[test]`, `ruff check .` and `pytest tests/python/`, three platforms × Python 3.9 to 3.14 |
 
 `fail-fast` is off in both, so one broken cell does not hide the others. The
 two jobs run in parallel and neither waits on the other: a Rust warning and a

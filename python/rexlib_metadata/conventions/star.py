@@ -1,3 +1,5 @@
+"""Reading STAR files, and the conventions that come with them."""
+
 from __future__ import annotations
 
 import pyarrow as pa
@@ -30,21 +32,29 @@ class GenericStarConvention(Convention):
     """Passthrough: no column renaming or type conversion."""
 
     def matches(self, raw_schema: tuple[str, list[str]]) -> bool:
+        """Never claim a table: this convention is only ever asked for."""
         return False
 
     def apply(self, batch: pa.Table) -> pa.Table:
+        """Return the table as it came."""
         return batch
 
     def to_file_name(self, canonical_name: str) -> str:
+        """Return the name unchanged."""
         return canonical_name
 
     def to_canonical_name(self, file_name: str) -> str:
+        """Return the name unchanged."""
         return file_name
 
 
 class StarReader(Reader):
+    """Reads a STAR file through the Rust parser."""
+
     def read_all(self, path: str) -> pa.Table:
+        """Read every row of the file at `path` into one table."""
         return _to_pyarrow_table(_star_read(path))
 
     def read(self, path: str, **kwargs) -> ReadResult:
+        """Return a lazy result over `path`, reading no row yet."""
         return ReadResult(path, self)
