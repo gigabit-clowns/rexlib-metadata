@@ -26,8 +26,9 @@ pull request. When in doubt about which document something belongs in, see
   title and body into a commit message.
 - A document this change makes wrong is part of the change. Unfinished work
   is an issue, never a `TODO`.
-- `docs/design.md` is the design and the decisions, `docs/roadmap.md` the
-  plan. Read them before touching the schema or the conventions.
+- `docs/` holds the design, the plan, continuous integration and the
+  dependencies, one subject each. The table at the foot of this file says
+  when each is worth opening.
 
 ## What is built and what is designed
 
@@ -130,133 +131,27 @@ with it resolves no Python symbol and does not link. Off by default, a plain
 script finds, which is why the Rust CI job sets Python up even though it runs
 none.
 
-## The canonical representation
+## The architecture in short
 
-Apache Arrow is the canonical in-memory form: `arrow-rs` on the Rust side,
-the C Data Interface across the boundary. pandas and polars are both built on
-Arrow, so one representation serves both without a second copy and without
-either becoming a hard dependency — they are extras, imported only where a
-`to_pandas()` / `to_polars()` call actually asks for them.
+Four layers, and the whole design is in which of them a decision belongs to.
 
-A reader never infers a type. No number is guessed, no date is recognised,
-nothing is read out of the look of a token: typing is the schema's job and
-conversion is the convention's job, and a reader that types on its own takes
-a decision away from the layer allowed to take it. For STAR and XMD, which
-state no types, that means every value arrives as `Utf8` and leaves as
-`Utf8` until a convention says otherwise. A format that does state its
-types — SQLite, HDF5 — is reported as it declares them, which is not
-inference but transcription.
+| Layer | Holds | Written down in |
+|---|---|---|
+| The reader | A file of one format, read into Arrow with no type guessed | `src/star/`, and the `Reader` ABC |
+| The canonical form | Apache Arrow, which both pandas and polars are built on, so neither is privileged and neither is a hard dependency | `docs/design.md` |
+| The schema | What a canonical table's columns are: name, type, unit, required or defaulted. Knows no file format | designed, `docs/design.md` |
+| The conventions | Which file columns make which canonical ones, per format, read and write kept apart | designed, `docs/design.md` |
 
-`pyo3-arrow` returns an `arro3` object rather than a `pyarrow` one. arro3 is
-not a dependency and must not become one: the object is consumed through the
-Arrow protocol methods it exposes, which is what `_to_pyarrow_table` in
-`conventions/star.py` does. Any new Rust entry point returning Arrow goes
-through that same function.
+Around them, the registry, which picks a reader and a set of conventions
+from the file's extension and, where that is not enough, its content — and
+lets the caller override either. Dependency inversion is the requirement
+this library exists to satisfy, so every one of those four layers takes
+something the user wrote as readily as something that ships.
 
-## Schema: the WHAT
-
-The schema defines the canonical column structure and knows nothing about any
-file format. A `ColumnDescriptor` is one canonical column — name, Arrow type,
-and a default whose absence means the column is required. A `SchemaTrait` is
-a reusable group of related columns, `EulerAngles` or `CartesianPosition`,
-and exists only so that tables can be composed out of them; it flattens into
-the table and has no identity at run time. A `TableSchema` is one table's full
-column set, and a `Schema` is one or more tables, which is what a multi-block
-Relion file needs.
-
-Composition deduplicates: the same name with the same type across two traits
-keeps the first silently, the same name with a different type is an error at
-construction. Failing there rather than at read time is the point — a
-contradictory schema is a programming mistake, not a data problem.
-
-Validation is strict in the other direction too. An unknown column raises; it
-is never passed through quietly.
-
-## Conventions: the HOW
-
-A convention maps file columns onto canonical columns. Reading and writing
-are separate pipelines — decided on 2026-07-03 — and the separation is total:
-separate ABCs, separate registration, separate lists inside a bundle.
-
-Two reasons, and both matter. Writing a reader must not oblige anyone to
-write the writer too, then or ever. And the mapping is genuinely not one to
-one: a canonical column may have several possible origins in Relion while
-there is exactly one place we would write it back to, so a single reversible
-object would have to lie about one direction or the other.
-
-A `ReadConvention` declares the file columns it consumes and the canonical
-columns it produces, answers `matches()` for a raw schema, and `load()`s. A
-`WriteConvention` declares the canonical columns it consumes and the file
-columns it produces, and `store()`s. A `ConventionBundle` groups all the
-conventions of one format — Relion4, Relion3, Xmipp — under a name.
-
-Matching is by column presence, never by the name of the raw table. A raw
-`data_particles` block becomes the canonical `particles` table because a
-convention recognised its columns, not because a string matched. Table names
-are the format's to choose and often the user's to mistype; the columns are
-what can actually be relied on.
-
-Two conventions of one bundle may not produce the same canonical column: that
-is an ambiguity inside a unit meant to be coherent, and it is rejected when
-the bundle is registered. Across bundles the conflict is legitimate and
-priority resolves it — bundles are ordered, the first to produce a canonical
-column owns it, and later bundles cannot overwrite what an earlier one
-produced. Inside a bundle, every matching convention that adds something not
-yet covered applies.
-
-Required canonical columns that no convention produced are an error at the
-end of the read, not a column of nulls.
-
-`docs/design.md` carries the interfaces, the engine and worked examples.
-
-## Registry, detection and injection
-
-`MetadataRegistry` maps an extension to a reader and, from Phase 2, to an
-ordered list of convention bundles. `global_registry` is the default
-instance, built at import time with what ships in the box; a local instance
-is how a test stays isolated from it.
-
-Detection is a heuristic with an override, always in that order. A `.star`
-gives the STAR reader and Relion conventions, a `.xmd` gives the same reader
-with Xmipp conventions, and where the extension is not enough the file's
-content decides. Every one of those decisions can be overridden at the call
-site, and none of them may be the only way to reach a behaviour. Dependency
-inversion is the requirement this library exists to satisfy: readers,
-writers, conventions and columns all have to be injectable from the user's
-side, so that a client can teach the library a format it has never heard of
-without changing a line in here.
-
-## Laziness, projection and forwarding
-
-`rm.read()` returns a `ReadResult` and does no row I/O. Materialisation
-happens in `to_pandas()` / `to_polars()`, and a `ReadResult` holds no open
-file handle once the call that created it has returned: handles exist only
-for the duration of actual I/O. A reader that keeps one open breaks every
-caller that reads more files than the platform has descriptors.
-
-`columns=` reads what it says and nothing else. Reading two columns of
-forty, changing one and writing the file back still has to leave the other
-thirty-eight exactly as they were, and the way that works is that the write
-re-reads the source and substitutes as it goes, a chunk at a time. Holding
-all forty in memory on the chance that a write may come charges the whole
-file to every caller who only ever reads, and makes a file larger than RAM
-impossible.
-
-What follows from re-reading: the source has to still be there when the
-write happens, the rows have to correspond one to one — a `updates` frame of
-a different length is an error, because a filtered row forwards from nothing
-in particular — and a write over the source goes through a temporary file in
-the destination directory, renamed at the end. The destination directory
-rather than the system temp one: a rename is atomic only within a
-filesystem.
-
-## Pagination
-
-Uniform for the user, format-specific underneath. Text formats get a
-progressive index of chunk byte offsets, built as the chunks are read, over a
-memory-mapped file — so neither sequential nor random access needs a
-mandatory first full scan. SQLite and HDF5 get what they already have,
-`LIMIT`/`OFFSET` and dataset slicing.
+The invariants at the foot of this file are what none of it may violate.
+`docs/design.md` is the layer-by-layer version, with the interfaces in code,
+the read engine and the questions still open; read it before touching the
+schema or the conventions.
 
 ## Code conventions
 
@@ -351,44 +246,6 @@ where it came from and what about it is worth a test. The small invented ones
 that predate this rule stay for what they are, cases the format allows that
 no file we have happens to contain.
 
-## Dependencies
-
-| Crate / package | Why |
-|---|---|
-| `pyo3` | The Rust/Python binding |
-| `arrow` (`arrow-rs`) | Arrow on the Rust side |
-| `pyo3-arrow` | The C Data Interface bridge to Python |
-| `thiserror` | The error enums |
-| `tempfile` (dev) | Files for the parser tests |
-| `pyarrow` (Python) | The Python half of the bridge; the only hard runtime dependency |
-| `pandas`, `polars` | Extras, one per output backend |
-
-Do not enable arrow's `pyarrow` feature. It pulls in `arrow-pyarrow`, which
-pins an older pyo3 and conflicts with `pyo3-arrow`; `pyo3-arrow` is the only
-bridge needed, and the two together do not build.
-
-`arrow` and `pyo3-arrow` are one upgrade, not two. `pyo3-arrow` exports no
-arrow of its own, so the `RecordBatch` the parser builds and the one
-`PyRecordBatch::new` accepts are the same type only while both come from the
-same major; two majors in the graph and `lib.rs` stops compiling with a type
-mismatch on a `RecordBatch` that looks identical in the message. `arrow` is
-therefore capped in `renovate.json` at the major `pyo3-arrow` holds. The cap
-stays; what moves is its bound, and it moves in the same pull request that
-raises `pyo3-arrow`, never on its own.
-
-Two pins in `pyproject.toml` are split in half behind a PEP 508 marker, and
-both for the same reason: pyarrow raised its floor to 3.11 in 26.0.0 and
-pandas in 3.0.0, so the 3.10 cell has to stay behind while everything from
-3.11 up moves. Renovate does not see the marker, so `renovate.json` tells the
-two halves apart with `matchCurrentVersion` and caps only the old one. The
-`>=` ranges of the `pandas` and `polars` extras are excluded from updates
-entirely: widening them declares wider support, which is a decision for a
-person to take.
-
-The 3.10 cell is also the one that cannot have the newest of anything. When
-a dependency raises its floor to 3.11, the honest move is a third split, not
-a quiet upgrade that leaves 3.10 broken at install time.
-
 ## Working here
 
 Docs, code, comments, commits and pull requests are written in English,
@@ -443,59 +300,6 @@ its notes: a sentence of summary, then `### New`, `### Changed` and
 `### Fixed`, one short line each and no commit hashes. Releasing publishes
 it and empties it, and the versions before it live in their own releases.
 
-## Continuous integration
-
-One workflow, `build-and-test.yml`, on pull requests, on a push to `main`
-that touches something other than documentation, and on demand. A second push
-to the same ref cancels the run in flight.
-
-`keep-caches-warm.yml` runs every morning, and on a change to itself.
-
-| Job | Does |
-|---|---|
-| `build_with_cargo` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, `cargo test`, on the three platforms |
-| `build_with_pip` | `pip install .[test]`, `ruff check .` and `pytest tests/python/`, three platforms × Python 3.10 to 3.15 |
-
-`fail-fast` is off in both, so one broken cell does not hide the others. The
-two jobs run in parallel and neither waits on the other: a Rust warning and a
-Python failure are independent pieces of news, and serialising them only
-delays one of the two.
-
-`build_with_cargo` compiles and links as well as checking, because clippy
-stops at type checking and would not notice a cdylib that fails to link. It
-sets Python up for the reason given under [Building and
-testing](#building-and-testing).
-
-Both jobs cache the Rust build. The dependency tree is the whole cost of a
-run — a cold build of arrow and its neighbours is minutes, ours is seconds —
-and without a cache it was compiled twenty-one times per run, once per cell.
-
-One key per platform, not per interpreter: nothing under arrow names a
-Python, so the six cells of a platform share everything but the final build
-of this crate, which pyo3 rebuilds per interpreter anyway. The pip job also
-has to set `CARGO_TARGET_DIR`, since maturin otherwise builds in a temporary
-directory of its own that nothing can cache and nothing can find afterwards.
-
-Only `main` writes. A pull request restores and saves nothing, so one branch
-cannot evict another's, and the cache a pull request reads is the one its
-base produced. Nothing evicts them either: GitHub starts at 10 GiB and there
-are six entries.
-
-What would have dropped them is the other rule, that an entry goes a week
-after its last read. `keep-caches-warm.yml` reads all six every morning
-through the organisation's workflow, which looks each one up by prefix and
-downloads nothing — a lookup is a read, and a read is what resets the week.
-A quiet fortnight therefore costs nothing, where before it would have cost
-the next pull request a cold build on twenty-one cells.
-
-Actions are pinned by digest, and Renovate keeps both the digests and the
-dependencies moving, under a 14-day minimum release age that security
-advisories skip.
-
-There is no coverage, no SonarQube scan and no deployment. All three are
-known gaps, all three are in `docs/roadmap.md`, and none of them is an
-absence to reproduce elsewhere.
-
 ## Design invariants — do not violate
 
 - The public extension surface is the Python ABCs. Rust traits are internal,
@@ -527,8 +331,10 @@ absence to reproduce elsewhere.
 
 | File | Read it when |
 |---|---|
-| [docs/design.md](docs/design.md) | touching the schema or the conventions, or taking a decision that outlives the change: it holds the requirements, the decisions and when they were taken, the interfaces in code, the read engine, and what is still open |
+| [docs/design.md](docs/design.md) | touching the schema, the conventions or the reading model, or taking a decision that outlives the change: the requirements, the decisions and when they were taken, the interfaces in code, the read engine, and what is still open |
 | [docs/roadmap.md](docs/roadmap.md) | picking up work, or finishing a phase: the ordered phases and where they stand |
+| [docs/ci.md](docs/ci.md) | touching a workflow, or wondering why a run costs what it costs: the jobs, the cache and what keeps it warm |
+| [docs/dependencies.md](docs/dependencies.md) | adding, raising or pinning a dependency: the feature that must stay off, the two crates that move as one, and why two pins are split |
 | the issue tracker | looking for what is missing — loose ends are issues, not a list in a file |
 
 A document says what is. The history is in the commits, so nothing here
