@@ -332,6 +332,7 @@ it and empties it, and the versions before it live in their own releases.
 | File | Read it when |
 |---|---|
 | [docs/design.md](docs/design.md) | touching the schema, the conventions or the reading model, or taking a decision that outlives the change: the requirements, the decisions and when they were taken, the interfaces in code, the read engine, and what is still open |
+| [docs/canonical.md](docs/canonical.md) | touching a convention, a column or a unit: the canonical vocabulary, the tables it composes, and the conventions every format converts into |
 | [docs/roadmap.md](docs/roadmap.md) | picking up work, or finishing a phase: the ordered phases and where they stand |
 | [docs/ci.md](docs/ci.md) | touching a workflow, or wondering why a run costs what it costs: the jobs, the cache and what keeps it warm |
 | [docs/dependencies.md](docs/dependencies.md) | adding, raising or pinning a dependency: the feature that must stay off, the two crates that move as one, and why two pins are split |

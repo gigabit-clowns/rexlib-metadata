@@ -68,7 +68,8 @@ removes that.
 ## Phase 2 — Schema, conventions and Relion4
 
 - [ ] `ColumnDescriptor`, `SchemaTrait`, `TableSchema`, `Schema` in
-      `python/rexlib_metadata/schema.py`
+      `python/rexlib_metadata/schema.py`, carrying the unit as well as the
+      type, against the catalogue in `docs/canonical.md`
 - [ ] `TableSchema.__init__` flattens traits and deduplicates: same type
       keeps the first, different type raises
 - [ ] `ReadConvention` and `WriteConvention` ABCs in `abc.py`, replacing the
