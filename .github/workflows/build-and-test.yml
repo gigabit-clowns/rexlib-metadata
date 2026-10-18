@@ -38,9 +38,15 @@ jobs:
           python-version: '3.14'
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           components: rustfmt, clippy
+
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: cargo-${{ matrix.os }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Check formatting
         run: cargo fmt --check
@@ -63,6 +69,8 @@ jobs:
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
 
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -74,6 +82,12 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: pip-${{ matrix.os }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install package and test dependencies
         run: pip install .[test] -v
