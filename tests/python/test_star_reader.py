@@ -69,3 +69,21 @@ def test_to_polars_all_strings():
     df = rm.read(str(MINI)).to_polars()
     for col in df.columns:
         assert df[col].dtype == pl.String
+
+
+QUOTED = FIXTURES / "quoted.star"
+
+
+def test_quoted_paths_keep_their_spaces():
+    df = rm.read(str(QUOTED)).to_pandas()
+    assert list(df["_rlnMicrographName"]) == [
+        "folder with spaces/mic 001.mrcs",
+        "another folder/mic 002.mrcs",
+        "plain/mic_003.mrcs",
+    ]
+
+
+def test_trailing_comment_is_not_a_value():
+    df = rm.read(str(QUOTED)).to_pandas()
+    assert df.shape == (3, 3)
+    assert list(df["_rlnCoordinateX"]) == ["1024.0", "2048.0", "3072.0"]

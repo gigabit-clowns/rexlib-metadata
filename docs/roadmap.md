@@ -10,39 +10,28 @@ add the items a pull request discovers rather than leaving them in a comment.
 
 ## Where the work stands
 
-Phases 0 and 1 are done and on `main`. The STAR reader reads one block of one
-file into an Arrow `RecordBatch` of `Utf8` columns, and `rm.read(...)`
-returns a lazy `ReadResult` that materialises into pandas or polars.
+Phases 0 and 1 are on `main`. Phase 1b, the rewrite of the STAR reader, is
+finished on the `parser` branch and is what main is waiting for: the single
+`src/star.rs` became `src/star/{lexer,parser,builder,mod}.rs`, and with it
+came quoted values, comments, typed `StarError`s carrying path and line,
+multi-block parsing, and the Rust half of CI. Both suites are green, 31 tests
+in Rust and 15 in Python.
 
-The `parser` branch is a rewrite of that reader, not new surface. It replaces
-the single `src/star.rs` with `src/star/{lexer,parser,builder,mod}.rs`, adds
-quoted values, comments, typed `StarError`s carrying path and line, and
-multi-block parsing. `tokenize_line` and `build_record_batch` are finished
-and tested; `parse_blocks` in `src/star/parser.rs` is a `todo!()` with its
-seven tests already written and failing, which is the next thing to write.
+What the STAR parser does not do, and that a real file may yet ask for:
 
-Its contract, since the code does not carry it:
+- A data row spread over several lines, which the format allows and no
+  writer we target produces.
+- More than one `loop_` in a data block, which the `StarBlock` model has
+  nowhere to put.
+- Blocks of `_name value` pairs with no `loop_`, which Relion writes in its
+  optimiser files. The lexer rejects the line, so this is a lexer change
+  before it is a parser one.
 
-- Read the whole file and return every `data_` block in it.
-- Go through `tokenize_line`, which is what makes quoting and comments
-  somebody else's problem.
-- Zero blocks is not an error at this level; `read_schema` and `read_all`
-  are where an empty file becomes one.
-- A block with columns and no rows is valid.
-- A `Token::DataBlock` while rows are being read closes the block and opens
-  the next.
-- A row whose value count disagrees with the declared columns is a
-  `StarError::Parse` naming the line, counted from 1.
+Each of the three is an error naming the line, never a silent skip.
 
 `read_schema` and `read_all` in `src/star/mod.rs` still take the last block
-of the file and drop the rest. That stays until Phase 6 gives the Python side
-somewhere to put the others.
-
-CI is red on this branch on purpose, and knowing why saves reading the log:
-clippy runs at `-D warnings`, and with `parse_blocks` unwritten nothing calls
-the lexer, so every one of its functions is reported as dead code. The ten
-warnings are all that shape and all of them go away with the function. The
-`build_with_pip` job is unaffected, since `todo!()` compiles.
+of the file and drop the rest. Multi-table is the next slice, and it is what
+removes that.
 
 ## Phase 0 — Skeleton and CI ✅
 
@@ -66,14 +55,15 @@ warnings are all that shape and all of them go away with the function. The
 - [x] Fixtures and integration tests
 - [x] pytest in CI
 
-## Phase 1b — Parser rewrite (in progress, branch `parser`)
+## Phase 1b — Parser rewrite ✅
 
 - [x] Split into lexer, parser and builder
 - [x] `StarError` with path and line, replacing `Result<_, String>`
 - [x] `tokenize_line`: quoting, comments, single-token headers
-- [ ] `parse_blocks`: the state machine over the tokens
-- [ ] Keep the Python suites green against the rewritten reader
-- [ ] Fixtures for quoted values and for a multi-block file
+- [x] `parse_blocks`: the state machine over the tokens
+- [x] Keep the Python suites green against the rewritten reader
+- [x] A fixture of quoted paths and trailing comments, read end to end
+- [x] `cargo fmt`, clippy and `cargo test` in CI, on the three platforms
 
 ## Phase 2 — Schema, conventions and Relion4
 
