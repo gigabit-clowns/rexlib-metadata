@@ -114,11 +114,14 @@ Arrow, so one representation serves both without a second copy and without
 either becoming a hard dependency — they are extras, imported only where a
 `to_pandas()` / `to_polars()` call actually asks for them.
 
-The reader produces every value as `Utf8`. No number is guessed, no date is
-recognised, nothing is inferred from the look of a token. Typing is the
-schema's job and conversion is the convention's job; a reader that types on
-its own takes a decision away from the layer allowed to take it. Strings go
-in and strings come out, until a convention says otherwise.
+A reader never infers a type. No number is guessed, no date is recognised,
+nothing is read out of the look of a token: typing is the schema's job and
+conversion is the convention's job, and a reader that types on its own takes
+a decision away from the layer allowed to take it. For STAR and XMD, which
+state no types, that means every value arrives as `Utf8` and leaves as
+`Utf8` until a convention says otherwise. A format that does state its
+types — SQLite, HDF5 — is reported as it declares them, which is not
+inference but transcription.
 
 `pyo3-arrow` returns an `arro3` object rather than a `pyarrow` one. arro3 is
 not a dependency and must not become one: the object is consumed through the
@@ -207,12 +210,21 @@ file handle once the call that created it has returned: handles exist only
 for the duration of actual I/O. A reader that keeps one open breaks every
 caller that reads more files than the platform has descriptors.
 
-`columns=` is a projection, never a load optimisation. The full batch is
-always read, the selected columns are what the user sees, and the rest are
-carried along silently so that a write can forward them untouched. Reading
-two columns of forty, changing one and writing the file back has to leave the
-other thirty-eight exactly as they were, and that only works if they were
-never dropped.
+`columns=` reads what it says and nothing else. Reading two columns of
+forty, changing one and writing the file back still has to leave the other
+thirty-eight exactly as they were, and the way that works is that the write
+re-reads the source and substitutes as it goes, a chunk at a time. Holding
+all forty in memory on the chance that a write may come charges the whole
+file to every caller who only ever reads, and makes a file larger than RAM
+impossible.
+
+What follows from re-reading: the source has to still be there when the
+write happens, the rows have to correspond one to one — a `updates` frame of
+a different length is an error, because a filtered row forwards from nothing
+in particular — and a write over the source goes through a temporary file in
+the destination directory, renamed at the end. The destination directory
+rather than the system temp one: a rename is atomic only within a
+filesystem.
 
 ## Pagination
 
@@ -334,10 +346,16 @@ absence to reproduce elsewhere.
 
 - The public extension surface is the Python ABCs. Rust traits are internal,
   and `_rexlib` is private.
-- Readers produce `Utf8` for everything. No type inference in a reader.
+- A reader never infers a type. It reports the types the format states, and
+  for a format that states none, as STAR does, that means `Utf8` for
+  everything and the typing left to the schema.
+- Missing is Arrow's null and nothing else. A value that does not parse is
+  an error naming the line, not a null; a format's sentinels are translated
+  by its conventions, never by the core.
 - A `ReadResult` holds no open file handle once `read()` has returned.
-- `columns=` is a view. The full batch is always loaded, so that a write can
-  forward the columns the user never asked for.
+- `columns=` reads only the columns asked for. Forwarding the rest on write
+  re-reads the source rather than holding it in memory, and writes through a
+  temporary file in the destination directory.
 - Read and write are separate pipelines with separate conventions. Neither
   may be written as the inverse of the other.
 - A raw table is matched to a canonical table by column presence, through

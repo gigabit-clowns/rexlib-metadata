@@ -70,6 +70,51 @@ would make the result depend on registration order in a way nobody can
 predict from the outside. A bundle is a coherent unit: it wins or it loses as
 one.
 
+**Missing is null, and nothing else** (2026-10-18). Arrow's null is the only
+representation of an absent value in the canonical form. A token that does
+not parse into the declared type is an error naming the file and the line,
+never a silent null: `_rlnDefocusU` holding `abc` is a broken file and the
+caller has to hear about it. Sentinels — Xmipp's `-999` and its kin — are
+knowledge about a format, so they are translated by the read convention that
+knows them and written back by the write convention, and the core never
+learns they exist. `ColumnDescriptor.default` is a different thing: it covers
+a column the file does not carry at all.
+
+**Forwarding re-reads the source** (2026-10-18). A projection reads only the
+columns asked for. `write(path, updates=df)` streams the source again and
+emits the output substituting the columns that changed, so memory is one
+chunk rather than the whole file, and a file larger than RAM still works.
+The earlier design held every column in memory on every read to make this
+possible, which charged the whole file to callers who never write.
+
+Three things follow. The source has to still be there at write time, and the
+caller is trusted not to move it from under us — a guard on size and mtime
+was considered and dropped as distrust of the user for a mistake only the
+user can make; if concurrent writers ever become a real problem, an advisory
+lock is the answer, not a heuristic. The rows have to correspond one to one,
+so a different row count is an error saying that filtering makes the caller
+the owner of every column: there is no sane answer to which source row a
+filtered row forwards from. And writing over the source goes through a
+temporary file **in the destination directory**, renamed at the end, since
+a rename is only atomic within one filesystem and a temporary in the system
+temp directory would degrade into a copy.
+
+**The canonical form normalizes, it does not rename** (2026-10-18). A
+canonical column whose only merit is dropping the `rln` prefix leaves the
+consumer knowing which program wrote the row, which is what the canonical
+form exists to spare them. So: units are fixed and declared on the column
+rather than spelled in its name, shifts in Ångström because pixels mean
+nothing across a change of binning, angles in degrees, one documented
+rotation convention that every format converts into. Image references are
+split into a path as written and a zero-based index, because the consumer
+indexes arrays and because a plain string and a plain integer are usable by
+`mrcfile`, by vitrio, or by anything else — this library depends on no image
+library and names none in its API. Paths are kept exactly as the file writes
+them, since Relion resolves them against a project directory that the file
+does not state. The model stays relational, tables and the relations between
+them, and the convenience of a flat per-row view with the optics joined in is
+served on top of it, with the group kept so that writing can split it again.
+
 ## The schema layer
 
 ```python
@@ -198,17 +243,31 @@ result.write("output.star", updates=df)
 
 ## Formats
 
-Implementation order: Relion4/5 STAR, then XMD, then SQLite, then HDF5.
+Implementation order, settled 2026-10-18: Relion 4 and 5 STAR first and
+properly, then Xmipp3 XMD, then cryoSPARC, and the stored formats — SQLite,
+PostgreSQL, HDF5 — after that, one at a time. What the early formats owe the
+later ones is an architecture that takes them without being rearranged.
 
 | Extension | Reader | Conventions |
 |---|---|---|
-| `.star` | `StarReader` | Relion4, Relion3 |
-| `.xmd` | `StarReader` | Xmipp |
+| `.star` | `StarReader` | Relion 4/5, Relion 3 |
+| `.xmd` | `StarReader` | Xmipp3 |
+| `.cs` | `CryosparcReader` | cryoSPARC |
 | `.db`, `.sqlite` | `SqliteReader` | — |
 | `.h5`, `.hdf5` | `Hdf5Reader` | — |
 
 XMD is STAR with different column names, which is exactly the split the
 convention layer exists for: one reader, two bundles.
+
+cryoSPARC is not. A `.cs` file is a NumPy structured array on disk, so it
+needs a reader of its own, and it is the format that makes the M:N relation
+real rather than theoretical: its `alignments3D/pose` is one column holding a
+rotation vector that feeds three canonical angles. That is a good reason to
+reach it early — the convention layer is only proven once something bends it.
+
+The name of the library is not settled. `vitrio-metadata` is the other
+candidate, and the decision is taken before the first PyPI release, which is
+also the last moment it is free.
 
 ## Pagination
 
@@ -241,9 +300,17 @@ holds what connects them.
 requirement, but which bytes decide, and how far into the file the sniffing
 is allowed to read, is not settled.
 
-**Strict typing at the edges.** Missing values, sentinel values and the
-Relion conventions around them have no answer yet. `ColumnDescriptor.default`
-covers an absent column, not an absent cell.
+**The rotation convention.** One has to be picked and written down, in
+enough detail that a reader of the catalog can convert into it without
+guessing: which Euler angles, intrinsic or extrinsic, and which direction the
+rotation maps. Relion and Xmipp agree on ZYZ and disagree on signs;
+cryoSPARC stores an axis-angle vector instead. This is the next thing to
+settle, in `docs/canonical.md`.
+
+**Table relations.** The optics group is the case that exists today, and
+joining it into a flat view is decided. What is not decided is how a relation
+between two canonical tables is declared, so that the join is data rather
+than a special case written into the Relion bundle.
 
 ## References
 
