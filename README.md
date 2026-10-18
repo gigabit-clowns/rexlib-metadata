@@ -55,24 +55,24 @@ print(df.dtypes)
 Subclass `Reader` to add support for any format without touching Rust:
 
 ```python
-from rexlib_metadata.abc import Reader
-from rexlib_metadata.result import ReadResult
-from rexlib_metadata.registry import global_registry
 import pyarrow as pa
+from rexlib_metadata.abc import Reader
+from rexlib_metadata.registry import global_registry
 
 class MyFormatReader(Reader):
     def read_all(self, path: str) -> pa.Table:
         # parse your format, return an Arrow Table
         ...
 
-    def read(self, path: str, **kwargs) -> ReadResult:
-        return ReadResult(path, self)
-
-global_registry.register_reader([".myext"], MyFormatReader)
+global_registry.register_reader([".myext"], MyFormatReader())
 
 # Now rm.read() dispatches to your reader automatically
 result = rm.read("data.myext")
 ```
+
+`read_all` is all a reader has to write: `Reader.read` already returns the
+lazy result, and leaving it alone is what keeps the file closed until
+somebody asks for rows.
 
 ## Development
 

@@ -1,5 +1,14 @@
+import pyarrow as pa
+import pytest
+
+from rexlib_metadata.abc import Reader
 from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.registry import MetadataRegistry
+
+
+class _Reader(Reader):
+    def read_all(self, path):
+        return pa.table({"a": [1]})
 
 
 def test_bundles_come_back_in_priority_order():
@@ -36,10 +45,22 @@ def test_an_extension_is_matched_whatever_its_case():
 
 
 def test_an_extension_with_no_reader_raises():
+    with pytest.raises(ValueError, match="No reader registered"):
+        MetadataRegistry().reader_for("data.csv")
+
+
+def test_the_registered_reader_is_the_one_handed_back():
+    reader = _Reader()
     registry = MetadataRegistry()
-    try:
-        registry.reader_for("data.csv")
-    except ValueError as error:
-        assert "No reader registered" in str(error)
-    else:
-        raise AssertionError("expected a ValueError")
+    registry.register_reader([".star"], reader)
+
+    assert registry.reader_for("x.star") is reader
+    assert registry.reader_for("X.STAR") is reader
+
+
+def test_reading_goes_through_the_reader_of_the_extension():
+    reader = _Reader()
+    registry = MetadataRegistry()
+    registry.register_reader([".star"], reader)
+
+    assert registry.read("x.star")._reader is reader

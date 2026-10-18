@@ -255,5 +255,9 @@ def test_two_raw_tables_each_give_what_they_have():
         ConventionBundle("relion4", [Images(), Voltage()]),
         raw_tables=(optics, RAW),
     )
-    assert table.column("image_path").to_pylist() == ["a.mrcs", "b.mrcs", "c.mrcs"]
+    assert table.column("image_path").to_pylist() == [
+        "a.mrcs",
+        "b.mrcs",
+        "c.mrcs",
+    ]
     assert table.column("angle_tilt").to_pylist() == [300.0, 300.0, 300.0]
