@@ -46,10 +46,12 @@ def read_canonical(
 def _candidates(
     bundles: Iterable[ConventionBundle], raw_tables: tuple[RawTable, ...]
 ) -> Iterator[tuple[ConventionBundle, RawTable, ReadConvention]]:
-    for bundle in bundles:
-        for raw in raw_tables:
-            for convention in bundle.read_conventions:
-                yield bundle, raw, convention
+    return (
+        (bundle, raw, convention)
+        for bundle in bundles
+        for raw in raw_tables
+        for convention in bundle.read_conventions
+    )
 
 
 def _has_something_to_add(
@@ -133,18 +135,18 @@ def _check_required(covered: dict[str, pa.Array], schema: TableSchema) -> None:
 def _assemble(
     covered: dict[str, pa.Array], schema: TableSchema, rows: int
 ) -> pa.Table:
-    names: list[str] = []
-    arrays: list[pa.Array] = []
-    for column in schema:
-        array = covered.get(column.name)
-        if array is None:
-            if column.default is None:
-                continue
-            array = _constant(column, rows)
-        names.append(column.name)
-        arrays.append(array)
-    return pa.table(arrays, names=names)
+    return pa.table(
+        {
+            column.name: _column(column, covered, rows)
+            for column in schema
+            if column.name in covered or column.default is not None
+        }
+    )
 
 
-def _constant(column: ColumnDescriptor, rows: int) -> pa.Array:
+def _column(
+    column: ColumnDescriptor, covered: dict[str, pa.Array], rows: int
+) -> pa.Array:
+    if column.name in covered:
+        return covered[column.name]
     return pa.array([column.default] * rows, type=column.dtype)
