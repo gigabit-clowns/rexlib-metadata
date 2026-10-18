@@ -49,6 +49,7 @@ invariants at the end of this file already bind what gets written.
 | `python/rexlib_metadata/_rexlib.pyi` | Stubs for the compiled module |
 | `tests/python/` | pytest suites, with their sample files in `fixtures/` |
 | `docs/` | Design notes and roadmap: everything too specific for this file |
+| `CHANGELOG.md` | What a user of the package would notice, newest first |
 
 Rust unit tests live in a `mod tests` at the foot of the file they cover,
 which is why there is no `tests/rust/`. `tests/` is the Python side only.
@@ -251,6 +252,17 @@ behind. The Python side has no linter yet, unlike the sibling repositories —
 in the same pull request, or the Python side is typed against something that
 no longer exists.
 
+A class that implements an interface is named after it, with what sets it
+apart in front: `StarReader` is a `Reader`, `Relion4Bundle` is a
+`ConventionBundle`. The name says what the thing is before the reader has to
+open it.
+
+Nothing that comes out of a file may reach a panic. A malformed file is an
+error with a line number, so arithmetic over counts and offsets read from one
+is checked, and nothing indexes with a number the file supplied. `expect` is
+for what the code has just proven about itself, never for what a file
+promised.
+
 ### Comments
 
 As few as possible, and none at all wherever that is possible. A comment says
@@ -270,6 +282,12 @@ What does stay is the thing that is not a comment at all — a docstring, a
 `# noqa`, an attribute — and, where a contract has to be written down
 somewhere, `docs/` is where it goes.
 
+There is not a single `TODO` in the repository, and there is not meant to be.
+Unfinished work is an issue: a comment nobody is assigned to, that no search
+finds and that no pull request closes, is a way of forgetting something in
+writing. `docs/roadmap.md` keeps the plan — the phases, in order — and
+everything else that is missing lives in the tracker.
+
 The package targets Python 3.9. Every module that annotates anything opens
 with `from __future__ import annotations`, and `X | None` is written only
 under it. pandas, polars and even pyarrow go inside `if TYPE_CHECKING:` where
@@ -285,6 +303,10 @@ has just proven, and its message names the guard that proves it.
 Tests come first and they stay small. A Rust module keeps its tests at its
 own foot in `mod tests`; the Python suites live under `tests/python/`, with
 fixtures as small as they can be while still showing what they are about.
+
+A test that writes names its file through `tempfile` in Rust or `tmp_path` in
+pytest, never a fixed path. Cases run at once, and two of them agreeing on a
+name is a failure that only shows up on somebody else's machine.
 
 ## Dependencies
 
@@ -325,6 +347,11 @@ Whoever opens one assigns it to themselves and gives it the label, among the
 repository's own, that matches what it changes: `bug` for a fix,
 `enhancement` for something new, `documentation` when only documentation
 changes.
+
+A change a user would notice adds its line to `CHANGELOG.md`, under
+`Unreleased`, in the same pull request. A refactor, a test or a workflow
+does not: the changelog is read by people who install the package, not by
+people who work on it.
 
 ## Continuous integration
 

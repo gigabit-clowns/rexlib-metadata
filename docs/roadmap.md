@@ -141,53 +141,16 @@ removes that.
 - [ ] `.h5` and `.hdf5` registered
 - [ ] Tests: read and write datasets
 
-## Backlog
+## What is not here
 
-Not attached to a phase. Roughly in the order they hurt.
+Loose ends are issues, not a list in this file: an item nobody is assigned to
+and no pull request closes is a way of forgetting something in writing. The
+tracker holds the licensing scheme and the SPDX headers that follow it (#35),
+the arrow cap and what lifts it (#36), the stub that names arro3 (#37), the
+import cycle in `registry.py` (#38), SonarQube and CodeQL (#39), publishing
+(#40), and STAR's blocks of `_name value` pairs (#41).
 
-- **arrow is capped below 60 until pyo3-arrow can hold it.** `renovate.json`
-  caps it and says why; the paragraph on the two of them in `AGENTS.md` says
-  what breaks without the cap. The cap is not a thing to delete when this
-  clears, it is a bound to move: arrow may never pass the major pyo3-arrow
-  pins, so the rule outlives any particular number. When a pyo3-arrow built
-  against a newer arrow appears, its own Renovate pull request is the signal,
-  and one pull request does all of it — raise pyo3-arrow, raise arrow, move
-  the bound, and rewrite the two versions the rule's description names.
-
-  The trail upstream, so that nobody has to find it twice. arrow-rs
-  [#10431](https://github.com/apache/arrow-rs/pull/10431) made the FFI struct
-  fields private and shipped in arrow 60, which is what broke pyo3-arrow;
-  its author answered with
-  [#11125](https://github.com/apache/arrow-rs/pull/11125), merged three days
-  after 60 went out and therefore still unreleased, due in the minor tracked
-  by [#10525](https://github.com/apache/arrow-rs/issues/10525). arro3
-  [#513](https://github.com/kylebarron/arro3/pull/513) is the pyo3-arrow side,
-  a draft waiting on that release.
-  [#11161](https://github.com/apache/arrow-rs/pull/11161) is the other road,
-  an `ArrayReader` concept upstream, which would fix the underlying problem
-  ([#6586](https://github.com/apache/arrow-rs/issues/6586)) and take longer.
-- **No linter on the Python side.** `rexlib-python` lints with ruff in CI and
-  this repository lints only its Rust. Its `ruff.toml` is the one to copy
-  from, minus the tab-indentation ignore.
-- **`_rexlib.pyi` references `arro3.core`**, which is not a dependency and
-  cannot be imported by a type checker here. The stub should describe what
-  the caller is allowed to assume — an object exposing the Arrow protocol —
-  rather than name a package that is not installed.
-- **No SonarQube scan and no coverage**, unlike the sibling repositories.
-- **No CD.** Nothing is published, not even a development pre-release.
-  Phase 6 carries it, and it does not have to wait for Phase 6.
-- **The `Convention` ABC in `abc.py` is dead weight**, with its
-  `matches`/`apply`/`to_file_name`/`to_canonical_name` shape that Phase 2
-  discards. So is `GenericStarConvention`. Neither is referenced by anything
-  that runs; both go when Phase 2 lands.
-- **`registry.py` imports `StarReader` at the bottom of the module** to break
-  a cycle. It works, but the cycle is the thing to remove — registration
-  belongs somewhere that does not force an import order.
-- **Teaching comments in `src/star/`.** The comment block in `mod.rs`
-  explaining what `thiserror` generates, and the exercise brief above
-  `parse_blocks`, are notes to the author rather than documentation of the
-  code. Decide whether they stay before the branch merges.
-- **No `CHANGELOG.md`**, which every other repository of the suite keeps.
+This file keeps the plan: the phases, in the order they are meant to happen.
 
 ## Deferred
 
