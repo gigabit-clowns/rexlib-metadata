@@ -22,22 +22,3 @@ class Reader(ABC):
     def read(self, path: str, **kwargs) -> ReadResult:
         """Return a lazy result over `path`, reading no row yet."""
 
-
-class Convention(ABC):
-    """Maps the columns of a file onto canonical ones."""
-
-    @abstractmethod
-    def matches(self, raw_schema: tuple[str, list[str]]) -> bool:
-        """Say whether this convention applies to a raw table's schema."""
-
-    @abstractmethod
-    def apply(self, batch: pa.Table) -> pa.Table:
-        """Return the table with its columns in canonical form."""
-
-    @abstractmethod
-    def to_file_name(self, canonical_name: str) -> str:
-        """Return the name this convention writes a canonical column under."""
-
-    @abstractmethod
-    def to_canonical_name(self, file_name: str) -> str:
-        """Return the canonical name of a column named as the file names it."""

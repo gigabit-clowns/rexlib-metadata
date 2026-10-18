@@ -41,9 +41,9 @@ knowing which of the two it is talking about:
 | STAR reader, values as strings, one block | Built, `src/star/` |
 | Arrow as the canonical representation | Built |
 | `Reader` ABC, `MetadataRegistry`, `ReadResult` | Built, minimal |
-| `Convention` ABC in `abc.py` | A placeholder; Phase 2 replaces it |
+| Convention layer (`ReadConvention`, `WriteConvention`, `ConventionBundle`) | Built, `python/rexlib_metadata/convention.py`; the engine that drives them is not |
 | Schema layer (`ColumnDescriptor`, `TableSchema`, …) | Built, `python/rexlib_metadata/schema.py`; the catalogue it will carry is `docs/canonical.md` |
-| `ReadConvention` / `WriteConvention`, bundles, engine | Designed, not written |
+| The read engine, and the Relion bundle it drives | Designed, not written |
 | Writers, chunking, multi-table, XMD, SQLite, HDF5 | Designed, not written |
 
 `docs/roadmap.md` is the authority on what comes next and in which order.
@@ -60,6 +60,8 @@ invariants at the end of this file already bind what gets written.
 | `src/star/builder.rs` | `StarBlock` rows to an Arrow `RecordBatch` |
 | `src/star/mod.rs` | `StarError`, `RawSchema`, and the crate-facing `read_schema` / `read_all` |
 | `python/rexlib_metadata/` | The public Python package |
+| `python/rexlib_metadata/schema.py` | The canonical columns and the tables they compose |
+| `python/rexlib_metadata/convention.py` | The convention interfaces and the bundles that group them |
 | `python/rexlib_metadata/_rexlib.pyi` | Stubs for the compiled module |
 | `tests/python/` | pytest suites, with their sample files in `fixtures/` |
 | `docs/` | Design notes and roadmap: everything too specific for this file |

@@ -87,3 +87,4 @@ def test_trailing_comment_is_not_a_value():
     df = rm.read(str(QUOTED)).to_pandas()
     assert df.shape == (3, 3)
     assert list(df["_rlnCoordinateX"]) == ["1024.0", "2048.0", "3072.0"]
+

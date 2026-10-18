@@ -74,11 +74,12 @@ removes that.
       declaration collapses, a disagreeing one raises
 - [ ] The catalogue of `docs/canonical.md` as traits and tables, once a real
       file has settled the conventions it leaves open
-- [ ] `ReadConvention` and `WriteConvention` ABCs in `abc.py`, replacing the
-      placeholder `Convention`
-- [ ] `ConventionBundle`, validating `target_columns` do not overlap within
-      the bundle at `register()`
-- [ ] `MetadataRegistry.register_bundle(extension, bundle, *, prepend=False)`
+- [x] `ReadConvention` and `WriteConvention` ABCs in `convention.py`, with
+      `RawSchema`, replacing the placeholder `Convention`
+- [x] `ConventionBundle`, validating when it is built that no two
+      conventions produce the same column and that none produces nothing
+- [x] `MetadataRegistry.register_bundle(extensions, bundle, *, prepend=False)`
+      and `bundles_for(path)`
 - [ ] The read engine: bundles in order × raw tables × matching conventions,
       first write per canonical column wins, missing required columns raise
 - [ ] `Relion4Bundle`, one `ReadConvention` per column group, matching on
