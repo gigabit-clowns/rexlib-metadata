@@ -251,13 +251,27 @@ class WriteConvention(ABC):
 
 
 class ConventionBundle:
-    name: str                               # "relion4"
-    read_conventions: list[ReadConvention]
-    write_conventions: list[WriteConvention]
+    name: str                                 # "relion4"
+    read_conventions: tuple[ReadConvention, ...]
+    write_conventions: tuple[WriteConvention, ...]
 ```
 
-`register()` validates that no two `ReadConvention`s of the bundle declare
-the same element in `target_columns`, and raises on the spot if they do.
+Written, in `python/rexlib_metadata/convention.py`, along with `RawSchema`,
+which is a raw table's name and column names and answers `has()` for the
+columns a `matches()` is looking for.
+
+A bundle validates itself when it is built, rather than when it is
+registered: it is immutable, so that is the first and last moment anything
+could be wrong, and the registry has nothing left to check. Three ways to
+be wrong:
+
+- two `ReadConvention`s declaring the same canonical column
+- two `WriteConvention`s declaring the same file column, which the design
+  did not mention and is the same ambiguity seen from the other side
+- a convention declaring no `target_columns` at all, which nothing would
+  ever ask for
+
+Each raises naming the bundle, the column and both conventions.
 
 ### The read engine
 

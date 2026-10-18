@@ -5,7 +5,7 @@ from __future__ import annotations
 import pyarrow as pa
 
 from rexlib_metadata._rexlib import _star_read
-from rexlib_metadata.abc import Convention, Reader
+from rexlib_metadata.abc import Reader
 from rexlib_metadata.result import ReadResult
 
 
@@ -26,26 +26,6 @@ def _to_pyarrow_table(obj) -> pa.Table:
     if hasattr(obj, '__arrow_c_array__'):
         return pa.Table.from_batches([pa.record_batch(obj)])
     raise TypeError(f"Cannot convert {type(obj).__name__} to pyarrow.Table")
-
-
-class GenericStarConvention(Convention):
-    """Passthrough: no column renaming or type conversion."""
-
-    def matches(self, raw_schema: tuple[str, list[str]]) -> bool:
-        """Never claim a table: this convention is only ever asked for."""
-        return False
-
-    def apply(self, batch: pa.Table) -> pa.Table:
-        """Return the table as it came."""
-        return batch
-
-    def to_file_name(self, canonical_name: str) -> str:
-        """Return the name unchanged."""
-        return canonical_name
-
-    def to_canonical_name(self, file_name: str) -> str:
-        """Return the name unchanged."""
-        return file_name
 
 
 class StarReader(Reader):
