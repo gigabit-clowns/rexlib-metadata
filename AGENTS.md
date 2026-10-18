@@ -457,6 +457,22 @@ stops at type checking and would not notice a cdylib that fails to link. It
 sets Python up for the reason given under [Building and
 testing](#building-and-testing).
 
+Both jobs cache the Rust build. The dependency tree is the whole cost of a
+run — a cold build of arrow and its neighbours is minutes, ours is seconds —
+and without a cache it was compiled twenty-one times per run, once per cell.
+
+One key per platform, not per interpreter: nothing under arrow names a
+Python, so the six cells of a platform share everything but the final build
+of this crate, which pyo3 rebuilds per interpreter anyway. The pip job also
+has to set `CARGO_TARGET_DIR`, since maturin otherwise builds in a temporary
+directory of its own that nothing can cache and nothing can find afterwards.
+
+Only `main` writes. A pull request restores and saves nothing, so one branch
+cannot evict another's, and the cache a pull request reads is the one its
+base produced. GitHub drops an entry a week after its last read and evicts by
+last read over 10 GiB, neither of which bites while main is the only writer
+and three entries per job the only entries.
+
 Actions are pinned by digest, and Renovate keeps both the digests and the
 dependencies moving, under a 14-day minimum release age that security
 advisories skip.
