@@ -442,6 +442,8 @@ One workflow, `build-and-test.yml`, on pull requests, on a push to `main`
 that touches something other than documentation, and on demand. A second push
 to the same ref cancels the run in flight.
 
+`keep-caches-warm.yml` runs every morning, and on a change to itself.
+
 | Job | Does |
 |---|---|
 | `build_with_cargo` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, `cargo test`, on the three platforms |
@@ -469,9 +471,15 @@ directory of its own that nothing can cache and nothing can find afterwards.
 
 Only `main` writes. A pull request restores and saves nothing, so one branch
 cannot evict another's, and the cache a pull request reads is the one its
-base produced. GitHub drops an entry a week after its last read and evicts by
-last read over 10 GiB, neither of which bites while main is the only writer
-and three entries per job the only entries.
+base produced. Nothing evicts them either: GitHub starts at 10 GiB and there
+are six entries.
+
+What would have dropped them is the other rule, that an entry goes a week
+after its last read. `keep-caches-warm.yml` reads all six every morning
+through the organisation's workflow, which looks each one up by prefix and
+downloads nothing — a lookup is a read, and a read is what resets the week.
+A quiet fortnight therefore costs nothing, where before it would have cost
+the next pull request a cold build on twenty-one cells.
 
 Actions are pinned by digest, and Renovate keeps both the digests and the
 dependencies moving, under a 14-day minimum release age that security
