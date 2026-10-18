@@ -115,7 +115,49 @@ does not state. The model stays relational, tables and the relations between
 them, and the convenience of a flat per-row view with the optics joined in is
 served on top of it, with the group kept so that writing can split it again.
 
+## The canonical representation
+
+Apache Arrow is the canonical in-memory form: `arrow-rs` on the Rust side,
+the C Data Interface across the boundary. pandas and polars are both built on
+Arrow, so one representation serves both without a second copy and without
+either becoming a hard dependency — they are extras, imported only where a
+`to_pandas()` / `to_polars()` call actually asks for them.
+
+A reader never infers a type. No number is guessed, no date is recognised,
+nothing is read out of the look of a token: typing is the schema's job and
+conversion is the convention's job, and a reader that types on its own takes
+a decision away from the layer allowed to take it. For STAR and XMD, which
+state no types, that means every value arrives as `Utf8` and leaves as
+`Utf8` until a convention says otherwise. A format that does state its
+types — SQLite, HDF5 — is reported as it declares them, which is not
+inference but transcription.
+
+`pyo3-arrow` returns an `arro3` object rather than a `pyarrow` one. arro3 is
+not a dependency and must not become one: the object is consumed through the
+Arrow protocol methods it exposes, which is what `_to_pyarrow_table` in
+`conventions/star.py` does. Any new Rust entry point returning Arrow goes
+through that same function.
+
 ## The schema layer
+
+The schema defines the canonical column structure and knows nothing about any
+file format. A `ColumnDescriptor` is one canonical column — name, Arrow type,
+and a default whose absence means the column is required. A `SchemaTrait` is
+a reusable group of related columns, `EulerAngles` or `CartesianPosition`,
+and exists only so that tables can be composed out of them; it flattens into
+the table and has no identity at run time. A `TableSchema` is one table's full
+column set, and a `Schema` is one or more tables, which is what a multi-block
+Relion file needs.
+
+Composition deduplicates: the same name with the same type across two traits
+keeps the first silently, the same name with a different type is an error at
+construction. Failing there rather than at read time is the point — a
+contradictory schema is a programming mistake, not a data problem.
+
+Validation is strict in the other direction too. An unknown column raises; it
+is never passed through quietly.
+
+### In code
 
 ```python
 @dataclass
@@ -138,6 +180,41 @@ table.
 and `data_optics` produces a `Schema` with two tables.
 
 ## The convention layer
+
+A convention maps file columns onto canonical columns. Reading and writing
+are separate pipelines — decided on 2026-07-03 — and the separation is total:
+separate ABCs, separate registration, separate lists inside a bundle.
+
+Two reasons, and both matter. Writing a reader must not oblige anyone to
+write the writer too, then or ever. And the mapping is genuinely not one to
+one: a canonical column may have several possible origins in Relion while
+there is exactly one place we would write it back to, so a single reversible
+object would have to lie about one direction or the other.
+
+A `ReadConvention` declares the file columns it consumes and the canonical
+columns it produces, answers `matches()` for a raw schema, and `load()`s. A
+`WriteConvention` declares the canonical columns it consumes and the file
+columns it produces, and `store()`s. A `ConventionBundle` groups all the
+conventions of one format — Relion4, Relion3, Xmipp — under a name.
+
+Matching is by column presence, never by the name of the raw table. A raw
+`data_particles` block becomes the canonical `particles` table because a
+convention recognised its columns, not because a string matched. Table names
+are the format's to choose and often the user's to mistype; the columns are
+what can actually be relied on.
+
+Two conventions of one bundle may not produce the same canonical column: that
+is an ambiguity inside a unit meant to be coherent, and it is rejected when
+the bundle is registered. Across bundles the conflict is legitimate and
+priority resolves it — bundles are ordered, the first to produce a canonical
+column owns it, and later bundles cannot overwrite what an earlier one
+produced. Inside a bundle, every matching convention that adds something not
+yet covered applies.
+
+Required canonical columns that no convention produced are an error at the
+end of the read, not a column of nulls.
+
+### In code
 
 ```python
 class ReadConvention(ABC):
@@ -212,6 +289,47 @@ class MyEulerConvention(ReadConvention):
 bundle = ConventionBundle("mylab", read_conventions=[MyEulerConvention()])
 global_registry.register_bundle(".star", bundle, prepend=True)
 ```
+
+## The registry, detection and injection
+
+`MetadataRegistry` maps an extension to a reader and, from Phase 2, to an
+ordered list of convention bundles. `global_registry` is the default
+instance, built at import time with what ships in the box; a local instance
+is how a test stays isolated from it.
+
+Detection is a heuristic with an override, always in that order. A `.star`
+gives the STAR reader and Relion conventions, a `.xmd` gives the same reader
+with Xmipp conventions, and where the extension is not enough the file's
+content decides. Every one of those decisions can be overridden at the call
+site, and none of them may be the only way to reach a behaviour. Dependency
+inversion is the requirement this library exists to satisfy: readers,
+writers, conventions and columns all have to be injectable from the user's
+side, so that a client can teach the library a format it has never heard of
+without changing a line in here.
+
+## Laziness, projection and forwarding
+
+`rm.read()` returns a `ReadResult` and does no row I/O. Materialisation
+happens in `to_pandas()` / `to_polars()`, and a `ReadResult` holds no open
+file handle once the call that created it has returned: handles exist only
+for the duration of actual I/O. A reader that keeps one open breaks every
+caller that reads more files than the platform has descriptors.
+
+`columns=` reads what it says and nothing else. Reading two columns of
+forty, changing one and writing the file back still has to leave the other
+thirty-eight exactly as they were, and the way that works is that the write
+re-reads the source and substitutes as it goes, a chunk at a time. Holding
+all forty in memory on the chance that a write may come charges the whole
+file to every caller who only ever reads, and makes a file larger than RAM
+impossible.
+
+What follows from re-reading: the source has to still be there when the
+write happens, the rows have to correspond one to one — a `updates` frame of
+a different length is an error, because a filtered row forwards from nothing
+in particular — and a write over the source goes through a temporary file in
+the destination directory, renamed at the end. The destination directory
+rather than the system temp one: a rename is atomic only within a
+filesystem.
 
 ## The intended public API
 
