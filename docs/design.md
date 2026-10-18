@@ -418,17 +418,18 @@ holds what connects them.
 requirement, but which bytes decide, and how far into the file the sniffing
 is allowed to read, is not settled.
 
-**The rotation convention.** One has to be picked and written down, in
-enough detail that a reader of the catalog can convert into it without
-guessing: which Euler angles, intrinsic or extrinsic, and which direction the
-rotation maps. Relion and Xmipp agree on ZYZ and disagree on signs;
-cryoSPARC stores an axis-angle vector instead. This is the next thing to
-settle, in `docs/canonical.md`.
+**The rotation convention.** Proposed in `docs/canonical.md`: ZYZ intrinsic,
+in degrees, taking the reference frame into the particle's. What remains is
+not the choice but the proof — the sign of each angle and the direction the
+rotation maps are stated there from documentation rather than from a file,
+and a round trip through a real Relion file and a real cryoSPARC one is what
+settles them. The same goes for whether a shift is added or subtracted.
 
 **Table relations.** The optics group is the case that exists today, and
 joining it into a flat view is decided. What is not decided is how a relation
 between two canonical tables is declared, so that the join is data rather
-than a special case written into the Relion bundle.
+than a special case written into the Relion bundle. `docs/canonical.md` names
+the four tables; what joins them is still prose.
 
 ## References
 
