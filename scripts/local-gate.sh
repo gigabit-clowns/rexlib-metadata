@@ -16,6 +16,8 @@ if [ -z "$python" ]; then
     exit 1
 fi
 
+bin="$(dirname "$python")"
+
 step() {
     printf '\n\033[1m==> %s\033[0m\n' "$1"
     shift
@@ -28,6 +30,7 @@ step "cargo test" cargo test
 step "cargo clippy" cargo clippy --all-targets -- -D warnings
 step "maturin develop" "$python" -m maturin develop --quiet
 step "ruff" "$python" -m ruff check .
+step "complexipy" "$bin/complexipy" python tests --max-complexity-allowed 7 --quiet
 step "pytest" "$python" -m pytest tests/python/
 
 printf '\n\033[1mThe gate is green.\033[0m\n'

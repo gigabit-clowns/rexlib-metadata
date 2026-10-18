@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -21,6 +21,19 @@ class RawSchema:
     def has(self, *names: str) -> bool:
         """Say whether the table declares every one of `names`."""
         return all(name in self.column_names for name in names)
+
+
+@dataclass(frozen=True)
+class RawTable:
+    """One table as the file holds it, before any convention."""
+
+    schema: RawSchema
+    table: pa.Table
+
+    @classmethod
+    def of(cls, name: str, table: pa.Table) -> RawTable:
+        """Build a raw table from an Arrow table and the name it had."""
+        return cls(RawSchema(name, tuple(table.column_names)), table)
 
 
 class ReadConvention(ABC):
@@ -83,18 +96,15 @@ class ConventionBundle:
         self, conventions: tuple[Convention, ...], what: str
     ) -> None:
         owner: dict[str, Convention] = {}
-        for convention in conventions:
-            for column in convention.target_columns:
-                first = owner.get(column)
-                if first is not None:
-                    raise ValueError(
-                        f"Bundle '{self.name}' produces the {what} "
-                        f"'{column}' twice, from "
-                        f"{type(first).__name__} and from "
-                        f"{type(convention).__name__}; which one wins would "
-                        "be nobody's decision"
-                    )
-                owner[column] = convention
+        for column, convention in _declarations(conventions):
+            first = owner.setdefault(column, convention)
+            if first is not convention:
+                raise ValueError(
+                    f"Bundle '{self.name}' produces the {what} '{column}' "
+                    f"twice, from {type(first).__name__} and from "
+                    f"{type(convention).__name__}; which one wins would be "
+                    "nobody's decision"
+                )
 
     def __repr__(self) -> str:
         """Name the bundle and how many conventions it holds each way."""
@@ -103,3 +113,13 @@ class ConventionBundle:
             f"{len(self.read_conventions)} read, "
             f"{len(self.write_conventions)} write)"
         )
+
+
+def _declarations(
+    conventions: tuple[Convention, ...],
+) -> Iterator[tuple[str, Convention]]:
+    return (
+        (column, convention)
+        for convention in conventions
+        for column in convention.target_columns
+    )

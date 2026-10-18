@@ -13,7 +13,7 @@ to the same ref cancels the run in flight.
 | Job | Does |
 |---|---|
 | `build_with_cargo` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, `cargo test`, on the three platforms |
-| `build_with_pip` | `pip install .[test]`, `ruff check .` and `pytest tests/python/`, three platforms × Python 3.10 to 3.15 |
+| `build_with_pip` | `pip install .[test]`, `ruff check .`, the complexity check and `pytest tests/python/`, three platforms × Python 3.10 to 3.15 |
 
 `fail-fast` is off in both, so one broken cell does not hide the others. The
 two jobs run in parallel and neither waits on the other: a Rust warning and a

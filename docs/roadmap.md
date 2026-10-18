@@ -80,8 +80,9 @@ removes that.
       conventions produce the same column and that none produces nothing
 - [x] `MetadataRegistry.register_bundle(extensions, bundle, *, prepend=False)`
       and `bundles_for(path)`
-- [ ] The read engine: bundles in order × raw tables × matching conventions,
-      first write per canonical column wins, missing required columns raise
+- [x] The read engine: bundles in order × raw tables × matching conventions,
+      first write per canonical column wins, missing required columns raise,
+      and a column of the wrong type or the wrong length raises too
 - [ ] `Relion4Bundle`, one `ReadConvention` per column group, matching on
       column presence
 - [ ] Register it for `.star` in `global_registry`

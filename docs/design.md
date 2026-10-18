@@ -294,6 +294,31 @@ for col in table_schema.required_columns:
 The raw table is linked to the canonical table by `matches()` returning true
 for its `RawSchema` — no string comparison anywhere in the path.
 
+Written, in `python/rexlib_metadata/engine.py`, as `read_canonical`, with
+five checks the sketch above leaves out. A column a convention produced but
+never declared in its `target_columns` is an error: the bundle can only be
+checked for ambiguity against what its conventions say they produce, so a
+column smuggled past that declaration would walk through the one validation
+that exists to stop two conventions owning the same thing. A column no convention produced and
+the schema requires is an error naming it. A column the schema does not
+declare is an error too, since strict validation cuts both ways. A column
+produced as the wrong Arrow type is an error rather than a cast: a
+convention converts, the engine does not. And columns of different lengths
+are an error, which is where the optics join stands today — a value read
+from another table has to be expanded to one per row by the convention that
+reads it, and until relations between tables are declared, that error is how
+the engine says so instead of producing a broken table.
+
+A convention that lost a column is not held to account for it. Its output
+for a name already covered is discarded without being validated, since
+validating a value that is about to be thrown away lets a low-priority
+fallback break a read it contributes nothing to — and the rule is that a
+later bundle cannot take a column back, not that it can poison it.
+
+A column the schema declares with a default and nobody produced is
+materialised as that constant. One with no default is simply absent: a
+picking file would otherwise come back with forty columns of nulls.
+
 ### Registering a bundle
 
 ```python
