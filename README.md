@@ -27,7 +27,7 @@ pip install rexlib-metadata[polars]
 pip install rexlib-metadata[pandas,polars]
 ```
 
-Requires Python ≥ 3.9.
+Requires Python ≥ 3.10.
 
 ## Usage
 
@@ -78,7 +78,7 @@ result = rm.read("data.myext")
 
 ### Requirements
 
-- Python ≥ 3.9
+- Python ≥ 3.10
 - Rust (stable) — install via [rustup](https://rustup.rs)
 - [Maturin](https://www.maturin.rs) — `pip install maturin`
 

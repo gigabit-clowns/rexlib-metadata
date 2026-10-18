@@ -312,9 +312,11 @@ finds and that no pull request closes, is a way of forgetting something in
 writing. `docs/roadmap.md` keeps the plan — the phases, in order — and
 everything else that is missing lives in the tracker.
 
-The package targets Python 3.9. Every module that annotates anything opens
-with `from __future__ import annotations`, and `X | None` is written only
-under it. pandas, polars and even pyarrow go inside `if TYPE_CHECKING:` where
+The package targets Python 3.10, which is what Ubuntu 22.04 ships and what
+its users therefore have; the end of 3.10's own support is not the thing
+that decides this. Every module that annotates anything opens with
+`from __future__ import annotations`, and `X | None` is written only under
+it. pandas, polars and even pyarrow go inside `if TYPE_CHECKING:` where
 they are used for types alone, and inside the function where they are used at
 run time. An optional dependency imported at module scope stops being
 optional.
@@ -374,13 +376,18 @@ therefore capped in `renovate.json` at the major `pyo3-arrow` holds. The cap
 stays; what moves is its bound, and it moves in the same pull request that
 raises `pyo3-arrow`, never on its own.
 
-Supporting Python 3.9 is what makes the pins in `pyproject.toml` look
-strange: pyarrow, pytest, pandas and polars each raised their floor above 3.9
-at some release, so each is pinned twice behind a PEP 508 marker. Renovate
-does not see the marker, so `renovate.json` tells the two halves apart with
-`matchCurrentVersion` and caps only the old one. The `>=` ranges of the
-`pandas` and `polars` extras are excluded from updates entirely: widening
-them declares wider support, which is a decision for a person to take.
+Two pins in `pyproject.toml` are split in half behind a PEP 508 marker, and
+both for the same reason: pyarrow raised its floor to 3.11 in 26.0.0 and
+pandas in 3.0.0, so the 3.10 cell has to stay behind while everything from
+3.11 up moves. Renovate does not see the marker, so `renovate.json` tells the
+two halves apart with `matchCurrentVersion` and caps only the old one. The
+`>=` ranges of the `pandas` and `polars` extras are excluded from updates
+entirely: widening them declares wider support, which is a decision for a
+person to take.
+
+The 3.10 cell is also the one that cannot have the newest of anything. When
+a dependency raises its floor to 3.11, the honest move is a third split, not
+a quiet upgrade that leaves 3.10 broken at install time.
 
 ## Working here
 
@@ -447,7 +454,7 @@ to the same ref cancels the run in flight.
 | Job | Does |
 |---|---|
 | `build_with_cargo` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, `cargo test`, on the three platforms |
-| `build_with_pip` | `pip install .[test]`, `ruff check .` and `pytest tests/python/`, three platforms × Python 3.9 to 3.14 |
+| `build_with_pip` | `pip install .[test]`, `ruff check .` and `pytest tests/python/`, three platforms × Python 3.10 to 3.15 |
 
 `fail-fast` is off in both, so one broken cell does not hide the others. The
 two jobs run in parallel and neither waits on the other: a Rust warning and a
