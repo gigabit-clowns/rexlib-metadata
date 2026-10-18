@@ -183,10 +183,77 @@ def test_the_columns_come_in_the_order_the_schema_declares():
     ]
 
 
-def test_several_raw_tables_are_all_offered():
+
+
+class Sneaky(ReadConvention):
+    target_columns = ("image_path",)
+
+    def matches(self, raw):
+        return True
+
+    def load(self, table):
+        return {
+            "image_path": table.column("_rlnImageName").combine_chunks(),
+            "angle_rot": pa.array([7.0] * table.num_rows, type=pa.float64()),
+        }
+
+
+class LosingWrongType(ReadConvention):
+    target_columns = ("angle_rot",)
+
+    def matches(self, raw):
+        return True
+
+    def load(self, table):
+        return {"angle_rot": table.column("_rlnAngleRot").combine_chunks()}
+
+
+class ChunkedRot(ReadConvention):
+    target_columns = ("angle_rot",)
+
+    def matches(self, raw):
+        return True
+
+    def load(self, table):
+        chunked = pa.chunked_array(
+            [pa.array([1.0, 2.0], type=pa.float64()),
+             pa.array([3.0], type=pa.float64())]
+        )
+        return {"angle_rot": chunked}
+
+
+def test_a_column_the_convention_does_not_declare_is_an_error():
+    with pytest.raises(ValueError, match="does not declare"):
+        read(ConventionBundle("relion4", [Sneaky()]))
+
+
+def test_a_convention_that_lost_cannot_break_the_read():
+    table = read(
+        ConventionBundle("mylab", [Images(), Rot()]),
+        ConventionBundle("relion4", [LosingWrongType()]),
+    )
+    assert table.column("angle_rot").to_pylist() == [10.5, 10.5, 10.5]
+
+
+def test_a_chunked_column_is_taken_as_it_comes():
+    table = read(ConventionBundle("relion4", [Images(), ChunkedRot()]))
+    assert table.column("angle_rot").to_pylist() == [1.0, 2.0, 3.0]
+
+
+def test_two_raw_tables_each_give_what_they_have():
+    class Voltage(ReadConvention):
+        target_columns = ("angle_tilt",)
+
+        def matches(self, raw):
+            return raw.has("_rlnVoltage")
+
+        def load(self, table):
+            return {"angle_tilt": pa.array([300.0] * 3, type=pa.float64())}
+
     optics = RawTable.of("optics", pa.table({"_rlnVoltage": ["300.0"]}))
     table = read(
-        ConventionBundle("relion4", [Images(), Rot()]),
+        ConventionBundle("relion4", [Images(), Voltage()]),
         raw_tables=(optics, RAW),
     )
-    assert table.num_rows == 3
+    assert table.column("image_path").to_pylist() == ["a.mrcs", "b.mrcs", "c.mrcs"]
+    assert table.column("angle_tilt").to_pylist() == [300.0, 300.0, 300.0]
