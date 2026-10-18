@@ -237,13 +237,19 @@ mandatory first full scan. SQLite and HDF5 get what they already have,
 ## Code conventions
 
 Python is four spaces, Rust is four spaces, YAML is two, and lines stay
-within 80 columns; `.vscode/settings.json` is set up for exactly that and is
-the authority.
+within 80 columns. `.vscode/settings.json` says as much for the files it
+names; for the ones it does not, Python among them, it defaults to tabs and
+the code does not follow it. Four spaces is what the code does and what to
+keep doing.
 
-On the Rust side `rustfmt` is the authority instead, and CI enforces it along
-with clippy at `-D warnings`: run `cargo fmt` before pushing and leave no
-warning behind. The Python side has no linter yet, unlike the sibling
-repositories — `docs/roadmap.md` tracks it.
+On the Rust side `rustfmt` is the authority, and CI enforces it along with
+clippy at `-D warnings`: run `cargo fmt` before pushing and leave no warning
+behind. The Python side has no linter yet, unlike the sibling repositories —
+`docs/roadmap.md` tracks it.
+
+`_rexlib.pyi` is written by hand. A function added to `_rexlib` gets its stub
+in the same pull request, or the Python side is typed against something that
+no longer exists.
 
 ### Comments
 
@@ -312,6 +318,13 @@ does not see the marker, so `renovate.json` tells the two halves apart with
 `matchCurrentVersion` and caps only the old one. The `>=` ranges of the
 `pandas` and `polars` extras are excluded from updates entirely: widening
 them declares wider support, which is a decision for a person to take.
+
+## Pull requests
+
+Whoever opens one assigns it to themselves and gives it the label, among the
+repository's own, that matches what it changes: `bug` for a fix,
+`enhancement` for something new, `documentation` when only documentation
+changes.
 
 ## Continuous integration
 
