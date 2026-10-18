@@ -16,6 +16,19 @@ again, and a pull request that leaves documentation stale is an incomplete
 pull request. When in doubt about which document something belongs in, see
 [the last section](#where-the-rest-lives).
 
+## In short
+
+- Rust parses and produces Arrow; Python decides everything else. The public
+  extension surface is the Python ABCs, and `_rexlib` is private.
+- `bash scripts/local-gate.sh` runs what CI runs. Green before pushing.
+- Docs, code, comments, commits and pull requests are in English, whatever
+  language the conversation is in. A squash merge turns a pull request's
+  title and body into a commit message.
+- A document this change makes wrong is part of the change. Unfinished work
+  is an issue, never a `TODO`.
+- `docs/design.md` is the design and the decisions, `docs/roadmap.md` the
+  plan. Read them before touching the schema or the conventions.
+
 ## What is built and what is designed
 
 Most of what follows describes an architecture that is only partly built. The
@@ -91,7 +104,16 @@ pip install maturin
 maturin develop          # builds the extension into the active environment
 pytest tests/python/     # the Python suites
 cargo test               # the Rust unit tests
+
+bash scripts/local-gate.sh   # all of it, in CI's order
 ```
+
+The gate is the one to run before pushing: `cargo fmt --check`, build, test,
+clippy at `-D warnings`, then ruff and pytest, stopping at the first failure.
+It rebuilds the extension before pytest, so that the suite is not run against
+yesterday's build, and it reaches for `.venv` or whichever environment is
+active and calls the tools through its interpreter rather than through the
+launchers beside it, which are not reliable everywhere.
 
 `maturin develop` puts the compiled `_rexlib` next to the sources, inside
 `python/rexlib_metadata/`, where `.gitignore` expects it. `pip install .[test]`
@@ -310,6 +332,23 @@ A test that writes names its file through `tempfile` in Rust or `tmp_path` in
 pytest, never a fixed path. Cases run at once, and two of them agreeing on a
 name is a failure that only shows up on somebody else's machine.
 
+A Python test file is named after the source file it exercises and sits where
+that file sits, so that `conventions/star.py` is answered by
+`test_star_reader.py` and a reader of either can find the other. A
+parametrized case carries a short `id` through `pytest.param`, because a
+failure reported as `[case3]` says nothing. A fixture only one file uses
+starts with an underscore.
+
+**A fixture of a file format comes from a program that writes that format**,
+trimmed to a few rows, never typed out from our reading of the specification.
+A hand-written STAR file tests that the parser agrees with whoever wrote the
+fixture, which is the same person who wrote the parser; only a file Relion,
+Xmipp or cryoSPARC actually produced can contradict us. The real ones land in
+`tests/files/`, where both suites can reach them, each with a note saying
+where it came from and what about it is worth a test. The small invented ones
+that predate this rule stay for what they are, cases the format allows that
+no file we have happens to contain.
+
 ## Dependencies
 
 | Crate / package | Why |
@@ -343,6 +382,44 @@ does not see the marker, so `renovate.json` tells the two halves apart with
 `pandas` and `polars` extras are excluded from updates entirely: widening
 them declares wider support, which is a decision for a person to take.
 
+## Working here
+
+Docs, code, comments, commits and pull requests are written in English,
+whatever language the conversation that produced them was in. A squash merge
+turns a pull request's title and body into a commit message, which is why
+they are held to the same standard as one.
+
+**The smallest complete change.** Read the code the change touches first, and
+list every place it has to reach — this repository has two sides, so a new
+entry point in Rust is also a stub in `_rexlib.pyi`, a wrapper on the Python
+side, a test in each suite and a line in whichever document described the old
+behaviour. Then take the first option that fully works: nothing at all, then
+what the repository already has, then the standard library, then a dependency
+already installed, then the least new code. No option, no wrapper, no
+configuration and no "for later" that nobody asked for; this library's whole
+pitch is that the user injects what they need, and every knob added here is
+one they did not get to choose. What is never cut to make a change smaller:
+what was actually asked for, validation of what came out of a file, and the
+error handling that keeps a write from destroying the file it replaces.
+
+**Say what was left out.** A change that skipped something, assumed
+something, or was not run against a real file says so in a line, rather than
+being presented as finished.
+
+**Bounded output.** A test run, a log or a CI result is narrowed before it
+enters the conversation — the line that says how many passed, not the
+thousand that say which. The same for `git log` and for anything that greps
+a whole tree.
+
+**Explore through subagents.** A search that sweeps many files or several
+repositories, and whose output only matters as a conclusion, goes to a
+subagent. Read directly when the file and the place in it are already known.
+
+**Say when to start fresh.** When the next task shares nothing with the
+current conversation, or the conversation has grown long, propose a new one
+and hand over a prompt to paste into it: the goal, the branch, where things
+stand, what is left, and which files and documents to read first.
+
 ## Pull requests
 
 Whoever opens one assigns it to themselves and gives it the label, among the
@@ -350,10 +427,14 @@ repository's own, that matches what it changes: `bug` for a fix,
 `enhancement` for something new, `documentation` when only documentation
 changes.
 
-A change a user would notice adds its line to `CHANGELOG.md`, under
-`Unreleased`, in the same pull request. A refactor, a test or a workflow
-does not: the changelog is read by people who install the package, not by
-people who work on it.
+A change a user would notice adds its line to `CHANGELOG.md` in the same
+pull request. A refactor, a test or a workflow does not: the changelog is
+read by people who install the package, not by people who work on it.
+
+The file holds the next release and nothing else, already in the shape of
+its notes: a sentence of summary, then `### New`, `### Changed` and
+`### Fixed`, one short line each and no commit hashes. Releasing publishes
+it and empties it, and the versions before it live in their own releases.
 
 ## Continuous integration
 
@@ -413,13 +494,15 @@ absence to reproduce elsewhere.
 
 ## Where the rest lives
 
-`docs/design.md` holds the design itself: the requirements this library was
-written to satisfy, the decisions taken and when, the schema and convention
-interfaces in code, the read engine, and the questions still open. Read it
-before touching either layer.
+| File | Read it when |
+|---|---|
+| [docs/design.md](docs/design.md) | touching the schema or the conventions, or taking a decision that outlives the change: it holds the requirements, the decisions and when they were taken, the interfaces in code, the read engine, and what is still open |
+| [docs/roadmap.md](docs/roadmap.md) | picking up work, or finishing a phase: the ordered phases and where they stand |
+| the issue tracker | looking for what is missing — loose ends are issues, not a list in a file |
 
-`docs/roadmap.md` holds the ordered phases, what the current branch is in the
-middle of, and the loose ends belonging to no phase.
+A document says what is. The history is in the commits, so nothing here
+records what something used to be; a decision worth keeping goes to
+`docs/design.md` as a decision, not as a story about how it was reached.
 
 This file holds what a newcomer needs before they can usefully read either of
 those. Keep it that way: an architectural rule or an invariant belongs here,
