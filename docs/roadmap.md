@@ -125,6 +125,21 @@ removes that.
 - [ ] Continuous deployment: a development release on push to `main`, the
       same pattern as `rexlib-python`
 
+## Phase 6b — What a second format needs first
+
+Three changes that are cheap now and expensive once a second reader exists,
+each argued from a real file in `docs/formats.md`.
+
+- [ ] `src/star/parser.rs` takes its tokens from any lexer, so that a
+      block-shaped delimited file is a lexer rather than a second state
+      machine
+- [ ] `read` grows named arguments for the reader and the bundle, since a
+      generic container — `.csv`, `.db`, `.h5` — cannot have its dialect
+      guessed from its extension
+- [ ] A decision on `RawSchema.table_name` for a format that names no table,
+      which `.par` is the first of
+- [ ] Real fixtures under `tests/files/`, trimmed, with their provenance
+
 ## Phase 7 — XMD
 
 - [ ] An Xmipp `ConventionBundle`
