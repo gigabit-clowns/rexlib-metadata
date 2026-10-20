@@ -33,11 +33,9 @@ does not — a `_dtypes` line that **declares the type of every column**, and
 nesting spelled with dots.
 
 What it asks for: a reader whose state machine is the one STAR already has,
-with a different lexer. `src/star/parser.rs` walks tokens, and the tokens are
-already an enum; what ties it to STAR is only that it calls
-`star::lexer::tokenize_line` directly. Letting the parser take its tokens
-from any lexer is the change, and it is small. Writing a second state machine
-instead would be the mistake.
+with a different lexer. That change is done — the machine lives in
+`src/text/parser.rs` and takes the lexer as an argument — so this format is
+now a lexer away rather than a parser away.
 
 It is also the first format to arrive with its types stated, which is the
 case the invariant was written for: a reader never infers a type, but it

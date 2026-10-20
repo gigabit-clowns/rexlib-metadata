@@ -130,9 +130,11 @@ removes that.
 Three changes that are cheap now and expensive once a second reader exists,
 each argued from a real file in `docs/formats.md`.
 
-- [ ] `src/star/parser.rs` takes its tokens from any lexer, so that a
+- [x] The state machine takes its tokens from any lexer, so that a
       block-shaped delimited file is a lexer rather than a second state
-      machine
+      machine. It moved to `src/text/` with the builder and the error, since
+      neither was ever STAR's, and a line may now declare several columns —
+      which only a second lexer could reveal, and did
 - [ ] `read` grows named arguments for the reader and the bundle, since a
       generic container — `.csv`, `.db`, `.h5` — cannot have its dialect
       guessed from its extension
