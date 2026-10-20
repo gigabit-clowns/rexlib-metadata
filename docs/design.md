@@ -440,6 +440,11 @@ real rather than theoretical: its `alignments3D/pose` is one column holding a
 rotation vector that feeds three canonical angles. That is a good reason to
 reach it early — the convention layer is only proven once something bends it.
 
+Two more arrived with it, FREALIGN's `.par` and a cryoSPARC CSV export that
+carries blocks and declared types. What the four of them ask for, taken from
+their bytes rather than their documentation, is `docs/formats.md`, along with
+the three changes they want made before the second one is written.
+
 The name of the library is not settled. `vitrio-metadata` is the other
 candidate, and the decision is taken before the first PyPI release, which is
 also the last moment it is free.
