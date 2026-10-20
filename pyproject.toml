@@ -35,7 +35,7 @@ test   = [
     "pandas==3.0.6; python_version >= '3.11'",
     "ruff==0.16.10",
     "complexipy==8.0.1",
-    "polars==1.44.2",
+    "polars==2.0.0",
 ]
 pandas = [
     "pandas>=2.0,<3.0; python_version == '3.10'",
