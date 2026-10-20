@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import pyarrow as pa
@@ -33,10 +33,16 @@ class SchemaTrait:
     """A named group of columns that belong together."""
 
     name: str
-    columns: tuple[ColumnDescriptor, ...] = field(default=())
+    columns: tuple[ColumnDescriptor, ...] = ()
 
 
 Part = SchemaTrait | ColumnDescriptor
+
+
+def _columns_of(part: Part) -> tuple[ColumnDescriptor, ...]:
+    if isinstance(part, ColumnDescriptor):
+        return (part,)
+    return part.columns
 
 
 class TableSchema:
@@ -47,8 +53,7 @@ class TableSchema:
         self.name = name
         self._columns: dict[str, ColumnDescriptor] = {}
         for part in parts:
-            columns = (part,) if isinstance(part, ColumnDescriptor) else part.columns
-            for column in columns:
+            for column in _columns_of(part):
                 self._add(column)
 
     def _add(self, column: ColumnDescriptor) -> None:

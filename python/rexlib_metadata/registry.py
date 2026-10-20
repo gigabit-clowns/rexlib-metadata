@@ -18,13 +18,15 @@ class MetadataRegistry:
 
     def __init__(self) -> None:
         """Start with nothing registered."""
-        self._readers: dict[str, type[Reader]] = {}
+        self._readers: dict[str, Reader] = {}
         self._bundles: dict[str, list[ConventionBundle]] = {}
 
-    def register_reader(self, extensions: list[str], cls: type[Reader]) -> None:
-        """Register `cls` as the reader of every one of `extensions`."""
+    def register_reader(
+        self, extensions: Iterable[str], reader: Reader
+    ) -> None:
+        """Register `reader` as the reader of every one of `extensions`."""
         for ext in extensions:
-            self._readers[ext.lower()] = cls
+            self._readers[ext.lower()] = reader
 
     def register_bundle(
         self,
@@ -48,18 +50,20 @@ class MetadataRegistry:
     def reader_for(self, path: str) -> Reader:
         """Return a reader for `path`, or raise if its extension has none."""
         ext = _extension(path)
-        cls = self._readers.get(ext)
-        if cls is None:
-            raise ValueError(f"No reader registered for '{ext}' (path: {path!r})")
-        return cls()
+        reader = self._readers.get(ext)
+        if reader is None:
+            raise ValueError(
+                f"No reader registered for '{ext}' (path: {path!r})"
+            )
+        return reader
 
     def bundles_for(self, path: str) -> tuple[ConventionBundle, ...]:
         """Return the bundles of `path`, highest priority first."""
         return tuple(self._bundles.get(_extension(path), ()))
 
-    def read(self, path: str, **kwargs) -> ReadResult:
-        """Return a lazy result over `path`, through the reader it belongs to."""
-        return self.reader_for(path).read(path, **kwargs)
+    def read(self, path: str) -> ReadResult:
+        """Return a lazy result over `path`, through its own reader."""
+        return self.reader_for(path).read(path)
 
 
 def _extension(path: str) -> str:
@@ -67,7 +71,3 @@ def _extension(path: str) -> str:
 
 
 global_registry = MetadataRegistry()
-
-from rexlib_metadata.conventions.star import StarReader  # noqa: E402
-
-global_registry.register_reader([".star"], StarReader)

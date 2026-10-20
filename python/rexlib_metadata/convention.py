@@ -62,7 +62,7 @@ class WriteConvention(ABC):
         """Return the file columns, keyed by the name the file uses."""
 
 
-Convention = ReadConvention | WriteConvention
+_Convention = ReadConvention | WriteConvention
 
 
 class ConventionBundle:
@@ -83,7 +83,7 @@ class ConventionBundle:
         self._reject_overlap(self.read_conventions, "canonical column")
         self._reject_overlap(self.write_conventions, "file column")
 
-    def _reject_silent(self, conventions: tuple[Convention, ...]) -> None:
+    def _reject_silent(self, conventions: tuple[_Convention, ...]) -> None:
         for convention in conventions:
             if not convention.target_columns:
                 raise ValueError(
@@ -93,9 +93,9 @@ class ConventionBundle:
                 )
 
     def _reject_overlap(
-        self, conventions: tuple[Convention, ...], what: str
+        self, conventions: tuple[_Convention, ...], what: str
     ) -> None:
-        owner: dict[str, Convention] = {}
+        owner: dict[str, _Convention] = {}
         for column, convention in _declarations(conventions):
             first = owner.setdefault(column, convention)
             if first is not convention:
@@ -116,8 +116,8 @@ class ConventionBundle:
 
 
 def _declarations(
-    conventions: tuple[Convention, ...],
-) -> Iterator[tuple[str, Convention]]:
+    conventions: tuple[_Convention, ...],
+) -> Iterator[tuple[str, _Convention]]:
     return (
         (column, convention)
         for convention in conventions

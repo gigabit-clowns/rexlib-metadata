@@ -96,7 +96,14 @@ A Rust-backed reader such as `StarReader` is therefore an ordinary Python
 class satisfying the `Reader` ABC that happens to call `_rexlib` inside. To
 the registry it is indistinguishable from a reader a user wrote, and it has
 to stay that way: whatever `StarReader` can do, a user's reader must be able
-to do too.
+to do too. It is registered where a user would register theirs, in the
+package's `__init__`, which is the only module that knows both the registry
+and what ships in the box; `registry.py` names no format.
+
+A reader implements `read_all` and nothing else. `Reader.read` is concrete
+and returns the lazy result, because there is exactly one correct body for
+it and a second copy of that line is a chance to break the rule that a read
+opens no file.
 
 `src/lib.rs` keeps no logic. It wraps, converts `StarError` into a Python
 exception, and returns. Logic that creeps into it is logic Rust's own tests

@@ -8,7 +8,12 @@ import rexlib_metadata as rm
 FIXTURES = Path(__file__).parent / "fixtures"
 MINI = FIXTURES / "mini.star"
 
-EXPECTED_COLUMNS = ["_rlnAngleRot", "_rlnAngleTilt", "_rlnCoordinateX", "_rlnCoordinateY"]
+EXPECTED_COLUMNS = [
+    "_rlnAngleRot",
+    "_rlnAngleTilt",
+    "_rlnCoordinateX",
+    "_rlnCoordinateY",
+]
 EXPECTED_ROWS = 3
 
 
