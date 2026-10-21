@@ -1,18 +1,7 @@
-use super::StarError;
+use crate::error::{Error, parse_error};
+use crate::text::Token;
 
-#[derive(Debug, PartialEq)]
-pub(crate) enum Token {
-    DataBlock(String),
-    Loop,
-    Column(String),
-    Value(String),
-}
-
-pub(crate) fn tokenize_line(
-    line: &str,
-    path: &str,
-    line_num: usize,
-) -> Result<Vec<Token>, StarError> {
+pub(crate) fn tokenize_line(line: &str, path: &str, line_num: usize) -> Result<Vec<Token>, Error> {
     let clean_line = line.split('#').next().unwrap_or("").trim();
     if clean_line.is_empty() {
         Ok(vec![])
@@ -35,7 +24,7 @@ pub(crate) fn tokenize_line(
     }
 }
 
-fn tokenize_values(line: &str, path: &str, line_num: usize) -> Result<Vec<Token>, StarError> {
+fn tokenize_values(line: &str, path: &str, line_num: usize) -> Result<Vec<Token>, Error> {
     let mut tokens: Vec<Token> = vec![];
     let mut current = String::new();
     let mut in_quote: Option<char> = None;
@@ -53,11 +42,7 @@ fn tokenize_values(line: &str, path: &str, line_num: usize) -> Result<Vec<Token>
     }
 
     if in_quote.is_some() {
-        return Err(StarError::Parse {
-            path: path.to_string(),
-            line: line_num,
-            message: "unterminated quoted value".to_string(),
-        });
+        return Err(parse_error(path, line_num, "unterminated quoted value"));
     }
     flush_bare(&mut current, &mut tokens);
     Ok(tokens)
@@ -111,13 +96,13 @@ fn ensure_single_word(
     path: &str,
     line_num: usize,
     context: &str,
-) -> Result<(), StarError> {
+) -> Result<(), Error> {
     if clean_line.split_whitespace().count() > 1 {
-        return Err(StarError::Parse {
-            path: path.to_string(),
-            line: line_num,
-            message: format!("Unexpected tokens after {}: '{}'", context, clean_line),
-        });
+        return Err(parse_error(
+            path,
+            line_num,
+            format!("unexpected tokens after {context}: '{clean_line}'"),
+        ));
     }
     Ok(())
 }

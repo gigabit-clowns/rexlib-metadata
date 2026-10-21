@@ -1,6 +1,8 @@
 #![warn(clippy::cognitive_complexity)]
 
+mod error;
 mod star;
+mod text;
 
 use pyo3::prelude::*;
 use pyo3_arrow::PyRecordBatch;

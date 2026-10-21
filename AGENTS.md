@@ -56,10 +56,12 @@ invariants at the end of this file already bind what gets written.
 | Path | Holds |
 |---|---|
 | `src/lib.rs` | The PyO3 module `_rexlib`: thin wrappers, error conversion, nothing else |
-| `src/star/lexer.rs` | `tokenize_line`, one line to tokens, quoting and comments |
-| `src/star/parser.rs` | `parse_blocks`, the state machine from tokens to `StarBlock`s |
-| `src/star/builder.rs` | `StarBlock` rows to an Arrow `RecordBatch` |
-| `src/star/mod.rs` | `StarError`, `RawSchema`, and the crate-facing `read_schema` / `read_all` |
+| `src/error.rs` | `Error`, one for the crate, carrying the path and the line |
+| `src/text/mod.rs` | `Token`, what every lexer of a text table produces |
+| `src/text/parser.rs` | `parse_blocks`, the state machine from tokens to `Block`s, over any lexer |
+| `src/text/builder.rs` | `Block` rows to an Arrow `RecordBatch` of `Utf8` |
+| `src/star/lexer.rs` | `tokenize_line`, one line of STAR to tokens, quoting and comments |
+| `src/star/mod.rs` | `RawSchema`, and the crate-facing `read_schema` / `read_all` |
 | `python/rexlib_metadata/` | The public Python package |
 | `python/rexlib_metadata/schema.py` | The canonical columns and the tables they compose |
 | `python/rexlib_metadata/convention.py` | The convention interfaces and the bundles that group them |
@@ -73,11 +75,15 @@ invariants at the end of this file already bind what gets written.
 Rust unit tests live in a `mod tests` at the foot of the file they cover,
 which is why there is no `tests/rust/`. `tests/` is the Python side only.
 
-`src/star/` is a directory, not the single `src/star.rs` that older notes
-describe, and there is no `src/parser/`, `src/serializer/`, `src/convention/`
-or `src/arrow_bridge.rs`. The split by *stage* — lex, parse, build — is the
-shape to follow when a second format arrives: a format gets a directory under
-`src/`, and inside it the same three stages.
+The split is by *stage* — lex, parse, build — and by whether a stage knows
+one format. `src/star/` holds the only thing that is STAR's: a lexer that
+turns a line into tokens. The state machine that assembles those tokens into
+blocks, and the builder that turns a block into Arrow, know nothing about any
+format and live under `src/text/`, where the next delimited format reaches
+them by handing `parse_blocks` its own lexer.
+
+That is the shape to follow when a second format arrives: write a lexer, not
+a parser.
 
 ## The two sides
 

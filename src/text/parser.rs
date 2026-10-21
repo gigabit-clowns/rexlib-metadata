@@ -1,11 +1,11 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-use super::StarError;
-use super::lexer::{Token, tokenize_line};
+use super::Token;
+use crate::error::{Error, parse_error};
 
 #[derive(Debug)]
-pub(crate) struct StarBlock {
+pub(crate) struct Block {
     pub name: String,
     pub columns: Vec<String>,
     pub rows: Vec<Vec<String>>,
@@ -28,15 +28,15 @@ enum State {
 }
 
 impl State {
-    fn into_block(self) -> Option<StarBlock> {
+    fn into_block(self) -> Option<Block> {
         match self {
             State::Preamble => None,
-            State::InBlock { name } => Some(StarBlock {
+            State::InBlock { name } => Some(Block {
                 name,
                 columns: Vec::new(),
                 rows: Vec::new(),
             }),
-            State::ReadingColumns { name, columns } => Some(StarBlock {
+            State::ReadingColumns { name, columns } => Some(Block {
                 name,
                 columns,
                 rows: Vec::new(),
@@ -45,7 +45,7 @@ impl State {
                 name,
                 columns,
                 rows,
-            } => Some(StarBlock {
+            } => Some(Block {
                 name,
                 columns,
                 rows,
@@ -54,8 +54,11 @@ impl State {
     }
 }
 
-pub(crate) fn parse_blocks(path: &str) -> Result<Vec<StarBlock>, StarError> {
-    let file = File::open(path).map_err(|source| StarError::Io {
+pub(crate) fn parse_blocks<T>(path: &str, tokenize: T) -> Result<Vec<Block>, Error>
+where
+    T: Fn(&str, &str, usize) -> Result<Vec<Token>, Error>,
+{
+    let file = File::open(path).map_err(|source| Error::Io {
         path: path.to_string(),
         source,
     })?;
@@ -66,12 +69,12 @@ pub(crate) fn parse_blocks(path: &str) -> Result<Vec<StarBlock>, StarError> {
 
     for (index, line) in reader.lines().enumerate() {
         let line_num = index + 1;
-        let line = line.map_err(|source| StarError::Io {
+        let line = line.map_err(|source| Error::Io {
             path: path.to_string(),
             source,
         })?;
 
-        let tokens = tokenize_line(&line, path, line_num)?;
+        let tokens = tokenize(&line, path, line_num)?;
         let Some(first) = tokens.first() else {
             continue;
         };
@@ -83,7 +86,7 @@ pub(crate) fn parse_blocks(path: &str) -> Result<Vec<StarBlock>, StarError> {
                 State::InBlock { name }
             }
             Token::Loop => open_loop(state, path, line_num)?,
-            Token::Column(name) => declare_column(state, name.clone(), path, line_num)?,
+            Token::Column(_) => declare_columns(state, column_names(tokens), path, line_num)?,
             Token::Value(_) => read_row(state, row_values(tokens), path, line_num)?,
         };
     }
@@ -92,7 +95,7 @@ pub(crate) fn parse_blocks(path: &str) -> Result<Vec<StarBlock>, StarError> {
     Ok(blocks)
 }
 
-fn open_loop(state: State, path: &str, line: usize) -> Result<State, StarError> {
+fn open_loop(state: State, path: &str, line: usize) -> Result<State, Error> {
     match state {
         State::InBlock { name } => Ok(State::ReadingColumns {
             name,
@@ -107,12 +110,18 @@ fn open_loop(state: State, path: &str, line: usize) -> Result<State, StarError> 
     }
 }
 
-fn declare_column(
+fn declare_columns(
     state: State,
-    column: String,
+    names: Vec<String>,
     path: &str,
     line: usize,
-) -> Result<State, StarError> {
+) -> Result<State, Error> {
+    names
+        .into_iter()
+        .try_fold(state, |state, name| declare_column(state, name, path, line))
+}
+
+fn declare_column(state: State, column: String, path: &str, line: usize) -> Result<State, Error> {
     match state {
         State::ReadingColumns { name, mut columns } => {
             columns.push(column);
@@ -136,12 +145,7 @@ fn declare_column(
     }
 }
 
-fn read_row(
-    state: State,
-    values: Vec<String>,
-    path: &str,
-    line: usize,
-) -> Result<State, StarError> {
+fn read_row(state: State, values: Vec<String>, path: &str, line: usize) -> Result<State, Error> {
     match state {
         State::ReadingColumns { name, columns } => {
             check_row_width(&columns, &values, path, line)?;
@@ -174,7 +178,7 @@ fn check_row_width(
     values: &[String],
     path: &str,
     line: usize,
-) -> Result<(), StarError> {
+) -> Result<(), Error> {
     if values.len() != columns.len() {
         return Err(parse_error(
             path,
@@ -189,6 +193,16 @@ fn check_row_width(
     Ok(())
 }
 
+fn column_names(tokens: Vec<Token>) -> Vec<String> {
+    tokens
+        .into_iter()
+        .filter_map(|token| match token {
+            Token::Column(name) => Some(name),
+            _ => None,
+        })
+        .collect()
+}
+
 fn row_values(tokens: Vec<Token>) -> Vec<String> {
     tokens
         .into_iter()
@@ -199,30 +213,98 @@ fn row_values(tokens: Vec<Token>) -> Vec<String> {
         .collect()
 }
 
-fn parse_error(path: &str, line: usize, message: impl Into<String>) -> StarError {
-    StarError::Parse {
-        path: path.to_string(),
-        line,
-        message: message.into(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
-    fn parse(content: &str) -> Vec<StarBlock> {
+    fn parse(content: &str) -> Vec<Block> {
         let mut f = NamedTempFile::new().unwrap();
         write!(f, "{content}").unwrap();
-        parse_blocks(f.path().to_str().unwrap()).unwrap()
+        parse_blocks(
+            f.path().to_str().unwrap(),
+            crate::star::lexer::tokenize_line,
+        )
+        .unwrap()
     }
 
-    fn parse_err(content: &str) -> StarError {
+    fn parse_err(content: &str) -> Error {
         let mut f = NamedTempFile::new().unwrap();
         write!(f, "{content}").unwrap();
-        parse_blocks(f.path().to_str().unwrap()).unwrap_err()
+        parse_blocks(
+            f.path().to_str().unwrap(),
+            crate::star::lexer::tokenize_line,
+        )
+        .unwrap_err()
+    }
+
+    fn comma_lexer(line: &str, path: &str, line_num: usize) -> Result<Vec<Token>, Error> {
+        let line = line.trim();
+        if line.is_empty() {
+            return Ok(vec![]);
+        }
+        if let Some(name) = line.strip_prefix("_table,") {
+            return Ok(vec![Token::DataBlock(name.to_string())]);
+        }
+        if line == "_header" {
+            return Ok(vec![Token::Loop]);
+        }
+        if let Some(names) = line.strip_prefix("_columns,") {
+            return Ok(names
+                .split(',')
+                .map(|name| Token::Column(name.to_string()))
+                .collect());
+        }
+        if line.starts_with('_') {
+            return Err(parse_error(
+                path,
+                line_num,
+                format!("unknown keyword '{line}'"),
+            ));
+        }
+        Ok(line
+            .split(',')
+            .map(|value| Token::Value(value.trim().to_string()))
+            .collect())
+    }
+
+    fn parse_commas(content: &str) -> Vec<Block> {
+        let mut f = NamedTempFile::new().unwrap();
+        write!(f, "{content}").unwrap();
+        parse_blocks(f.path().to_str().unwrap(), comma_lexer).unwrap()
+    }
+
+    #[test]
+    fn the_same_machine_reads_a_comma_separated_file() {
+        let blocks = parse_commas(
+            "_table,images
+_header
+_columns,uid,angle
+1,10.5
+2,20.1
+",
+        );
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].name, "images");
+        assert_eq!(blocks[0].columns, vec!["uid", "angle"]);
+        assert_eq!(blocks[0].rows, vec![vec!["1", "10.5"], vec!["2", "20.1"]]);
+    }
+
+    #[test]
+    fn another_lexer_inherits_the_same_errors() {
+        let mut f = NamedTempFile::new().unwrap();
+        write!(
+            f,
+            "_table,images
+_header
+_columns,uid,angle
+1
+"
+        )
+        .unwrap();
+        let err = parse_blocks(f.path().to_str().unwrap(), comma_lexer).unwrap_err();
+        assert!(matches!(err, Error::Parse { .. }));
     }
 
     #[test]
@@ -272,7 +354,7 @@ data_particles\n\nloop_\n_rlnAngleRot\n10.5\n20.1\n";
     fn wrong_column_count_is_error() {
         let content = "data_particles\n\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n10.5\n";
         let err = parse_err(content);
-        assert!(matches!(err, StarError::Parse { .. }));
+        assert!(matches!(err, Error::Parse { .. }));
     }
 
     #[test]
@@ -289,7 +371,7 @@ data_particles\n\nloop_\n_rlnAngleRot\n10.5\n20.1\n";
     fn values_before_loop_are_an_error() {
         assert!(matches!(
             parse_err("data_particles\n10.5 20.1\n"),
-            StarError::Parse { .. }
+            Error::Parse { .. }
         ));
     }
 
@@ -297,7 +379,7 @@ data_particles\n\nloop_\n_rlnAngleRot\n10.5\n20.1\n";
     fn column_outside_a_loop_is_an_error() {
         assert!(matches!(
             parse_err("data_particles\n_rlnAngleRot\n"),
-            StarError::Parse { .. }
+            Error::Parse { .. }
         ));
     }
 
@@ -305,7 +387,7 @@ data_particles\n\nloop_\n_rlnAngleRot\n10.5\n20.1\n";
     fn column_after_the_first_row_is_an_error() {
         assert!(matches!(
             parse_err("data_particles\n\nloop_\n_rlnAngleRot\n10.5\n_rlnAngleTilt\n"),
-            StarError::Parse { .. }
+            Error::Parse { .. }
         ));
     }
 
@@ -313,7 +395,7 @@ data_particles\n\nloop_\n_rlnAngleRot\n10.5\n20.1\n";
     fn second_loop_in_one_block_is_an_error() {
         assert!(matches!(
             parse_err("data_particles\n\nloop_\n_rlnAngleRot\n10.5\n\nloop_\n_rlnAngleTilt\n"),
-            StarError::Parse { .. }
+            Error::Parse { .. }
         ));
     }
 
@@ -321,7 +403,7 @@ data_particles\n\nloop_\n_rlnAngleRot\n10.5\n20.1\n";
     fn content_outside_a_data_block_is_an_error() {
         assert!(matches!(
             parse_err("loop_\n_rlnAngleRot\n10.5\n"),
-            StarError::Parse { .. }
+            Error::Parse { .. }
         ));
     }
 
@@ -329,7 +411,7 @@ data_particles\n\nloop_\n_rlnAngleRot\n10.5\n20.1\n";
     fn parse_error_reports_the_offending_line() {
         let content = "data_particles\n\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n10.5 20.1\n10.5\n";
         match parse_err(content) {
-            StarError::Parse { line, .. } => assert_eq!(line, 7),
+            Error::Parse { line, .. } => assert_eq!(line, 7),
             other => panic!("expected a parse error, got {other:?}"),
         }
     }

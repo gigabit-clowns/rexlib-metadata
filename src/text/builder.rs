@@ -4,12 +4,12 @@ use arrow::array::{ArrayRef, StringBuilder};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 
-use super::StarError;
+use crate::error::Error;
 
 pub(crate) fn build_record_batch(
     column_names: &[String],
     rows: &[Vec<String>],
-) -> Result<RecordBatch, StarError> {
+) -> Result<RecordBatch, Error> {
     let fields: Vec<Field> = column_names
         .iter()
         .map(|name| Field::new(name, DataType::Utf8, false))
