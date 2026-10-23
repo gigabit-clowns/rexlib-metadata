@@ -57,11 +57,6 @@
       ],
       "matchDepNames": ["arrow"],
       "allowedVersions": "<60"
-    },
-    {
-      "description": "Security advisories bypass the 14-day delay",
-      "matchJsonata": ["$exists(vulnerabilityFixVersion)"],
-      "minimumReleaseAge": "0 days"
     }
   ]
 }
