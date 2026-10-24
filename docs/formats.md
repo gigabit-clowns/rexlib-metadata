@@ -12,8 +12,13 @@ the top.
 
 ## STAR, and XMD behind it
 
-Named blocks, `loop_`, a column per `_name`, and values as text with no type
-anywhere. Built, `src/star/`.
+Named blocks, and inside a block either a `loop_` with a column per `_name`
+and a row per line, or a run of `_name value` tags which is a table of one
+row. Values are text, with no type anywhere. Built, `src/star/`.
+
+A tag carries exactly one value and a block does not mix tags with a loop.
+Neither is in the standard; both are what the real files
+in `tests/files/star/` do, and anything else is an error naming the line.
 
 ## The CSV that is not a CSV
 

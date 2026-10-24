@@ -25,6 +25,11 @@ enum State {
         columns: Vec<String>,
         rows: Vec<Vec<String>>,
     },
+    ReadingTags {
+        name: String,
+        columns: Vec<String>,
+        values: Vec<String>,
+    },
 }
 
 impl State {
@@ -49,6 +54,15 @@ impl State {
                 name,
                 columns,
                 rows,
+            }),
+            State::ReadingTags {
+                name,
+                columns,
+                values,
+            } => Some(Block {
+                name,
+                columns,
+                rows: vec![values],
             }),
         }
     }
@@ -86,8 +100,8 @@ where
                 State::InBlock { name }
             }
             Token::Loop => open_loop(state, path, line_num)?,
-            Token::Column(_) => declare_columns(state, column_names(tokens), path, line_num)?,
-            Token::Value(_) => read_row(state, row_values(tokens), path, line_num)?,
+            Token::Column(_) => read_names(state, tokens, path, line_num)?,
+            Token::Value(_) => read_row(state, row_values_of(&tokens), path, line_num)?,
         };
     }
 
@@ -102,10 +116,78 @@ fn open_loop(state: State, path: &str, line: usize) -> Result<State, Error> {
             columns: Vec::new(),
         }),
         State::Preamble => Err(parse_error(path, line, "loop_ outside a data block")),
+        State::ReadingTags { .. } => Err(parse_error(
+            path,
+            line,
+            "a loop_ after a block's tags is not supported",
+        )),
         _ => Err(parse_error(
             path,
             line,
             "a data block with more than one loop_ is not supported",
+        )),
+    }
+}
+
+fn read_names(state: State, tokens: Vec<Token>, path: &str, line: usize) -> Result<State, Error> {
+    let values = row_values_of(&tokens);
+    let names = column_names_of(&tokens);
+    if values.is_empty() {
+        return declare_columns(state, names, path, line);
+    }
+    read_tag(state, names, values, path, line)
+}
+
+fn read_tag(
+    state: State,
+    names: Vec<String>,
+    values: Vec<String>,
+    path: &str,
+    line: usize,
+) -> Result<State, Error> {
+    let name = names
+        .into_iter()
+        .next()
+        .expect("a tag line carries its name");
+    if values.len() > 1 {
+        return Err(parse_error(
+            path,
+            line,
+            format!(
+                "tag '{name}' carries {} values, where one is all a tag may have",
+                values.len()
+            ),
+        ));
+    }
+    let value = values.into_iter().next().expect("checked above");
+    match state {
+        State::InBlock { name: block } => Ok(State::ReadingTags {
+            name: block,
+            columns: vec![name],
+            values: vec![value],
+        }),
+        State::ReadingTags {
+            name: block,
+            mut columns,
+            mut values,
+        } => {
+            columns.push(name);
+            values.push(value);
+            Ok(State::ReadingTags {
+                name: block,
+                columns,
+                values,
+            })
+        }
+        State::Preamble => Err(parse_error(
+            path,
+            line,
+            format!("tag '{name}' outside a data block"),
+        )),
+        State::ReadingColumns { .. } | State::ReadingData { .. } => Err(parse_error(
+            path,
+            line,
+            format!("tag '{name}' inside a loop_, which declares its columns and its rows apart"),
         )),
     }
 }
@@ -142,6 +224,11 @@ fn declare_column(state: State, column: String, path: &str, line: usize) -> Resu
             line,
             format!("column '{column}' after the first data row"),
         )),
+        State::ReadingTags { .. } => Err(parse_error(
+            path,
+            line,
+            format!("column '{column}' with no value among a block's tags"),
+        )),
     }
 }
 
@@ -170,6 +257,11 @@ fn read_row(state: State, values: Vec<String>, path: &str, line: usize) -> Resul
         }
         State::Preamble => Err(parse_error(path, line, "data row outside a data block")),
         State::InBlock { .. } => Err(parse_error(path, line, "data row before loop_")),
+        State::ReadingTags { .. } => Err(parse_error(
+            path,
+            line,
+            "a data row among a block's tags, which are one name and one value each",
+        )),
     }
 }
 
@@ -193,21 +285,21 @@ fn check_row_width(
     Ok(())
 }
 
-fn column_names(tokens: Vec<Token>) -> Vec<String> {
+fn column_names_of(tokens: &[Token]) -> Vec<String> {
     tokens
-        .into_iter()
+        .iter()
         .filter_map(|token| match token {
-            Token::Column(name) => Some(name),
+            Token::Column(name) => Some(name.clone()),
             _ => None,
         })
         .collect()
 }
 
-fn row_values(tokens: Vec<Token>) -> Vec<String> {
+fn row_values_of(tokens: &[Token]) -> Vec<String> {
     tokens
-        .into_iter()
+        .iter()
         .filter_map(|token| match token {
-            Token::Value(value) => Some(value),
+            Token::Value(value) => Some(value.clone()),
             _ => None,
         })
         .collect()
