@@ -140,7 +140,11 @@ each argued from a real file in `docs/formats.md`.
       guessed from its extension
 - [ ] A decision on `RawSchema.table_name` for a format that names no table,
       which `.par` is the first of
-- [ ] Real fixtures under `tests/files/`, trimmed, with their provenance
+- [x] Real STAR files under `tests/files/star/`, with their provenance and
+      licence. Five of the eight read; the three that do not are all one
+      cause, #41, and two of those are Relion's own output
+- [ ] Real `.cs`, `.par` and block-CSV files, trimmed from the EMPIAR
+      depositions `docs/formats.md` names
 
 ## Phase 7 — XMD
 

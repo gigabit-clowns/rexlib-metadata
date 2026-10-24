@@ -275,9 +275,10 @@ starts with an underscore.
 trimmed to a few rows, never typed out from our reading of the specification.
 A hand-written STAR file tests that the parser agrees with whoever wrote the
 fixture, which is the same person who wrote the parser; only a file Relion,
-Xmipp or cryoSPARC actually produced can contradict us. The real ones land in
-`tests/files/`, where both suites can reach them, each with a note saying
-where it came from and what about it is worth a test. The small invented ones
+Xmipp or cryoSPARC actually produced can contradict us. The real ones live in
+`tests/files/`, with a note beside them saying where each came from and what
+it is there for, and the licence of whoever wrote them where that applies.
+`tests/files/star/` is the first of these. The small invented ones
 that predate this rule stay for what they are, cases the format allows that
 no file we have happens to contain.
 
