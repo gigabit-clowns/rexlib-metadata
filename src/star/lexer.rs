@@ -17,11 +17,29 @@ pub(crate) fn tokenize_line(line: &str, path: &str, line_num: usize) -> Result<V
         ensure_single_word(clean_line, path, line_num, "loop_ keyword")?;
         Ok(vec![Token::Loop])
     } else if clean_line.starts_with("_") {
-        ensure_single_word(clean_line, path, line_num, "column name")?;
-        Ok(vec![Token::Column(clean_line.to_string())])
+        tokenize_tag(line, clean_line, path, line_num)
     } else {
         tokenize_values(line, path, line_num)
     }
+}
+
+fn tokenize_tag(
+    line: &str,
+    clean_line: &str,
+    path: &str,
+    line_num: usize,
+) -> Result<Vec<Token>, Error> {
+    let name = clean_line
+        .split_whitespace()
+        .next()
+        .expect("guaranteed by starts_with('_')");
+    let after_name = line
+        .find(name)
+        .map(|at| at + name.len())
+        .expect("the name came from this line");
+    let mut tokens = vec![Token::Column(name.to_string())];
+    tokens.extend(tokenize_values(&line[after_name..], path, line_num)?);
+    Ok(tokens)
 }
 
 fn tokenize_values(line: &str, path: &str, line_num: usize) -> Result<Vec<Token>, Error> {
@@ -221,8 +239,44 @@ mod tests {
     }
 
     #[test]
-    fn column_with_trailing_tokens_is_error() {
-        assert!(tokenize_line("_rlnAngleRot extra", "test.star", 1).is_err());
+    fn a_bare_name_is_a_column() {
+        assert_eq!(
+            tok("_rlnAngleRot"),
+            vec![Token::Column("_rlnAngleRot".into())]
+        );
+    }
+
+    #[test]
+    fn a_name_and_a_value_are_a_tag() {
+        assert_eq!(
+            tok("_rlnFinalResolution                        16.363636"),
+            vec![
+                Token::Column("_rlnFinalResolution".into()),
+                Token::Value("16.363636".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_tag_value_may_be_quoted_and_hold_a_hash() {
+        assert_eq!(
+            tok("_rlnMaskName 'mask #2.mrc'"),
+            vec![
+                Token::Column("_rlnMaskName".into()),
+                Token::Value("mask #2.mrc".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_comment_after_a_tag_value_is_dropped() {
+        assert_eq!(
+            tok("_rlnMaskName mask.mrc # which one"),
+            vec![
+                Token::Column("_rlnMaskName".into()),
+                Token::Value("mask.mrc".into()),
+            ]
+        );
     }
 
     #[test]

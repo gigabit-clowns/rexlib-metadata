@@ -24,12 +24,15 @@ agreeing with ourselves.
 
 ## What they found
 
-Five read. Three do not, all of them for one reason: a block of `_name value`
-pairs with no `loop_`, which the lexer rejects before the parser sees it.
-That is [#41](https://github.com/gigabit-clowns/rexlib-metadata/issues/41),
-and two of the three are Relion's own output, which is the answer to whether
-it was urgent.
+Five read at once. The other three were one cause — a block of `_name value`
+tags with no `loop_`, which the lexer rejected before the parser saw it — and
+two of those three were Relion's own output, which answered whether
+[#41](https://github.com/gigabit-clowns/rexlib-metadata/issues/41) was
+urgent. It is done, and all eight read.
 
-`tests/python/test_real_star_files.py` holds both halves: what the five
-produce, and the error the three raise. When #41 is done, the second half
-turns into the first.
+They also settled two things no amount of reading the standard would have:
+no tag in any of these files carries more than one value, and no block mixes
+tags with a loop. Both are now errors rather than guesses.
+
+`tests/python/test_real_star_files.py` asserts what each of the eight
+produces.
