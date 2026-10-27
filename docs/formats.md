@@ -111,21 +111,21 @@ Holds, and the files confirm rather than merely allow it:
 - Matching by column presence rather than by table name, which is what lets
   a `.par` with no table name be read at all.
 
+- The state machine takes its tokens from any lexer, so a block-shaped
+  delimited file is a lexer rather than a second parser. Done, and the second
+  lexer written to prove it found a bug while doing so.
+
 Has to change, in this order:
 
-1. **The parser must take its tokens from any lexer.** It is what makes the
-   block-shaped CSV a lexer rather than a second parser, and it is the
-   cheapest of these changes to make now and the most expensive to retrofit
-   after a second state machine exists.
-2. **Reader and bundle have to be choosable at the call site.** `.csv` says
+1. **Reader and bundle have to be choosable at the call site.** `.csv` says
    nothing about who wrote it, and neither will `.db` or `.h5`: the extension
    cannot pick a dialect for a generic container. The design has always said
    every heuristic can be overridden, and this is the format that makes the
    override compulsory rather than polite. It needs named arguments on
    `read`, not the `**kwargs` that were just removed for swallowing mistakes
    in silence.
-3. **A NumPy-dtype-to-Arrow mapping**, wherever the `.cs` reader lives.
-4. **A rule for a format that has no table name**, which `.par` is the first
+2. **A NumPy-dtype-to-Arrow mapping**, wherever the `.cs` reader lives.
+3. **A rule for a format that has no table name**, which `.par` is the first
    of and SQLite will be the opposite of.
 
 ## Fixtures from these files
@@ -143,7 +143,7 @@ its header intact, which for the `.cs` means rewriting the shape in its
 
 [teamtomo](https://teamtomo.org/site/io_packages/) is the other source worth
 raiding: a package per format, tests included, and assets we could borrow
-with attribution rather than invent. Their formats also bring the one shape
-we have an issue open about — mdoc's blocks of `key = value` pairs with no
-loop, which is
-[#41](https://github.com/gigabit-clowns/rexlib-metadata/issues/41).
+with attribution rather than invent. Their formats also bring the shape
+[#41](https://github.com/gigabit-clowns/rexlib-metadata/issues/41) settled
+for STAR: mdoc's blocks of `key = value` pairs with no loop, which here are
+a table of one row.

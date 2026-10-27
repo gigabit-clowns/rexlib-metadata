@@ -8,11 +8,11 @@ Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 
 - **Read STAR files** to Pandas or Polars DataFrames with a single call
 - **All values preserved as strings** — no silent type inference; type conversion is the convention system's job
-- **Lazy I/O** — `rm.read()` returns immediately with no file I/O; data is only loaded when you call `to_pandas()` or `to_polars()`
+- **Lazy I/O** — `rxm.read()` returns immediately with no file I/O; data is only loaded when you call `to_pandas()` or `to_polars()`
 - **Extensible** — plug in custom readers and conventions by subclassing Python ABCs; no Rust required
 - **Fast core** — parsing and Arrow serialization in Rust via PyO3 + Maturin
 
-Reading STAR files is what works today. Writing, the convention system, chunked reads, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
+Reading STAR files is what works today. Writing, the conventions themselves, chunked reads, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
 
 ## Installation
 
@@ -32,9 +32,9 @@ Requires Python ≥ 3.10.
 ## Usage
 
 ```python
-import rexlib_metadata as rm
+import rexlib_metadata as rxm
 
-result = rm.read("particles.star")
+result = rxm.read("particles.star")
 
 df = result.to_pandas()   # pandas.DataFrame
 df = result.to_polars()   # polars.DataFrame
@@ -44,7 +44,7 @@ A STAR file may hold several data blocks, and a Relion one usually does —
 its optics live in a block of their own. Name the one you mean:
 
 ```python
-result = rm.read("run_it025_data.star")
+result = rxm.read("run_it025_data.star")
 
 result.names               # ('optics', 'particles')
 result["particles"].to_pandas()
@@ -79,8 +79,8 @@ class MyFormatReader(Reader):
 
 global_registry.register_reader([".myext"], MyFormatReader())
 
-# Now rm.read() dispatches to your reader automatically
-result = rm.read("data.myext")
+# Now rxm.read() dispatches to your reader automatically
+result = rxm.read("data.myext")
 ```
 
 `read_tables` is all a reader has to write: `Reader.read` already returns the

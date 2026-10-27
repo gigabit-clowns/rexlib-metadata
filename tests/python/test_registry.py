@@ -64,3 +64,12 @@ def test_reading_goes_through_the_reader_of_the_extension():
     registry.register_reader([".star"], reader)
 
     assert registry.read("x.star")._reader is reader
+
+
+def test_one_extension_may_be_given_as_a_string():
+    registry = MetadataRegistry()
+    registry.register_bundle(".star", ConventionBundle("relion4"))
+    registry.register_reader(".star", _Reader())
+
+    assert [b.name for b in registry.bundles_for("x.star")] == ["relion4"]
+    assert isinstance(registry.reader_for("x.star"), _Reader)

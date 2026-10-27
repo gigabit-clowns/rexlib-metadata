@@ -26,8 +26,8 @@ pull request. When in doubt about which document something belongs in, see
   title and body into a commit message.
 - A document this change makes wrong is part of the change. Unfinished work
   is an issue, never a `TODO`.
-- `docs/` holds the design, the plan, continuous integration and the
-  dependencies, one subject each. The table at the foot of this file says
+- `docs/` holds the design, the canonical vocabulary, the formats, the plan,
+  continuous integration and the dependencies, one subject each. The table at the foot of this file says
   when each is worth opening.
 
 ## What is built and what is designed
@@ -41,11 +41,11 @@ knowing which of the two it is talking about:
 | STAR reader, values as strings, every block | Built, `src/star/` |
 | Arrow as the canonical representation | Built |
 | `Reader` ABC, `MetadataRegistry`, `ReadResult` | Built, minimal |
-| Convention layer (`ReadConvention`, `WriteConvention`, `ConventionBundle`) | Built, `python/rexlib_metadata/convention.py`; the engine that drives them is not |
+| Convention layer (`ReadConvention`, `WriteConvention`, `ConventionBundle`) | Built, `python/rexlib_metadata/convention.py`; nothing drives them yet |
 | Schema layer (`ColumnDescriptor`, `TableSchema`, …) | Built, `python/rexlib_metadata/schema.py`; the catalogue it will carry is `docs/canonical.md` |
 | The read engine | Built, `python/rexlib_metadata/engine.py`, and driven by nothing yet |
 | The Relion bundle, and wiring the engine into a read | Waiting on a real file |
-| Writers, chunking, multi-table, XMD, SQLite, HDF5 | Designed, not written |
+| Writers, chunking, XMD, SQLite, HDF5 | Designed, not written |
 
 `docs/roadmap.md` is the authority on what comes next and in which order.
 Nothing here commits to a shape the roadmap has not reached yet, but the
@@ -112,7 +112,7 @@ and not the exception. `Reader.read` is concrete and returns the lazy result,
 because there is exactly one correct body for it and a second copy of that
 line is a chance to break the rule that a read opens no file.
 
-`src/lib.rs` keeps no logic. It wraps, converts `StarError` into a Python
+`src/lib.rs` keeps no logic. It wraps, converts `Error` into a Python
 exception, and returns. Logic that creeps into it is logic Rust's own tests
 cannot reach.
 
@@ -158,8 +158,8 @@ Four layers, and the whole design is in which of them a decision belongs to.
 |---|---|---|
 | The reader | A file of one format, read into Arrow with no type guessed | `src/star/`, and the `Reader` ABC |
 | The canonical form | Apache Arrow, which both pandas and polars are built on, so neither is privileged and neither is a hard dependency | `docs/design.md` |
-| The schema | What a canonical table's columns are: name, type, unit, required or defaulted. Knows no file format | designed, `docs/design.md` |
-| The conventions | Which file columns make which canonical ones, per format, read and write kept apart | designed, `docs/design.md` |
+| The schema | What a canonical table's columns are: name, type, unit, required or defaulted. Knows no file format | built, `schema.py`, designed in `docs/design.md` |
+| The conventions | Which file columns make which canonical ones, per format, read and write kept apart | built, `convention.py`, designed in `docs/design.md` |
 
 Around them, the registry, which picks a reader and a set of conventions
 from the file's extension and, where that is not enough, its content — and
@@ -185,6 +185,11 @@ enforces both: `cargo fmt --check` and clippy at `-D warnings` on one side,
 `ruff check .` on the other. Run them before pushing and leave nothing
 behind. The ruff rules are the ones rexlib-python settled on, minus what only
 a repository indenting with tabs needs.
+
+An example imports the package as `rxm`, three letters out of its own name
+the way vitrio takes `vio`. Not `rm`, which is the command that deletes
+things and which no documentation of a library that writes files should put
+in front of a reader.
 
 `_rexlib.pyi` is written by hand. A function added to `_rexlib` gets its stub
 in the same pull request, or the Python side is typed against something that
@@ -356,7 +361,7 @@ it and empties it, and the versions before it live in their own releases.
 - A raw table is matched to a canonical table by column presence, through
   `matches()`. Never by the raw table's name.
 - No two `ReadConvention`s of one bundle may produce the same canonical
-  column; it raises at registration.
+  column; it raises when the bundle is built.
 - Priority lives at the bundle level, not the column level. The first bundle
   to produce a canonical column owns it.
 - Schema validation is strict: unknown columns raise, and required columns

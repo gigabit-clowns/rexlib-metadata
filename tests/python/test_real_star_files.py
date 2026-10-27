@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-import rexlib_metadata as rm
+import rexlib_metadata as rxm
 
 FILES = Path(__file__).parent.parent / "files" / "star"
 
@@ -40,7 +40,7 @@ WHOLE_FILES = [
 
 @pytest.mark.parametrize(("name", "tables"), WHOLE_FILES)
 def test_every_table_of_a_real_file(name, tables):
-    result = rm.read(str(FILES / name))
+    result = rxm.read(str(FILES / name))
 
     assert result.names == tuple(tables)
     for table, shape in tables.items():
@@ -48,26 +48,26 @@ def test_every_table_of_a_real_file(name, tables):
 
 
 def test_a_file_of_one_table_needs_no_name():
-    df = rm.read(str(FILES / "one_loop.star")).to_pandas()
+    df = rxm.read(str(FILES / "one_loop.star")).to_pandas()
     assert df.shape == (16, 12)
 
 
 def test_a_file_of_several_tables_asks_which_one():
-    result = rm.read(str(FILES / "postprocess.star"))
+    result = rxm.read(str(FILES / "postprocess.star"))
 
     with pytest.raises(ValueError, match="'general', 'fsc', 'guinier'"):
         result.to_pandas()
 
 
 def test_a_table_nobody_has_raises_with_the_ones_there_are():
-    result = rm.read(str(FILES / "postprocess.star"))
+    result = rxm.read(str(FILES / "postprocess.star"))
 
     with pytest.raises(KeyError, match="no table 'particles'"):
         result["particles"]
 
 
 def test_relion_writes_the_column_index_as_a_comment():
-    result = rm.read(str(FILES / "rln3.1_data_style.star"))
+    result = rxm.read(str(FILES / "rln3.1_data_style.star"))
 
     assert list(result["block_2"].to_pandas().columns) == [
         "_rlnImageName",
@@ -79,7 +79,7 @@ def test_relion_writes_the_column_index_as_a_comment():
 
 
 def test_the_optics_of_a_relion_file_is_its_own_table():
-    optics = rm.read(str(FILES / "rln3.1_data_style.star"))["block_1"]
+    optics = rxm.read(str(FILES / "rln3.1_data_style.star"))["block_1"]
     df = optics.to_pandas()
 
     assert df["_rlnVoltage"][0] == "300.000000"
@@ -87,7 +87,7 @@ def test_the_optics_of_a_relion_file_is_its_own_table():
 
 
 def test_quoting_survives_every_shape_of_it():
-    df = rm.read(str(FILES / "loop_single_quote.star")).to_pandas()
+    df = rxm.read(str(FILES / "loop_single_quote.star")).to_pandas()
 
     assert df.to_numpy().tolist()[0] == [
         "noquote",
@@ -102,7 +102,7 @@ def test_quoting_survives_every_shape_of_it():
 
 
 def test_an_optimiser_file_keeps_its_names_and_values_together():
-    df = rm.read(str(FILES / "run_it025_optimiser_3D.star")).to_pandas()
+    df = rxm.read(str(FILES / "run_it025_optimiser_3D.star")).to_pandas()
 
     assert df["_rlnOutputRootName"][0] == "Class3D/job020/run"
     assert df["_rlnChangesOptimalClasses"][0] == "0.493386"
