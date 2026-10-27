@@ -255,20 +255,27 @@ end of the read, not a column of nulls.
 
 ### In code
 
+`ArrowColumn` is `pa.Array | pa.ChunkedArray`, defined in
+`convention.py`. A column taken out of a `pa.Table` is chunked, and every
+`pyarrow.compute` call over one hands a chunked array back, so chunked is
+what a convention returns in practice; one that builds a column from
+nothing returns a plain array. The engine and `pa.table` accept either, and
+the union says so rather than naming the half that happens to be rarer.
+
 ```python
 class ReadConvention(ABC):
     source_columns: tuple[str, ...]   # file columns consumed
     target_columns: tuple[str, ...]   # canonical columns produced
 
     def matches(self, raw: RawSchema) -> bool: ...
-    def load(self, table: pa.Table) -> dict[str, pa.Array]: ...
+    def load(self, table: pa.Table) -> dict[str, ArrowColumn]: ...
 
 
 class WriteConvention(ABC):
     source_columns: tuple[str, ...]   # canonical columns consumed
     target_columns: tuple[str, ...]   # file columns produced
 
-    def store(self, canonical: dict[str, pa.Array]) -> dict[str, pa.Array]: ...
+    def store(self, canonical: dict[str, ArrowColumn]) -> dict[str, ArrowColumn]: ...
 
 
 class ConventionBundle:
@@ -360,7 +367,7 @@ class MyEulerConvention(ReadConvention):
     def matches(self, raw: RawSchema) -> bool:
         return raw.has(*self.source_columns)
 
-    def load(self, table: pa.Table) -> dict[str, pa.Array]:
+    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
         return {
             "euler_rot":  table.column("myAngle1"),
             "euler_tilt": table.column("myAngle2"),

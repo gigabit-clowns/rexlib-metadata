@@ -37,15 +37,21 @@ test   = [
     "polars==2.0.0; python_version == '3.10'",
     "polars==2.1.0; python_version >= '3.11'",
 ]
-lint   = [
-    "ruff==0.17.3",
-    "complexipy==8.3.0",
-]
 pandas = [
     "pandas>=2.2.2,<3.0; python_version == '3.10'",
     "pandas>=3.0; python_version >= '3.11'",
 ]
 polars = ["polars>=1.0"]
+
+[dependency-groups]
+lint = [
+    "ruff==0.17.3",
+    "complexipy==8.3.0",
+    "mypy==2.4.0",
+    "pyarrow-stubs==20.0.0.20260819",
+    "pandas-stubs==3.0.5.260914",
+    "polars==2.1.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/gigabit-clowns/rexlib-metadata"
@@ -55,6 +61,10 @@ Issues   = "https://github.com/gigabit-clowns/rexlib-metadata/issues"
 python-source = "python"
 module-name   = "rexlib_metadata._rexlib"
 features      = ["pyo3/extension-module"]
+
+[tool.mypy]
+files          = ["python/rexlib_metadata"]
+python_version = "3.10"
 
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]

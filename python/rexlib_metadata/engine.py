@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
     from rexlib_metadata.convention import (
+        ArrowColumn,
         ConventionBundle,
         RawTable,
         ReadConvention,
@@ -30,7 +31,7 @@ def read_canonical(
     first one to produce a canonical column owns it, and a later one
     cannot take it back.
     """
-    covered: dict[str, pa.Array] = {}
+    covered: dict[str, ArrowColumn] = {}
 
     for bundle, raw, convention in _candidates(bundles, tuple(raw_tables)):
         if not _has_something_to_add(convention, raw, covered):
@@ -57,7 +58,7 @@ def _candidates(
 
 
 def _has_something_to_add(
-    convention: ReadConvention, raw: RawTable, covered: dict[str, pa.Array]
+    convention: ReadConvention, raw: RawTable, covered: dict[str, ArrowColumn]
 ) -> bool:
     if not convention.matches(raw.schema):
         return False
@@ -65,8 +66,8 @@ def _has_something_to_add(
 
 
 def _keep_first(
-    covered: dict[str, pa.Array],
-    produced: dict[str, pa.Array],
+    covered: dict[str, ArrowColumn],
+    produced: dict[str, ArrowColumn],
     convention: ReadConvention,
     schema: TableSchema,
     origin: str,
@@ -84,7 +85,7 @@ def _origin(bundle: ConventionBundle, convention: ReadConvention) -> str:
 
 def _check_column(
     name: str,
-    array: pa.Array,
+    array: ArrowColumn,
     convention: ReadConvention,
     schema: TableSchema,
     origin: str,
@@ -109,7 +110,7 @@ def _check_column(
         )
 
 
-def _row_count(covered: dict[str, pa.Array], schema: TableSchema) -> int:
+def _row_count(covered: dict[str, ArrowColumn], schema: TableSchema) -> int:
     lengths = {name: len(array) for name, array in covered.items()}
     if not lengths:
         return 0
@@ -124,7 +125,9 @@ def _row_count(covered: dict[str, pa.Array], schema: TableSchema) -> int:
     return next(iter(lengths.values()))
 
 
-def _check_required(covered: dict[str, pa.Array], schema: TableSchema) -> None:
+def _check_required(
+    covered: dict[str, ArrowColumn], schema: TableSchema
+) -> None:
     missing = [c.name for c in schema.required_columns if c.name not in covered]
     if missing:
         raise ValueError(
@@ -135,20 +138,19 @@ def _check_required(covered: dict[str, pa.Array], schema: TableSchema) -> None:
 
 
 def _assemble(
-    covered: dict[str, pa.Array], schema: TableSchema, rows: int
+    covered: dict[str, ArrowColumn], schema: TableSchema, rows: int
 ) -> pa.Table:
-    return pa.table(
-        {
-            column.name: _column(column, covered, rows)
-            for column in schema
-            if column.name in covered or column.default is not None
-        }
-    )
+    columns = {
+        column.name: _column(column, covered, rows)
+        for column in schema
+        if column.name in covered or column.default is not None
+    }
+    return pa.table(list(columns.values()), names=list(columns))
 
 
 def _column(
-    column: ColumnDescriptor, covered: dict[str, pa.Array], rows: int
-) -> pa.Array:
+    column: ColumnDescriptor, covered: dict[str, ArrowColumn], rows: int
+) -> ArrowColumn:
     if column.name in covered:
         return covered[column.name]
     return pa.array([column.default] * rows, type=column.dtype)

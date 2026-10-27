@@ -7,10 +7,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    import pyarrow as pa
+import pyarrow as pa
+
+ArrowColumn = pa.Array | pa.ChunkedArray
 
 
 @dataclass(frozen=True)
@@ -49,7 +49,7 @@ class ReadConvention(ABC):
         """Say whether this convention applies to a raw table."""
 
     @abstractmethod
-    def load(self, table: pa.Table) -> dict[str, pa.Array]:
+    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
         """Return the canonical columns, keyed by canonical name."""
 
 
@@ -60,7 +60,9 @@ class WriteConvention(ABC):
     target_columns: tuple[str, ...] = ()
 
     @abstractmethod
-    def store(self, canonical: dict[str, pa.Array]) -> dict[str, pa.Array]:
+    def store(
+        self, canonical: dict[str, ArrowColumn]
+    ) -> dict[str, ArrowColumn]:
         """Return the file columns, keyed by the name the file uses."""
 
 
