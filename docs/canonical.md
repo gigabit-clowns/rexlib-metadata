@@ -162,6 +162,14 @@ Helical parameters, tilt-series and tomography columns beyond `coord_z` and
 file name. Each is a group of columns that one workflow needs and most do
 not; they go in when a real file asks and a test can prove the mapping.
 
+## In code
+
+`python/rexlib_metadata/canonical.py` carries the traits and the two tables
+that have conventions behind them today — the image reference, the position,
+the angles, the CTF resolution, the optics key, the microscope and the
+sampling. It grows a column when a convention can produce one, not before: a
+catalogue that lists what nothing reads is a promise rather than a schema.
+
 ## Open
 
 - **The rotation and shift conventions**, as marked above: the sign and the

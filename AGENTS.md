@@ -65,6 +65,8 @@ invariants at the end of this file already bind what gets written.
 | `python/rexlib_metadata/` | The public Python package |
 | `python/rexlib_metadata/schema.py` | The canonical columns and the tables they compose |
 | `python/rexlib_metadata/convention.py` | The convention interfaces and the bundles that group them |
+| `python/rexlib_metadata/canonical.py` | The canonical columns as traits and tables, from `docs/canonical.md` |
+| `python/rexlib_metadata/conventions/` | One module per format: its reader, and what its names mean |
 | `python/rexlib_metadata/_rexlib.pyi` | Stubs for the compiled module |
 | `tests/python/` | pytest suites, with their sample files in `fixtures/` |
 | `docs/` | Design notes and roadmap: everything too specific for this file |
@@ -281,6 +283,10 @@ that file sits, so that `conventions/star.py` is answered by
 parametrized case carries a short `id` through `pytest.param`, because a
 failure reported as `[case3]` says nothing. A fixture only one file uses
 starts with an underscore.
+
+**An assertion about a file comes from the file.** Open it, read the value,
+paste it. A remembered number is a guess, and a test built on one fails for
+the wrong reason or, worse, passes.
 
 **A fixture of a file format comes from a program that writes that format**,
 trimmed to a few rows, never typed out from our reading of the specification.
