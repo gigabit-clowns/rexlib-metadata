@@ -50,7 +50,7 @@ of several tables asks which one rather than handing back the last.
 - [x] `GenericStarConvention` passthrough
 - [x] `StarReader` over the Rust entry points
 - [x] `MetadataRegistry`, `global_registry`, `.star` pre-registered
-- [x] `rm.read()`
+- [x] `rxm.read()`
 - [x] Fixtures and integration tests
 - [x] pytest in CI
 

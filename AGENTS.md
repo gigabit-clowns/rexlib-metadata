@@ -186,6 +186,11 @@ enforces both: `cargo fmt --check` and clippy at `-D warnings` on one side,
 behind. The ruff rules are the ones rexlib-python settled on, minus what only
 a repository indenting with tabs needs.
 
+An example imports the package as `rxm`, three letters out of its own name
+the way vitrio takes `vio`. Not `rm`, which is the command that deletes
+things and which no documentation of a library that writes files should put
+in front of a reader.
+
 `_rexlib.pyi` is written by hand. A function added to `_rexlib` gets its stub
 in the same pull request, or the Python side is typed against something that
 no longer exists.

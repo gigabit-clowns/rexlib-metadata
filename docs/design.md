@@ -366,7 +366,7 @@ without changing a line in here.
 
 ## Laziness, projection and forwarding
 
-`rm.read()` returns a `ReadResult` and does no row I/O. Materialisation
+`rxm.read()` returns a `ReadResult` and does no row I/O. Materialisation
 happens in `to_pandas()` / `to_polars()`, and a `ReadResult` holds no open
 file handle once the call that created it has returned: handles exist only
 for the duration of actual I/O. A reader that keeps one open breaks every
@@ -393,10 +393,10 @@ filesystem.
 Written out as it is meant to end up. Only the first three lines exist today.
 
 ```python
-import rexlib_metadata as rm
+import rexlib_metadata as rxm
 
-result = rm.read("particles.star")
-result = rm.read("particles.star", columns=["angle_rot"],
+result = rxm.read("particles.star")
+result = rxm.read("particles.star", columns=["angle_rot"],
                  convention=Relion4(), backend="polars")
 
 df = result.to_pandas()     # I/O happens here
@@ -410,7 +410,7 @@ for chunk in result.chunks(size=10_000):            # streaming
 result.write("output.star")
 
 # write-forwarding: read some columns, modify, write everything back
-result = rm.read("particles.star", columns=["angle_rot"])
+result = rxm.read("particles.star", columns=["angle_rot"])
 df = result.to_pandas()
 df["angle_rot"] += 10
 result.write("output.star", updates=df)
