@@ -16,6 +16,14 @@
   },
   "packageRules": [
     {
+      "description": [
+        "The organisation's own composites and reusable workflows, taken from main on purpose: a fix there reaches every repository of the suite at once, where a digest would need a pull request per repository to arrive.",
+        "helpers:pinGitHubActionDigests would pin them, so they are disabled here rather than pinned. The trust this gives up is trust in ourselves."
+      ],
+      "matchDepNames": ["gigabit-clowns/.github"],
+      "enabled": false
+    },
+    {
       "description": "Python version in CI matrix is a manual decision",
       "matchDepNames": ["python"],
       "enabled": false

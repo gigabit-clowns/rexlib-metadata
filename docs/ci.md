@@ -77,6 +77,16 @@ Actions are pinned by digest, and Renovate keeps both the digests and the
 dependencies moving, under a 14-day minimum release age that security
 advisories skip.
 
+The organisation's own are not pinned, and `renovate.json` disables
+`gigabit-clowns/.github` so that they stay that way. They are taken from
+`main` on purpose: a fix to a composite reaches every repository of the suite
+the moment it lands, where a digest would need a pull request per repository
+to arrive. The trust that gives up is trust in ourselves. Should Sonar come to
+ask for the commit hash — `githubactions:S7637`, which it does not raise
+today on any repository of the suite — the answer is to accept the finding in
+the interface, with that as the reason, since `.sonarcloud.properties` does
+not accept a rule to ignore.
+
 The Rust toolchain is the exception: `dtolnay/rust-toolchain@stable` follows
 stable wherever it goes, and clippy's `pedantic` group grows with it. A new
 release can therefore fail a build nobody touched — it has happened once,
