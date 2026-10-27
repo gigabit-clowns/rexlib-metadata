@@ -162,6 +162,30 @@ each argued from a real file in `docs/formats.md`.
 - [ ] `.h5` and `.hdf5` registered
 - [ ] Tests: read and write datasets
 
+## Measuring, when there is something to measure
+
+"Highly performant" is a requirement with no number behind it. What it wants:
+a STAR file of about a million rows, a script that times reading it, and the
+same read through `starfile` and `starfile-rs` beside it. Until that exists,
+no optimisation in this repository can be defended, which is why the release
+profile is cargo's default.
+
+**The build profile is one of the things to measure**, not something to
+restore on taste. The options and what each costs to link, measured on one
+machine by touching a line and rebuilding warm:
+
+| Profile | Relink | Reading a million rows |
+|---|---|---|
+| `lto = true`, `codegen-units = 1` | 94 s | unmeasured |
+| `lto = "thin"`, `codegen-units = 1` | 66 s | unmeasured |
+| `lto = "thin"`, codegen by default | 29 s | unmeasured |
+| cargo's default, which is what we ship | 2 s | unmeasured |
+
+The right column is the one that decides, and the benchmark is what fills
+it. Whatever wins comes back with its numbers in the pull request that
+restores it; a build minute per cell is worth paying for a parse that is
+meaningfully faster and worth nothing for one that is not.
+
 ## What is not here
 
 Loose ends are issues, not a list in this file: an item nobody is assigned to
