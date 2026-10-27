@@ -84,16 +84,17 @@ def test_an_empty_bundle_is_allowed():
 
 
 def test_two_readers_of_one_canonical_column_are_an_error():
+    conventions = [EulerAngles(), OtherEulerAngles()]
+
     with pytest.raises(ValueError, match="angle_rot"):
-        ConventionBundle("relion4", [EulerAngles(), OtherEulerAngles()])
+        ConventionBundle("relion4", conventions)
 
 
 def test_two_writers_of_one_file_column_are_an_error():
+    conventions = [WriteEulerAngles(), WriteEulerAngles()]
+
     with pytest.raises(ValueError, match="_rlnAngleRot"):
-        ConventionBundle(
-            "relion4", write_conventions=[WriteEulerAngles(),
-                                          WriteEulerAngles()]
-        )
+        ConventionBundle("relion4", write_conventions=conventions)
 
 
 def test_the_two_sides_do_not_collide_with_each_other():
@@ -108,5 +109,7 @@ def test_the_two_sides_do_not_collide_with_each_other():
 
 
 def test_a_convention_that_produces_nothing_is_an_error():
+    conventions = [Silent()]
+
     with pytest.raises(ValueError, match="no target_columns"):
-        ConventionBundle("relion4", [Silent()])
+        ConventionBundle("relion4", conventions)

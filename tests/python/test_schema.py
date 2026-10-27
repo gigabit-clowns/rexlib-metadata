@@ -28,8 +28,10 @@ def test_a_column_is_optional_by_default():
 
 
 def test_required_and_defaulted_at_once_is_an_error():
+    dtype = pa.int32()
+
     with pytest.raises(ValueError, match="required and has a default"):
-        ColumnDescriptor("class_id", pa.int32(), required=True, default=1)
+        ColumnDescriptor("class_id", dtype, required=True, default=1)
 
 
 def test_a_trait_flattens_into_the_table():
@@ -79,8 +81,10 @@ def test_the_same_column_twice_collapses():
     ],
 )
 def test_two_declarations_that_disagree_are_an_error(clashing):
+    other = SchemaTrait("other", (clashing,))
+
     with pytest.raises(ValueError, match="angle_rot"):
-        TableSchema("particles", EULER, SchemaTrait("other", (clashing,)))
+        TableSchema("particles", EULER, other)
 
 
 def test_required_columns_are_the_required_ones():
@@ -111,8 +115,11 @@ def test_a_schema_holds_its_tables_by_name():
 
 
 def test_two_tables_of_one_name_are_an_error():
+    particles = TableSchema("particles", EULER)
+    again = TableSchema("particles")
+
     with pytest.raises(ValueError, match="declared twice"):
-        Schema(TableSchema("particles", EULER), TableSchema("particles"))
+        Schema(particles, again)
 
 
 def test_an_unknown_table_raises():

@@ -134,23 +134,31 @@ def test_a_convention_that_does_not_match_is_not_called():
 
 
 def test_a_column_the_table_does_not_declare_is_an_error():
+    bundle = ConventionBundle("relion4", [Images(), Undeclared()])
+
     with pytest.raises(ValueError, match="angle_phi"):
-        read(ConventionBundle("relion4", [Images(), Undeclared()]))
+        read(bundle)
 
 
 def test_a_column_of_the_wrong_type_is_an_error():
+    bundle = ConventionBundle("relion4", [Images(), WrongType()])
+
     with pytest.raises(TypeError, match="angle_tilt"):
-        read(ConventionBundle("relion4", [Images(), WrongType()]))
+        read(bundle)
 
 
 def test_a_missing_required_column_is_an_error():
+    bundle = ConventionBundle("relion4", [Rot()])
+
     with pytest.raises(ValueError, match="image_path"):
-        read(ConventionBundle("relion4", [Rot()]))
+        read(bundle)
 
 
 def test_columns_of_different_lengths_are_an_error():
+    bundle = ConventionBundle("relion4", [Images(), Shorter()])
+
     with pytest.raises(ValueError, match="different lengths"):
-        read(ConventionBundle("relion4", [Images(), Shorter()]))
+        read(bundle)
 
 
 def test_a_default_fills_a_column_nobody_produced():
@@ -223,8 +231,10 @@ class ChunkedRot(ReadConvention):
 
 
 def test_a_column_the_convention_does_not_declare_is_an_error():
+    bundle = ConventionBundle("relion4", [Sneaky()])
+
     with pytest.raises(ValueError, match="does not declare"):
-        read(ConventionBundle("relion4", [Sneaky()]))
+        read(bundle)
 
 
 def test_a_convention_that_lost_cannot_break_the_read():

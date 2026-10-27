@@ -45,8 +45,10 @@ def test_an_extension_is_matched_whatever_its_case():
 
 
 def test_an_extension_with_no_reader_raises():
+    registry = MetadataRegistry()
+
     with pytest.raises(ValueError, match="No reader registered"):
-        MetadataRegistry().reader_for("data.csv")
+        registry.reader_for("data.csv")
 
 
 def test_the_registered_reader_is_the_one_handed_back():

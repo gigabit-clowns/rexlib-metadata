@@ -71,5 +71,8 @@ def test_a_column_nobody_wrote_is_left_out():
 def test_the_optics_bundle_does_not_claim_a_particle_table():
     raw = rxm.read(str(FILES / "rln3.1_data_style.star"))["block_2"]
 
+    table = raw._materialize()
+    bundles = [optics_bundle()]
+
     with pytest.raises(ValueError, match="requires"):
-        read_canonical(raw._materialize(), [optics_bundle()], OPTICS)
+        read_canonical(table, bundles, OPTICS)

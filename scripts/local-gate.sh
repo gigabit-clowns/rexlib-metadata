@@ -6,12 +6,12 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 python=""
 for candidate in "${VIRTUAL_ENV:-}/bin/python" "${VIRTUAL_ENV:-}/Scripts/python.exe" \
     ".venv/bin/python" ".venv/Scripts/python.exe"; do
-    if [ -x "$candidate" ]; then
+    if [[ -x "$candidate" ]]; then
         python="$candidate"
         break
     fi
 done
-if [ -z "$python" ]; then
+if [[ -z "$python" ]]; then
     echo "No virtual environment found. Activate one, or make it .venv/." >&2
     exit 1
 fi
