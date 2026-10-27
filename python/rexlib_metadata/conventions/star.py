@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-import pyarrow as pa
-
 from rexlib_metadata._arrow import to_pyarrow_table
-from rexlib_metadata._rexlib import _star_read
+from rexlib_metadata._rexlib import _star_read_tables
 from rexlib_metadata.abc import Reader
+from rexlib_metadata.convention import RawTable
 
 
 class StarReader(Reader):
     """Reads a STAR file through the Rust parser."""
 
-    def read_all(self, path: str) -> pa.Table:
-        """Read every row of the file at `path` into one table."""
-        return to_pyarrow_table(_star_read(path))
+    def read_tables(self, path: str) -> list[RawTable]:
+        """Read every data block of the file at `path`."""
+        return [
+            RawTable.of(name, to_pyarrow_table(batch))
+            for name, batch in _star_read_tables(path)
+        ]

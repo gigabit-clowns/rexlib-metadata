@@ -2,13 +2,13 @@ import pyarrow as pa
 import pytest
 
 from rexlib_metadata.abc import Reader
-from rexlib_metadata.convention import ConventionBundle
+from rexlib_metadata.convention import ConventionBundle, RawTable
 from rexlib_metadata.registry import MetadataRegistry
 
 
 class _Reader(Reader):
-    def read_all(self, path):
-        return pa.table({"a": [1]})
+    def read_tables(self, path):
+        return [RawTable.of("a_table", pa.table({"a": [1]}))]
 
 
 def test_bundles_come_back_in_priority_order():

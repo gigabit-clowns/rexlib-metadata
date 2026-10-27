@@ -40,6 +40,19 @@ df = result.to_pandas()   # pandas.DataFrame
 df = result.to_polars()   # polars.DataFrame
 ```
 
+A STAR file may hold several data blocks, and a Relion one usually does —
+its optics live in a block of their own. Name the one you mean:
+
+```python
+result = rm.read("run_it025_data.star")
+
+result.names               # ('optics', 'particles')
+result["particles"].to_pandas()
+```
+
+A file of one table needs no name. A file of several asks for one rather
+than picking.
+
 All column values come back as strings. Type conversion is intentionally deferred to the [convention system](docs/design.md#the-convention-layer).
 
 ```python
@@ -55,13 +68,13 @@ print(df.dtypes)
 Subclass `Reader` to add support for any format without touching Rust:
 
 ```python
-import pyarrow as pa
 from rexlib_metadata.abc import Reader
+from rexlib_metadata.convention import RawTable
 from rexlib_metadata.registry import global_registry
 
 class MyFormatReader(Reader):
-    def read_all(self, path: str) -> pa.Table:
-        # parse your format, return an Arrow Table
+    def read_tables(self, path: str) -> list[RawTable]:
+        # parse your format, one RawTable per table the file holds
         ...
 
 global_registry.register_reader([".myext"], MyFormatReader())
@@ -70,7 +83,7 @@ global_registry.register_reader([".myext"], MyFormatReader())
 result = rm.read("data.myext")
 ```
 
-`read_all` is all a reader has to write: `Reader.read` already returns the
+`read_tables` is all a reader has to write: `Reader.read` already returns the
 lazy result, and leaving it alone is what keeps the file closed until
 somebody asks for rows.
 
