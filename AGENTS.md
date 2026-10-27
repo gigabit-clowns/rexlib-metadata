@@ -72,6 +72,7 @@ invariants at the end of this file already bind what gets written.
 | `docs/` | Design notes and roadmap: everything too specific for this file |
 | `ruff.toml` | The lint rules of the Python, the authority on its style |
 | `clippy.toml` | The complexity threshold clippy holds the Rust to |
+| `.sonarcloud.properties` | What SonarQube Cloud calls a source and what it calls a test |
 | `CHANGELOG.md` | What a user of the package would notice, newest first |
 
 Rust unit tests live in a `mod tests` at the foot of the file they cover,
@@ -404,7 +405,7 @@ it and empties it, and the versions before it live in their own releases.
 | [docs/formats.md](docs/formats.md) | adding a format, or deciding whether one fits: what each of them asks for, read off real files, and what in here answers it |
 | [docs/canonical.md](docs/canonical.md) | touching a convention, a column or a unit: the canonical vocabulary, the tables it composes, and the conventions every format converts into |
 | [docs/roadmap.md](docs/roadmap.md) | picking up work, or finishing a phase: the ordered phases and where they stand |
-| [docs/ci.md](docs/ci.md) | touching a workflow, or wondering why a run costs what it costs: the jobs, the cache and what keeps it warm |
+| [docs/ci.md](docs/ci.md) | touching a workflow or `.sonarcloud.properties`, or wondering why a run costs what it costs: the jobs, the cache, what keeps it warm, and what SonarQube Cloud reads |
 | [docs/dependencies.md](docs/dependencies.md) | adding, raising or pinning a dependency: the feature that must stay off, the two crates that move as one, and why two pins are split |
 | the issue tracker | looking for what is missing — loose ends are issues, not a list in a file |
 
