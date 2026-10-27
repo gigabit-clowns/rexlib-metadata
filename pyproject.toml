@@ -38,7 +38,7 @@ test   = [
     "polars==2.0.0",
 ]
 pandas = [
-    "pandas>=2.0,<3.0; python_version == '3.10'",
+    "pandas>=2.2.2,<3.0; python_version == '3.10'",
     "pandas>=3.0; python_version >= '3.11'",
 ]
 polars = ["polars>=1.0"]
