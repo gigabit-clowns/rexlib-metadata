@@ -37,7 +37,7 @@ test   = [
     "polars==2.0.0",
 ]
 lint   = [
-    "ruff==0.17.0",
+    "ruff==0.17.3",
     "complexipy==8.0.1",
 ]
 pandas = [
