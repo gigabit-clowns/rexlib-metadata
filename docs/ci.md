@@ -12,7 +12,7 @@ to the same ref cancels the run in flight.
 
 | Job | Does |
 |---|---|
-| `lint` | `ruff check .` and the cognitive complexity check, once |
+| `lint` | `ruff check .`, the cognitive complexity check and `mypy`, once |
 | `build_with_cargo` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, `cargo test`, on the three platforms |
 | `build_with_pip` | `pip install .[test]` and `pytest tests/python/`, three platforms × Python 3.10 to 3.15, and once more on the oldest extras |
 
@@ -37,8 +37,19 @@ the source is the same in every cell. Nineteen copies of one answer was the
 smaller half of the waste: `complexipy` is a Rust package with no wheel for
 3.15 outside Linux, so two cells were building it — 177 crates, two minutes
 and ten seconds, more than this library's own build — to ask a question that
-had already been answered seventeen times. The job reads the pip cache under
-that key and never writes to it, so there is no fourth entry and no race.
+had already been answered seventeen times.
+
+The job installs through `pip install --group lint`, which is a PEP 735
+dependency group and therefore installs the tools without the project. An
+extra would have built this crate — the Rust and all of arrow — to deliver
+ruff, which is why that job once needed a Rust toolchain and a read-only
+cache entry and now needs neither. `--only-binary :all:` goes with it: every
+tool in the group ships a wheel on the one platform the job runs.
+
+`mypy` runs there too, reading its settings from `[tool.mypy]`. The group
+carries `pyarrow-stubs` and `pandas-stubs` because neither package ships
+types, and `polars`, which does — without the three of them the check passes
+by seeing `Any` everywhere, which is how the first run of it fooled us.
 
 `fail-fast` is off in both matrices, so one broken cell does not hide the
 others. The
@@ -132,17 +143,17 @@ firing. Three of the four are one rule in three costumes — lock your
 dependencies — and a library is the one thing that must not:
 
 - **a lock file is missing** (`uv.lock`, `poetry.lock`, `pylock.toml`), and
-  **the two `pip install .[…]` steps resolve versions freely**. A library
-  declares ranges; an application freezes a tree. Freezing ours would mean CI
-  proving that one resolution works, when the claim in `pyproject.toml` is
-  that every resolution inside the range does. The floors cell exists for
-  exactly that reason.
-- **`--only-binary :all:` is missing from the two `pip install .[…]` steps**,
-  because a source distribution runs its build script. The distribution being
-  built there is *this* one, by maturin, which is the whole point of the step;
-  with that flag the job cannot build the crate at all. The third such
-  install, the pinned polars and pandas of the floors cell, takes the flag and
-  has it.
+  **`pip install .[test]` resolves versions freely**. A library declares
+  ranges; an application freezes a tree. Freezing ours would mean CI proving
+  that one resolution works, when the claim in `pyproject.toml` is that every
+  resolution inside the range does. The floors cell exists for exactly that
+  reason.
+- **`--only-binary :all:` is missing from `pip install .[test]`**, because a
+  source distribution runs its build script. The distribution being built
+  there is *this* one, by maturin, which is the whole point of the step; with
+  that flag the job cannot build the crate at all. The other two installs,
+  the linters and the pinned polars and pandas of the floors cell, take the
+  flag and have it.
 
 Each of those five is accepted in the SonarQube Cloud interface rather than
 silenced here, so the reason is attached to the finding and a sixth of the

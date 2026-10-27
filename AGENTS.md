@@ -127,16 +127,20 @@ into it is logic Rust's own tests cannot reach.
 ```bash
 pip install maturin
 maturin develop            # builds the extension into the active environment
-pip install .[test,lint]   # the suites, and the linters the gate runs
+pip install .[test]        # the suites
+pip install --group lint   # the linters and the type checker the gate runs
 pytest tests/python/       # the Python suites
 cargo test                 # the Rust unit tests
 
 bash scripts/local-gate.sh   # all of it, in CI's order
 ```
 
-`lint` is an extra of its own because CI runs the linters once rather than in
-every cell: they read the source, which is the same source nineteen times
-over. A development environment wants both.
+`lint` is a dependency group rather than an extra, because a group installs
+without the project: the linters read the source and have no use for the
+compiled module, and asking pip for an extra would have built the whole crate
+to deliver ruff. CI runs them once rather than in every cell, the source
+being the same source nineteen times over. A development environment wants
+both lines.
 
 The gate is the one to run before pushing: `cargo fmt --check`, build, test,
 clippy at `-D warnings`, then ruff, the complexity check and pytest,
@@ -211,6 +215,14 @@ new file without that line is an incomplete file.
 `_rexlib.pyi` is written by hand. A function added to `_rexlib` gets its stub
 in the same pull request, or the Python side is typed against something that
 no longer exists.
+
+mypy is what keeps that stub, and every annotation beside it, honest: it runs
+in the `lint` job and in the local gate, at its default strictness against
+the floor in `requires-python`. `pyarrow-stubs` is installed with it on
+purpose — pyarrow ships no types of its own, and without them every Arrow
+call in this package is `Any` and the check is theatre. An annotation that
+the checker cannot prove is narrowed with `cast` at the one line that knows
+why, never with a blanket ignore.
 
 A class that implements an interface is named after it, with what sets it
 apart in front: `StarReader` is a `Reader`, `Relion4Bundle` is a

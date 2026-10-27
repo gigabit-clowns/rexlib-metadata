@@ -53,11 +53,14 @@ class ImageReference(_Renaming):
         )
         written = pc.struct_field(parts, "index")
         one_based = pc.cast(
-            pc.if_else(pc.equal(written, ""), "1", written), pa.int64()
+            pc.if_else(
+                pc.equal(written, pa.scalar("")), pa.scalar("1"), written
+            ),
+            pa.int64(),
         )
         return {
             "image_path": pc.struct_field(parts, "path"),
-            "image_index": pc.subtract(one_based, 1),
+            "image_index": pc.subtract(one_based, pa.scalar(1, pa.int64())),
         }
 
 
