@@ -2,16 +2,14 @@
 
 """Read CryoEM metadata files as pandas or polars DataFrames."""
 
-from typing import TYPE_CHECKING
+from __future__ import annotations
 
 from rexlib_metadata._rexlib import version as _version
+from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.conventions.relion import relion4_bundle
 from rexlib_metadata.conventions.star import StarReader
 from rexlib_metadata.registry import global_registry
 from rexlib_metadata.result import RawResult, ReadResult
-
-if TYPE_CHECKING:
-    from rexlib_metadata.convention import ConventionBundle
 
 __version__: str = _version()
 
