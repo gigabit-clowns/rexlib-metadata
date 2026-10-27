@@ -120,12 +120,17 @@ cannot reach.
 
 ```bash
 pip install maturin
-maturin develop          # builds the extension into the active environment
-pytest tests/python/     # the Python suites
-cargo test               # the Rust unit tests
+maturin develop            # builds the extension into the active environment
+pip install .[test,lint]   # the suites, and the linters the gate runs
+pytest tests/python/       # the Python suites
+cargo test                 # the Rust unit tests
 
 bash scripts/local-gate.sh   # all of it, in CI's order
 ```
+
+`lint` is an extra of its own because CI runs the linters once rather than in
+every cell: they read the source, which is the same source nineteen times
+over. A development environment wants both.
 
 The gate is the one to run before pushing: `cargo fmt --check`, build, test,
 clippy at `-D warnings`, then ruff, the complexity check and pytest,

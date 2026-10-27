@@ -12,8 +12,9 @@ to the same ref cancels the run in flight.
 
 | Job | Does |
 |---|---|
+| `lint` | `ruff check .` and the cognitive complexity check, once |
 | `build_with_cargo` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, `cargo test`, on the three platforms |
-| `build_with_pip` | `pip install .[test]`, `ruff check .`, the complexity check and `pytest tests/python/`, three platforms × Python 3.10 to 3.15, and once more on the oldest extras |
+| `build_with_pip` | `pip install .[test]` and `pytest tests/python/`, three platforms × Python 3.10 to 3.15, and once more on the oldest extras |
 
 One cell of nineteen installs the **oldest** polars and pandas this package
 says it supports rather than the newest. The extras declare a range —
@@ -31,7 +32,16 @@ numpy 2. It is added by an
 `include` whose `extras` value is outside its dimension, which is what makes
 Actions create a cell instead of replacing the one that matches.
 
-`fail-fast` is off in both, so one broken cell does not hide the others. The
+The linters run once, in a job of their own, because they read the source and
+the source is the same in every cell. Nineteen copies of one answer was the
+smaller half of the waste: `complexipy` is a Rust package with no wheel for
+3.15 outside Linux, so two cells were building it — 177 crates, two minutes
+and ten seconds, more than this library's own build — to ask a question that
+had already been answered seventeen times. The job reads the pip cache under
+that key and never writes to it, so there is no fourth entry and no race.
+
+`fail-fast` is off in both matrices, so one broken cell does not hide the
+others. The
 two jobs run in parallel and neither waits on the other: a Rust warning and a
 Python failure are independent pieces of news, and serialising them only
 delays one of the two.
