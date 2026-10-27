@@ -66,8 +66,8 @@ of several tables asks which one rather than handing back the last.
       type, against the catalogue in `docs/canonical.md`
 - [x] `TableSchema.__init__` flattens traits and deduplicates: an identical
       declaration collapses, a disagreeing one raises
-- [ ] The catalogue of `docs/canonical.md` as traits and tables, once a real
-      file has settled the conventions it leaves open
+- [x] The catalogue of `docs/canonical.md` as traits and tables, in
+      `canonical.py`, for the columns a convention produces today
 - [x] `ReadConvention` and `WriteConvention` ABCs in `convention.py`, with
       `RawSchema`, replacing the placeholder `Convention`
 - [x] `ConventionBundle`, validating when it is built that no two
@@ -77,8 +77,10 @@ of several tables asks which one rather than handing back the last.
 - [x] The read engine: bundles in order × raw tables × matching conventions,
       first write per canonical column wins, missing required columns raise,
       and a column of the wrong type or the wrong length raises too
-- [ ] `Relion4Bundle`, one `ReadConvention` per column group, matching on
-      column presence
+- [x] Relion's conventions, one per column group, matching on column
+      presence, in `conventions/relion.py` and tested against real files
+- [ ] Register them for `.star` and have a read apply them, which is the
+      decision of what `to_pandas()` means on a file that has conventions
 - [ ] Register it for `.star` in `global_registry`
 - [ ] Tests: auto-detection, explicit `bundle=`, missing required column,
       overlapping `target_columns` raising when a bundle is built
