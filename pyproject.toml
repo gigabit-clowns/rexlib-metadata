@@ -39,7 +39,7 @@ test   = [
 ]
 lint   = [
     "ruff==0.17.3",
-    "complexipy==8.0.1",
+    "complexipy==8.3.0",
 ]
 pandas = [
     "pandas>=2.2.2,<3.0; python_version == '3.10'",
