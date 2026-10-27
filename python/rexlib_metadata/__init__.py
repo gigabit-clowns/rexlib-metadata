@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 """Read CryoEM metadata files as pandas or polars DataFrames."""
 
 from rexlib_metadata._rexlib import version as _version

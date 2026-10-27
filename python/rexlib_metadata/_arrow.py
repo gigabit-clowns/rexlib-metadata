@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 """The boundary with the compiled module, where Arrow crosses over."""
 
 from __future__ import annotations

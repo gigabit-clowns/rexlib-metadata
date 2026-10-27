@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 """The read engine: raw tables and bundles in, one canonical table out."""
 
 from __future__ import annotations

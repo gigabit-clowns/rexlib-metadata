@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 """Which reader and which conventions answer for which file."""
 
 from __future__ import annotations

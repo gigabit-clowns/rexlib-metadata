@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 """The interfaces a format plugs into."""
 
 from __future__ import annotations

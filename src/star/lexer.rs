@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 use crate::error::{Error, parse_error};
 use crate::text::Token;
 

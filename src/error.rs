@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
     #[error("cannot open '{path}': {source}")]

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 """What Relion's column names mean in canonical terms."""
 
 from __future__ import annotations

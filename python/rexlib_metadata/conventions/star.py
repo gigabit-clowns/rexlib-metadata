@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 """Reading STAR files, and the conventions that come with them."""
 
 from __future__ import annotations
