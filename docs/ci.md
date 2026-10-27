@@ -13,7 +13,20 @@ to the same ref cancels the run in flight.
 | Job | Does |
 |---|---|
 | `build_with_cargo` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, `cargo test`, on the three platforms |
-| `build_with_pip` | `pip install .[test]`, `ruff check .`, the complexity check and `pytest tests/python/`, three platforms × Python 3.10 to 3.15 |
+| `build_with_pip` | `pip install .[test]`, `ruff check .`, the complexity check and `pytest tests/python/`, three platforms × Python 3.10 to 3.15, and once more on the oldest extras |
+
+One cell of nineteen installs the **oldest** polars and pandas this package
+says it supports rather than the newest. The extras declare a range —
+`polars>=1.0`, `pandas>=2.0` on 3.10 — and a range nobody tests at its floor
+is a claim rather than a fact; the pins in `[test]` only ever prove the
+ceiling. Testing the floor and the ceiling and not the middle is the usual
+compromise, and it is cheap here because polars reaches us through one
+function.
+
+That cell is Linux on 3.10 because it has to be: pandas 2.0.0, the floor of
+the pandas extra, ships no wheel for anything newer. It is added by an
+`include` whose `extras` value is outside its dimension, which is what makes
+Actions create a cell instead of replacing the one that matches.
 
 `fail-fast` is off in both, so one broken cell does not hide the others. The
 two jobs run in parallel and neither waits on the other: a Rust warning and a
