@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 """The canonical column structure, which knows no file format."""
 
 from __future__ import annotations

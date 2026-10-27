@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 """The convention layer: file columns in, canonical columns out."""
 
 from __future__ import annotations

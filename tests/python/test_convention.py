@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 import pytest
 
 from rexlib_metadata.convention import (

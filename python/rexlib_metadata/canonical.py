@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 """The canonical columns, as `docs/canonical.md` describes them."""
 
 from __future__ import annotations

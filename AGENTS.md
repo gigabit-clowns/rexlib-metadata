@@ -202,6 +202,12 @@ the way vitrio takes `vio`. Not `rm`, which is the command that deletes
 things and which no documentation of a library that writes files should put
 in front of a reader.
 
+Every source file opens with its licence, on the first line, as vitrio does
+it: `# SPDX-License-Identifier: LGPL-2.1-or-later` in the Python and the
+shell, `// ` in the Rust, and in a shell script on the line after the
+shebang. Tests included — a file that travels on its own says what it is. A
+new file without that line is an incomplete file.
+
 `_rexlib.pyi` is written by hand. A function added to `_rexlib` gets its stub
 in the same pull request, or the Python side is typed against something that
 no longer exists.

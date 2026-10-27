@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 """What a read hands back, and the frames it turns into."""
 
 from __future__ import annotations

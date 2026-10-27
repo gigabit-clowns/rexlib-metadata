@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 use std::fs::File;
 use std::io::{BufRead, BufReader, ErrorKind};
 
