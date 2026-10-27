@@ -140,13 +140,12 @@ def _check_required(
 def _assemble(
     covered: dict[str, ArrowColumn], schema: TableSchema, rows: int
 ) -> pa.Table:
-    return pa.table(
-        {
-            column.name: _column(column, covered, rows)
-            for column in schema
-            if column.name in covered or column.default is not None
-        }
-    )
+    columns = {
+        column.name: _column(column, covered, rows)
+        for column in schema
+        if column.name in covered or column.default is not None
+    }
+    return pa.table(list(columns.values()), names=list(columns))
 
 
 def _column(

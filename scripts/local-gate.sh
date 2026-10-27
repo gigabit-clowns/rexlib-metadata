@@ -27,12 +27,13 @@ step() {
 }
 
 step "cargo fmt" cargo fmt --check
-step "cargo build" cargo build
-step "cargo test" cargo test
-step "cargo clippy" cargo clippy --all-targets -- -D warnings
+step "cargo build" cargo build --locked
+step "cargo test" cargo test --locked
+step "cargo clippy" cargo clippy --locked --all-targets -- -D warnings
 step "maturin develop" "$python" -m maturin develop --quiet
 step "ruff" "$python" -m ruff check .
 step "complexipy" "$bin/complexipy" python tests --max-complexity-allowed 7 --quiet
+step "mypy" "$python" -m mypy
 step "pytest" "$python" -m pytest tests/python/
 
 printf '\n\033[1mThe gate is green.\033[0m\n'

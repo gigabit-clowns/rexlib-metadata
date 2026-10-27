@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -47,7 +47,7 @@ class ReadResult:
         """Read the file, if it has not been read, and return it as polars."""
         import polars as pl  # noqa: PLC0415
 
-        return pl.from_arrow(self._one())
+        return cast("pl.DataFrame", pl.from_arrow(self._one()))
 
     def _materialize(self) -> tuple[RawTable, ...]:
         if self._tables is None:

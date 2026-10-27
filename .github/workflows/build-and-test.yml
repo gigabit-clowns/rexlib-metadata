@@ -63,8 +63,6 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    env:
-      CARGO_TARGET_DIR: ${{ github.workspace }}/target
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -74,23 +72,17 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
-
-      - name: Cache the Rust build
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          shared-key: pip-ubuntu-latest
-          save-if: false
-
       - name: Install the linters
-        run: pip install .[lint]
+        run: 'pip install --only-binary :all: --group lint'
 
       - name: Run ruff
         run: ruff check .
 
       - name: Check cognitive complexity
         run: complexipy python tests --max-complexity-allowed 7 --quiet
+
+      - name: Check types
+        run: mypy
 
   build_with_pip:
     name: ${{ matrix.os }} / Python ${{ matrix.python-version }}${{ matrix.extras == 'oldest' && ' / oldest extras' || '' }}
