@@ -33,9 +33,11 @@ test   = [
     "pytest==9.1.1",
     "pandas==2.3.3; python_version == '3.10'",
     "pandas==3.0.6; python_version >= '3.11'",
+    "polars==2.0.0",
+]
+lint   = [
     "ruff==0.17.0",
     "complexipy==8.0.1",
-    "polars==2.0.0",
 ]
 pandas = [
     "pandas>=2.2.2,<3.0; python_version == '3.10'",

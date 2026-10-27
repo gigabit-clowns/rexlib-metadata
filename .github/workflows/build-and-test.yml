@@ -60,6 +60,38 @@ jobs:
       - name: Run clippy
         run: cargo clippy --all-targets -- -D warnings
 
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.14'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: pip-ubuntu-latest
+          save-if: false
+
+      - name: Install the linters
+        run: pip install .[lint]
+
+      - name: Run ruff
+        run: ruff check .
+
+      - name: Check cognitive complexity
+        run: complexipy python tests --max-complexity-allowed 7 --quiet
+
   build_with_pip:
     name: ${{ matrix.os }} / Python ${{ matrix.python-version }}${{ matrix.extras == 'oldest' && ' / oldest extras' || '' }}
     strategy:
@@ -100,12 +132,6 @@ jobs:
       - name: Install the oldest extras this package claims
         if: matrix.extras == 'oldest'
         run: pip install "polars==1.0.0" "pandas==2.2.2"
-
-      - name: Run ruff
-        run: ruff check .
-
-      - name: Check cognitive complexity
-        run: complexipy python tests --max-complexity-allowed 7 --quiet
 
       - name: Run tests
         run: pytest tests/python/
