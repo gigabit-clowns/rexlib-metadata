@@ -33,6 +33,13 @@ therefore capped in `renovate.json` at the major `pyo3-arrow` holds. The cap
 stays; what moves is its bound, and it moves in the same pull request that
 raises `pyo3-arrow`, never on its own.
 
+`pyo3` is the same kind of pair and is deliberately not capped. `pyo3-arrow`
+pins a `pyo3` major too, so raising `pyo3` alone breaks the build as surely
+as raising `arrow` alone does — which is what a Renovate pull request for
+`pyo3` is for. It fails, and the failure is the signal to raise `pyo3-arrow`
+in that same branch rather than merge the one half. Capping `pyo3` too would
+buy silence instead of that signal.
+
 Two pins in `pyproject.toml` are split in half behind a PEP 508 marker, and
 both for the same reason: pyarrow raised its floor to 3.11 in 26.0.0 and
 pandas in 3.0.0, so the 3.10 cell has to stay behind while everything from
