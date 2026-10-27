@@ -29,9 +29,8 @@ What the STAR parser does not do, and that a real file may yet ask for:
 
 Each of the three is an error naming the line, never a silent skip.
 
-`read_schema` and `read_all` in `src/star/mod.rs` still take the last block
-of the file and drop the rest. Multi-table is the next slice, and it is what
-removes that.
+Every block of a file is surfaced now, as one `RawTable` each, and a result
+of several tables asks which one rather than handing back the last.
 
 ## Phase 0 — Skeleton and CI ✅
 
@@ -44,7 +43,7 @@ removes that.
 ## Phase 1 — STAR reader, no conventions ✅
 
 - [x] `RawSchema` in Rust
-- [x] `read_schema()` and `read_all()`, every value `Utf8`
+- [x] `read_tables()`, every value `Utf8`
 - [x] `_rexlib._star_read_schema` and `_rexlib._star_read`
 - [x] `Reader` ABC, placeholder `Convention` ABC
 - [x] Lazy `ReadResult` with `to_pandas()` and `to_polars()`

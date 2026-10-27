@@ -8,15 +8,15 @@ from typing import TYPE_CHECKING
 from rexlib_metadata.result import ReadResult
 
 if TYPE_CHECKING:
-    import pyarrow as pa
+    from rexlib_metadata.convention import RawTable
 
 
 class Reader(ABC):
     """Turns a file of one format into Arrow."""
 
     @abstractmethod
-    def read_all(self, path: str) -> pa.Table:
-        """Read every row of the file at `path` into one table."""
+    def read_tables(self, path: str) -> list[RawTable]:
+        """Read the file at `path` into one raw table per table it holds."""
 
     def read(self, path: str) -> ReadResult:
         """Return a lazy result over `path`, reading no row yet."""

@@ -38,7 +38,7 @@ knowing which of the two it is talking about:
 
 | Layer | State |
 |---|---|
-| STAR reader, values as strings, one block | Built, `src/star/` |
+| STAR reader, values as strings, every block | Built, `src/star/` |
 | Arrow as the canonical representation | Built |
 | `Reader` ABC, `MetadataRegistry`, `ReadResult` | Built, minimal |
 | Convention layer (`ReadConvention`, `WriteConvention`, `ConventionBundle`) | Built, `python/rexlib_metadata/convention.py`; the engine that drives them is not |
@@ -61,7 +61,7 @@ invariants at the end of this file already bind what gets written.
 | `src/text/parser.rs` | `parse_blocks`, the state machine from tokens to `Block`s, over any lexer |
 | `src/text/builder.rs` | `Block` rows to an Arrow `RecordBatch` of `Utf8` |
 | `src/star/lexer.rs` | `tokenize_line`, one line of STAR to tokens, quoting and comments |
-| `src/star/mod.rs` | `RawSchema`, and the crate-facing `read_schema` / `read_all` |
+| `src/star/mod.rs` | `read_tables`, the crate-facing STAR entry point |
 | `python/rexlib_metadata/` | The public Python package |
 | `python/rexlib_metadata/schema.py` | The canonical columns and the tables they compose |
 | `python/rexlib_metadata/convention.py` | The convention interfaces and the bundles that group them |
@@ -106,10 +106,11 @@ to do too. It is registered where a user would register theirs, in the
 package's `__init__`, which is the only module that knows both the registry
 and what ships in the box; `registry.py` names no format.
 
-A reader implements `read_all` and nothing else. `Reader.read` is concrete
-and returns the lazy result, because there is exactly one correct body for
-it and a second copy of that line is a chance to break the rule that a read
-opens no file.
+A reader implements `read_tables` and nothing else, returning one `RawTable`
+per table the file holds, because a file holding several is the ordinary case
+and not the exception. `Reader.read` is concrete and returns the lazy result,
+because there is exactly one correct body for it and a second copy of that
+line is a chance to break the rule that a read opens no file.
 
 `src/lib.rs` keeps no logic. It wraps, converts `StarError` into a Python
 exception, and returns. Logic that creeps into it is logic Rust's own tests

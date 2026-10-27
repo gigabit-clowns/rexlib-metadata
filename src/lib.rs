@@ -13,24 +13,20 @@ fn version() -> &'static str {
 }
 
 #[pyfunction]
-fn _star_read_schema(path: &str) -> PyResult<(String, Vec<String>)> {
-    let schema = star::read_schema(path)
-        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-    let column_names = schema.columns.into_iter().map(|c| c.name).collect();
-    Ok((schema.table_name, column_names))
-}
-
-#[pyfunction]
-fn _star_read(path: &str) -> PyResult<PyRecordBatch> {
-    star::read_all(path)
-        .map(PyRecordBatch::new)
+fn _star_read_tables(path: &str) -> PyResult<Vec<(String, PyRecordBatch)>> {
+    star::read_tables(path)
+        .map(|tables| {
+            tables
+                .into_iter()
+                .map(|(name, batch)| (name, PyRecordBatch::new(batch)))
+                .collect()
+        })
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 
 #[pymodule]
 fn _rexlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(version, m)?)?;
-    m.add_function(wrap_pyfunction!(_star_read_schema, m)?)?;
-    m.add_function(wrap_pyfunction!(_star_read, m)?)?;
+    m.add_function(wrap_pyfunction!(_star_read_tables, m)?)?;
     Ok(())
 }
