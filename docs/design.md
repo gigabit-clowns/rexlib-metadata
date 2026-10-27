@@ -152,6 +152,13 @@ Arrow protocol methods it exposes, which is what `to_pyarrow_table` in
 `_arrow.py` does. Any new Rust entry point returning Arrow goes
 through that same function.
 
+What the boundary promises is therefore a protocol and not a class.
+`ArrowArrayExportable` in `_arrow.py` is that promise written down — one
+method, `__arrow_c_array__`, which is the one `to_pyarrow_table` relies on —
+and it is what `_rexlib.pyi` types a Rust entry point as returning. Naming
+`arro3.core.RecordBatch` there would tie the stub to a package nothing
+installs; naming `Any` would promise nothing at all.
+
 ## The schema layer
 
 The schema defines the canonical column structure and knows nothing about any
