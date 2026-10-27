@@ -102,7 +102,7 @@ jobs:
 
       - name: Install the oldest extras this package claims
         if: matrix.extras == 'oldest'
-        run: pip install "polars==1.0.0" "pandas==2.0.0"
+        run: pip install "polars==1.0.0" "pandas==2.2.2"
 
       - name: Run ruff
         run: ruff check .

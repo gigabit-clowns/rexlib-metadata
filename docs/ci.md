@@ -23,8 +23,10 @@ ceiling. Testing the floor and the ceiling and not the middle is the usual
 compromise, and it is cheap here because polars reaches us through one
 function.
 
-That cell is Linux on 3.10 because it has to be: pandas 2.0.0, the floor of
-the pandas extra, ships no wheel for anything newer. It is added by an
+That cell is Linux on 3.10 because it has to be: the floor of the pandas
+extra ships no wheel for anything newer. Its first run moved that floor from
+2.0 to 2.2.2, pandas before then having been built against numpy 1's headers
+and dying on import beside numpy 2. It is added by an
 `include` whose `extras` value is outside its dimension, which is what makes
 Actions create a cell instead of replacing the one that matches.
 

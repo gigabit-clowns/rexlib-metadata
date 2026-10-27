@@ -39,3 +39,10 @@ person to take.
 The 3.10 cell is also the one that cannot have the newest of anything. When
 a dependency raises its floor to 3.11, the honest move is a third split, not
 a quiet upgrade that leaves 3.10 broken at install time.
+
+The floor of the `pandas` extra is 2.2.2 rather than 2.0, and the reason is
+numpy rather than us: pandas before 2.2.2 was built against numpy 1's
+headers and dies on import beside numpy 2 with a dtype size mismatch. A
+floor that cannot be installed in a current environment is not a floor, and
+CI is where that was found — the cell that installs the oldest extras failed
+on its first run, which is what it is for.
