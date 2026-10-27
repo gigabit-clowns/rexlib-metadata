@@ -29,6 +29,13 @@
       "enabled": false
     },
     {
+      "description": "Cap the polars 3.10 pin to releases that still support 3.10; 2.1.0 raised requires-python to >=3.11.",
+      "matchDepNames": ["polars"],
+      "matchCurrentVersion": ">=2.0.0,<2.1.0",
+      "constraints": { "python": "3.10" },
+      "constraintsFiltering": "strict"
+    },
+    {
       "description": [
         "The pyarrow pin for python_version == '3.10'; 26.0.0 raised requires-python to >=3.11.",
         "Renovate drops the PEP 508 marker, so both pins of a split dependency look identical to it: matchCurrentVersion tells them apart, and the cap itself comes from each release's requires_python.",
