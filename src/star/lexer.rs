@@ -2,7 +2,7 @@ use crate::error::{Error, parse_error};
 use crate::text::Token;
 
 pub(crate) fn tokenize_line(line: &str, path: &str, line_num: usize) -> Result<Vec<Token>, Error> {
-    let clean_line = line.split('#').next().unwrap_or("").trim();
+    let clean_line = line.split_once('#').map_or(line, |(head, _)| head).trim();
     if clean_line.is_empty() {
         Ok(vec![])
     } else if clean_line.starts_with("data_") {
@@ -16,7 +16,7 @@ pub(crate) fn tokenize_line(line: &str, path: &str, line_num: usize) -> Result<V
     } else if clean_line.split_whitespace().next() == Some("loop_") {
         ensure_single_word(clean_line, path, line_num, "loop_ keyword")?;
         Ok(vec![Token::Loop])
-    } else if clean_line.starts_with("_") {
+    } else if clean_line.starts_with('_') {
         tokenize_tag(line, clean_line, path, line_num)
     } else {
         tokenize_values(line, path, line_num)
@@ -87,7 +87,7 @@ fn process_unquoted_char(
     tokens: &mut Vec<Token>,
 ) -> (Option<char>, bool) {
     match ch {
-        '#' => (None, true),
+        '#' if current.is_empty() => (None, true),
         '"' | '\'' => {
             flush_bare(current, tokens);
             (Some(ch), false)
@@ -275,6 +275,31 @@ mod tests {
             vec![
                 Token::Column("_rlnMaskName".into()),
                 Token::Value("mask.mrc".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_hash_inside_a_bare_value_belongs_to_the_value() {
+        assert_eq!(
+            tok("mask#2.mrc 5"),
+            vec![Token::Value("mask#2.mrc".into()), Token::Value("5".into()),]
+        );
+    }
+
+    #[test]
+    fn a_hash_after_whitespace_starts_a_comment() {
+        assert_eq!(tok("5 # how many"), vec![Token::Value("5".into())]);
+    }
+
+    #[test]
+    fn an_empty_quoted_value_stays_a_value() {
+        assert_eq!(
+            tok("'' . 5"),
+            vec![
+                Token::Value(String::new()),
+                Token::Value(".".into()),
+                Token::Value("5".into()),
             ]
         );
     }

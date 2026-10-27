@@ -114,9 +114,12 @@ and not the exception. `Reader.read` is concrete and returns the lazy result,
 because there is exactly one correct body for it and a second copy of that
 line is a chance to break the rule that a read opens no file.
 
-`src/lib.rs` keeps no logic. It wraps, converts `Error` into a Python
-exception, and returns. Logic that creeps into it is logic Rust's own tests
-cannot reach.
+`src/lib.rs` keeps no logic. It wraps, turns `Error` into the Python
+exception that answers it — a missing file into `FileNotFoundError`, a
+malformed one into `ValueError`, an arrow failure into `RuntimeError`, since
+only the last of those is our bug — and releases the interpreter while Rust
+reads, so a thread that wants to do something else can. Logic that creeps
+into it is logic Rust's own tests cannot reach.
 
 ## Building and testing
 
@@ -226,9 +229,16 @@ The nesting weight is why flattening pays more than it looks: the same three
 loops written as a generator expression score three where the nested form
 scores six, for identical behaviour and, measured, identical speed.
 
-On the Rust side `clippy::cognitive_complexity` is on at the same number.
-Clippy counts by its own approximation rather than Sonar's, so the figure
-means less there — it is a tripwire, not a measurement.
+On the Rust side `clippy::cognitive_complexity` is on at the same number,
+through `[lints]` in `Cargo.toml` so that it covers the tests too. Clippy
+counts by its own approximation rather than Sonar's, so the figure means less
+there — it is a tripwire, not a measurement.
+
+`[lints]` carries the rest of what this crate is held to: `unsafe_code` is
+forbidden, `indexing_slicing` and `unwrap_used` are warnings that CI turns
+fatal, and `pedantic` is on. The first two are the AGENTS rule about files
+made mechanical — nothing may index with a number a file supplied — and they
+are allowed inside `mod tests`, where indexing a fixture is the point.
 
 ### Comments
 
