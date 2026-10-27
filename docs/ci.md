@@ -85,9 +85,41 @@ lints have been improvements, so the arrangement stays; pinning the toolchain
 in `rust-toolchain.toml` is the alternative, and the moment to take it is the
 second time a release costs more than it gave.
 
+## Static analysis
+
+SonarQube Cloud watches the repository on its own, outside the workflow:
+**automatic analysis**, which the organisation turned on and which scans
+`main` and every pull request without a step of ours and without a token. The
+badges at the head of `README.md` report what it finds, and the project is
+`gigabit-clowns_rexlib-metadata`.
+
+It is configured by `.sonarcloud.properties`, at the root and read from the
+default branch. That is the file automatic analysis reads; the
+`sonar-project.properties` the rest of the suite carries is for a scanner
+invoked from a workflow, and automatic analysis ignores it. The properties it
+accepts are a short list — sources, tests, inclusions, exclusions, encoding,
+duplication exclusions, and the Python version — and **no value of any of
+them may contain a wildcard**.
+
+Ours says three things:
+
+| Property | Why |
+|---|---|
+| `sonar.sources=src,python,scripts,.github` | everything that is shipped or that runs |
+| `sonar.tests=tests` | without it every file is a source, and the rules a test is held to are not the rules a library is held to |
+| `sonar.python.version=3.10` | the floor from `pyproject.toml`: a rule that wants newer syntax is wrong here until the floor moves |
+
+The Rust is not analysed. SonarQube Cloud reads Rust through a clippy report
+rather than a parser of its own, which needs a scanner step and a token, so
+`src/` is listed under sources and no rule reaches it. Clippy in
+`build_with_cargo` is what holds that half of the repository, and importing
+its report is part of [#39](https://github.com/gigabit-clowns/rexlib-metadata/issues/39).
+
 ## What is not here
 
-Coverage, a SonarQube scan and CodeQL are [#39](https://github.com/gigabit-clowns/rexlib-metadata/issues/39),
-scheduled for after Phase 2. Publishing is
-[#40](https://github.com/gigabit-clowns/rexlib-metadata/issues/40). None of
-the three is an absence to reproduce elsewhere.
+Coverage, CodeQL, and the scanner-based Sonar analysis that would carry
+coverage and the clippy report are
+[#39](https://github.com/gigabit-clowns/rexlib-metadata/issues/39), scheduled
+for after Phase 2. Publishing is
+[#40](https://github.com/gigabit-clowns/rexlib-metadata/issues/40). Neither
+is an absence to reproduce elsewhere.
