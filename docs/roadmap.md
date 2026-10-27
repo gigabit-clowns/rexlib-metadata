@@ -160,6 +160,14 @@ each argued from a real file in `docs/formats.md`.
 - [ ] `.h5` and `.hdf5` registered
 - [ ] Tests: read and write datasets
 
+## Measuring, when there is something to measure
+
+"Highly performant" is a requirement with no number behind it. What it wants:
+a STAR file of about a million rows, a script that times reading it, and the
+same read through `starfile` and `starfile-rs` beside it. Until that exists,
+no optimisation in this repository can be defended, which is why the release
+profile is cargo's default and link-time optimisation waits for it.
+
 ## What is not here
 
 Loose ends are issues, not a list in this file: an item nobody is assigned to

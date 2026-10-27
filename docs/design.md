@@ -115,6 +115,20 @@ does not state. The model stays relational, tables and the relations between
 them, and the convenience of a flat per-row view with the optics joined in is
 served on top of it, with the group kept so that writing can split it again.
 
+**No link-time optimisation until something measures it** (2026-10-27).
+The release profile asked for `lto = true` and `codegen-units = 1`, which
+cost 92 seconds of linking on every build of the wheel — measured by
+touching one line and rebuilding: 94 seconds with them, 2 seconds without,
+29 with thin LTO and parallel codegen. CI builds that wheel twenty-two times
+a run.
+
+Nothing measures what it bought. "Highly performant" is a requirement and
+the benchmark that would hold us to it is still an open item, so this was a
+cost paid in the dark. The profile is cargo's default now, and LTO comes
+back the day a benchmark on the parse path says what it is worth — with the
+numbers in the pull request that restores it. Nothing is published yet, so
+no wheel anybody has is affected.
+
 ## The canonical representation
 
 Apache Arrow is the canonical in-memory form: `arrow-rs` on the Rust side,
