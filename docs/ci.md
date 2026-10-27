@@ -106,7 +106,7 @@ Ours says three things:
 | Property | Why |
 |---|---|
 | `sonar.sources=src,python,scripts,.github` | everything that is shipped or that runs |
-| `sonar.tests=tests` | without it every file is a source, and the rules a test is held to are not the rules a library is held to |
+| `sonar.tests=tests` | a statement instead of a heuristic: the Python analyser recognises a test by its `test_*.py` name, and a helper in `tests/` without that name is a test too |
 | `sonar.python.version=3.10` | the floor from `pyproject.toml`: a rule that wants newer syntax is wrong here until the floor moves |
 
 The Rust is not analysed. SonarQube Cloud reads Rust through a clippy report
@@ -114,6 +114,37 @@ rather than a parser of its own, which needs a scanner step and a token, so
 `src/` is listed under sources and no rule reaches it. Clippy in
 `build_with_cargo` is what holds that half of the repository, and importing
 its report is part of [#39](https://github.com/gigabit-clowns/rexlib-metadata/issues/39).
+
+### What it flags and what stays flagged
+
+Four rules of its default profile fire on this repository and will go on
+firing. Three of the four are one rule in three costumes — lock your
+dependencies — and a library is the one thing that must not:
+
+- **a lock file is missing** (`uv.lock`, `poetry.lock`, `pylock.toml`), and
+  **the two `pip install .[…]` steps resolve versions freely**. A library
+  declares ranges; an application freezes a tree. Freezing ours would mean CI
+  proving that one resolution works, when the claim in `pyproject.toml` is
+  that every resolution inside the range does. The floors cell exists for
+  exactly that reason.
+- **`--only-binary :all:` is missing from the two `pip install .[…]` steps**,
+  because a source distribution runs its build script. The distribution being
+  built there is *this* one, by maturin, which is the whole point of the step;
+  with that flag the job cannot build the crate at all. The third such
+  install, the pinned polars and pandas of the floors cell, takes the flag and
+  has it.
+
+Each of those five is accepted in the SonarQube Cloud interface rather than
+silenced here, so the reason is attached to the finding and a sixth of the
+same shape still arrives red. They hold the security rating at C, which is
+what the badge reports.
+
+What the rules were right about, and what changed in the same pull request as
+this paragraph: `cargo build`, `cargo test` and `cargo clippy` now pass
+`--locked`, so a `Cargo.lock` that no longer matches `Cargo.toml` fails the
+run instead of being quietly rewritten inside it; the gate script uses `[[`;
+and fourteen `pytest.raises` blocks hold one call each, which is what they
+meant to assert.
 
 ## What is not here
 

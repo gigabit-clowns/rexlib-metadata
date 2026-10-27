@@ -36,8 +36,10 @@ def test_a_malformed_file_raises_a_value_error_naming_the_line(tmp_path):
     broken = tmp_path / "broken.star"
     broken.write_text("data_p\n\nloop_\n_a\n_b\n1\n")
 
+    result = rxm.read(str(broken))
+
     with pytest.raises(ValueError, match=r"broken\.star:6"):
-        rxm.read(str(broken)).to_pandas()
+        result.to_pandas()
 
 
 def test_to_pandas_shape():
