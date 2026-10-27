@@ -135,17 +135,17 @@ mod tests {
 
     #[test]
     fn empty_line() {
-        assert!(tok("").is_empty());
+        assert_eq!(tok(""), []);
     }
 
     #[test]
     fn blank_with_spaces() {
-        assert!(tok("   ").is_empty());
+        assert_eq!(tok("   "), []);
     }
 
     #[test]
     fn comment() {
-        assert!(tok("# this is a comment").is_empty());
+        assert_eq!(tok("# this is a comment"), []);
     }
 
     #[test]

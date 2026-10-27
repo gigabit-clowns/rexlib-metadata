@@ -415,14 +415,14 @@ _columns,uid,angle
     fn empty_block_has_zero_rows() {
         let blocks = parse("data_particles\n\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n");
         assert_eq!(blocks.len(), 1);
-        assert!(blocks[0].rows.is_empty());
+        assert_eq!(blocks[0].rows.len(), 0);
         assert_eq!(blocks[0].columns.len(), 2);
     }
 
     #[test]
     fn empty_file_returns_no_blocks() {
         let blocks = parse("");
-        assert!(blocks.is_empty());
+        assert_eq!(blocks.len(), 0);
     }
 
     #[test]
@@ -457,8 +457,8 @@ data_particles\n\nloop_\n_rlnAngleRot\n10.5\n20.1\n";
         let blocks = parse("data_optics\n\ndata_particles\n\nloop_\n_rlnAngleRot\n10.5\n");
         assert_eq!(blocks.len(), 2);
         assert_eq!(blocks[0].name, "optics");
-        assert!(blocks[0].columns.is_empty());
-        assert!(blocks[0].rows.is_empty());
+        assert_eq!(blocks[0].columns.len(), 0);
+        assert_eq!(blocks[0].rows.len(), 0);
         assert_eq!(blocks[1].rows.len(), 1);
     }
 

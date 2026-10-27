@@ -77,6 +77,14 @@ Actions are pinned by digest, and Renovate keeps both the digests and the
 dependencies moving, under a 14-day minimum release age that security
 advisories skip.
 
+The Rust toolchain is the exception: `dtolnay/rust-toolchain@stable` follows
+stable wherever it goes, and clippy's `pedantic` group grows with it. A new
+release can therefore fail a build nobody touched — it has happened once,
+with `assert_is_empty`, and the lint was right. The tax is small and the
+lints have been improvements, so the arrangement stays; pinning the toolchain
+in `rust-toolchain.toml` is the alternative, and the moment to take it is the
+second time a release costs more than it gave.
+
 ## What is not here
 
 Coverage, a SonarQube scan and CodeQL are [#39](https://github.com/gigabit-clowns/rexlib-metadata/issues/39),

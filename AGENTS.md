@@ -234,6 +234,12 @@ through `[lints]` in `Cargo.toml` so that it covers the tests too. Clippy
 counts by its own approximation rather than Sonar's, so the figure means less
 there — it is a tripwire, not a measurement.
 
+The gate is only as current as the toolchain running it. CI installs stable,
+which moves, so a local toolchain left behind runs a clippy that CI does not
+have and reports green on code CI will reject — `rustup update` before
+trusting a green gate on a day when Rust has released. Pinning the toolchain
+would settle it by construction, and is the answer if this happens twice.
+
 `[lints]` carries the rest of what this crate is held to: `unsafe_code` is
 forbidden, `indexing_slicing` and `unwrap_used` are warnings that CI turns
 fatal, and `pedantic` is on. The first two are the AGENTS rule about files

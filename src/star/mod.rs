@@ -84,7 +84,7 @@ mod tests {
 
     #[test]
     fn a_file_with_no_blocks_is_no_tables() {
-        assert!(tables("# nothing but a comment\n").is_empty());
+        assert_eq!(tables("# nothing but a comment\n").len(), 0);
     }
 
     #[test]
