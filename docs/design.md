@@ -276,20 +276,23 @@ Each raises naming the bundle, the column and both conventions.
 ### The read engine
 
 ```python
-covered = {}  # canonical column -> Array
+covered = {}
 
-for bundle in registry.bundles_for(extension):   # ordered, highest first
-    for raw_table in file.tables:
-        for conv in bundle.read_conventions:
-            if conv.matches(raw_table.schema):
-                if any(t not in covered for t in conv.target_columns):
-                    for col, array in conv.load(raw_table.batch).items():
-                        covered.setdefault(col, array)   # first write wins
+for bundle, raw, convention in _candidates(bundles, raw_tables):
+    if not _has_something_to_add(convention, raw, covered):
+        continue
+    produced = convention.load(raw.table)
+    _keep_first(covered, produced, convention, schema, _origin(bundle, convention))
 
-for col in table_schema.required_columns:
-    if col.name not in covered and col.default is None:
-        raise ValueError(f"Required column '{col.name}' not produced by any convention")
+rows = _row_count(covered, schema)
+_check_required(covered, schema)
+return _assemble(covered, schema, rows)
 ```
+
+One loop, because the three it walks — every bundle, by every raw table, by
+every convention — are a product, and `_candidates` is where that product
+belongs. The order of its clauses is the priority: a bundle earlier in the
+list reaches a column first, and `_keep_first` is what the name says.
 
 The raw table is linked to the canonical table by `matches()` returning true
 for its `RawSchema` — no string comparison anywhere in the path.
