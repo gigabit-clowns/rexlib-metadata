@@ -9,7 +9,11 @@ from typing import TYPE_CHECKING
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from rexlib_metadata.convention import ConventionBundle, ReadConvention
+from rexlib_metadata.convention import (
+    ArrowColumn,
+    ConventionBundle,
+    ReadConvention,
+)
 
 if TYPE_CHECKING:
     from rexlib_metadata.convention import RawSchema
@@ -26,7 +30,7 @@ class _Renaming(ReadConvention):
         """Apply where every column this convention reads is present."""
         return raw.has(*self.source_columns)
 
-    def load(self, table: pa.Table) -> dict[str, pa.Array]:
+    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
         """Return each source column under its canonical name, cast."""
         return {
             canonical: pc.cast(table.column(source), self.dtype)
@@ -42,7 +46,7 @@ class ImageReference(_Renaming):
     source_columns = ("_rlnImageName",)
     target_columns = ("image_path", "image_index")
 
-    def load(self, table: pa.Table) -> dict[str, pa.Array]:
+    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
         """Split the reference, counting from zero where Relion counts one."""
         parts = pc.extract_regex(
             table.column("_rlnImageName"), _IMAGE_REFERENCE
@@ -133,7 +137,7 @@ class ImageSize(_Renaming):
     source_columns = ("_rlnImageSize", "_rlnImageDimensionality")
     target_columns = ("image_size", "image_dimensionality")
 
-    def load(self, table: pa.Table) -> dict[str, pa.Array]:
+    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
         """Return the box edge as an integer, and the dimensionality."""
         return {
             "image_size": pc.cast(table.column("_rlnImageSize"), pa.int64()),
