@@ -24,13 +24,14 @@ Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 
 ## Features
 
+- **One vocabulary, whatever the file** — a read comes back under canonical column names, typed; `_rlnCoordinateX` and whatever Xmipp calls it both arrive as `coord_x`
 - **Read STAR files** to Pandas or Polars DataFrames with a single call
-- **All values preserved as strings** — no silent type inference; type conversion is the convention system's job
+- **The file's own names too** — `result.raw` is the same read as the format wrote it, every value a string, for when the format is what you are working on
 - **Lazy I/O** — `rxm.read()` returns immediately with no file I/O; data is only loaded when you call `to_pandas()` or `to_polars()`
 - **Extensible** — plug in custom readers and conventions by subclassing Python ABCs; no Rust required
 - **Fast core** — parsing and Arrow serialization in Rust via PyO3 + Maturin
 
-Reading STAR files is what works today. Writing, the conventions themselves, chunked reads, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
+Reading STAR files through Relion's conventions is what works today. Writing, chunked reads, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
 
 ## Installation
 
@@ -58,27 +59,73 @@ df = result.to_pandas()   # pandas.DataFrame
 df = result.to_polars()   # polars.DataFrame
 ```
 
-A STAR file may hold several data blocks, and a Relion one usually does —
-its optics live in a block of their own. Name the one you mean:
+The columns come back under canonical names, typed, whatever the file called
+them:
+
+```python
+print(df.columns)
+# ['image_path', 'image_index', 'micrograph_path', 'coord_x', 'coord_y', ...]
+
+print(df["coord_x"].dtype)
+# float64
+```
+
+Nothing had to be said about the format. The reader is chosen by the
+extension and so are the conventions, which recognise a file by the columns
+it has, not by what it is called. A canonical table is named for what it
+holds, so a Relion file whose optics live in a block of their own gives two:
 
 ```python
 result = rxm.read("run_it025_data.star")
 
-result.names               # ('optics', 'particles')
+result.names               # ('particles', 'optics')
 result["particles"].to_pandas()
 ```
 
 A file of one table needs no name. A file of several asks for one rather
 than picking.
 
-All column values come back as strings. Type conversion is intentionally deferred to the [convention system](docs/design.md#the-convention-layer).
+### The file's own names
+
+`result.raw` is the same read as the format wrote it: the blocks under their
+own names, every column under its own, every value a string. It is what to
+reach for when the format itself is the thing you are working on, and it is
+the answer when no convention recognises a file.
 
 ```python
-print(df.columns)
-# ['_rlnAngleRot', '_rlnAngleTilt', '_rlnCoordinateX', '_rlnCoordinateY', ...]
+result = rxm.read("run_it025_optimiser_3D.star")
 
-print(df.dtypes)
-# All object / String — no silent inference
+result.names               # () -- nothing canonical in an optimiser file
+result.raw.names           # ('optimiser_general',)
+result.raw.to_pandas()     # _rlnOutputRootName, _rlnModelStarFile, ...
+```
+
+Type conversion belongs to the conventions and to nothing else: the raw view
+infers nothing, and the canonical view is typed because a convention said
+what the type is.
+
+### Conventions of your own
+
+A `ConventionBundle` is every convention of one format, grouped by the
+canonical table it fills. Pass one to read a file through it instead of
+through the registered ones:
+
+```python
+from rexlib_metadata.convention import ConventionBundle
+
+mylab = ConventionBundle("mylab", read={"particles": [MyEulerAngles()]})
+
+rxm.read("particles.star", bundle=mylab).to_pandas()
+```
+
+Registering it instead makes it apply to every read of that extension, and
+the order is priority — the first bundle to produce a canonical column owns
+it:
+
+```python
+from rexlib_metadata.registry import global_registry
+
+global_registry.register_bundle([".star"], mylab, prepend=True)
 ```
 
 ### Custom readers

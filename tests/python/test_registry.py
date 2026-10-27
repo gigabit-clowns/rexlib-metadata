@@ -67,7 +67,7 @@ def test_reading_goes_through_the_reader_of_the_extension():
     registry = MetadataRegistry()
     registry.register_reader([".star"], reader)
 
-    assert registry.read("x.star")._reader is reader
+    assert registry.read("x.star").raw._reader is reader
 
 
 def test_one_extension_may_be_given_as_a_string():

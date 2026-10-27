@@ -7,19 +7,23 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rexlib_metadata.canonical import SCHEMA
+from rexlib_metadata.result import ReadResult
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from rexlib_metadata.abc import Reader
     from rexlib_metadata.convention import ConventionBundle
-    from rexlib_metadata.result import ReadResult
+    from rexlib_metadata.schema import Schema
 
 
 class MetadataRegistry:
     """Holds the readers and the convention bundles, keyed by extension."""
 
-    def __init__(self) -> None:
-        """Start with nothing registered."""
+    def __init__(self, schema: Schema = SCHEMA) -> None:
+        """Start with nothing registered, filling `schema` when read."""
+        self._schema = schema
         self._readers: dict[str, Reader] = {}
         self._bundles: dict[str, list[ConventionBundle]] = {}
 
@@ -63,9 +67,17 @@ class MetadataRegistry:
         """Return the bundles of `path`, highest priority first."""
         return tuple(self._bundles.get(_extension(path), ()))
 
-    def read(self, path: str) -> ReadResult:
-        """Return a lazy result over `path`, through its own reader."""
-        return self.reader_for(path).read(path)
+    def read(
+        self, path: str, *, bundle: ConventionBundle | None = None
+    ) -> ReadResult:
+        """Return a lazy canonical result over `path`, through its reader.
+
+        The bundles registered for the extension apply, in their order,
+        unless `bundle` names the one to use instead.
+        """
+        bundles = (bundle,) if bundle is not None else self.bundles_for(path)
+        raw = self.reader_for(path).read(path)
+        return ReadResult(raw, bundles, self._schema)
 
 
 def _as_extensions(extensions: str | Iterable[str]) -> tuple[str, ...]:

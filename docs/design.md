@@ -234,7 +234,15 @@ A `ReadConvention` declares the file columns it consumes and the canonical
 columns it produces, answers `matches()` for a raw schema, and `load()`s. A
 `WriteConvention` declares the canonical columns it consumes and the file
 columns it produces, and `store()`s. A `ConventionBundle` groups all the
-conventions of one format — Relion4, Relion3, Xmipp — under a name.
+conventions of one format — Relion4, Relion3, Xmipp — under a name,
+**grouped by the canonical table each one fills** — decided on 2026-10-27,
+when registering Relion's two halves as two bundles made every read of a
+Relion 3.1 file fail: a convention written for the optics table was offered
+the particles schema, produced `voltage`, and the engine rightly refused a
+column that table does not declare. Nothing had said which table a bundle
+was for. Now the bundle does, one entry per format, and priority stays per
+format rather than per format and table — a format's halves cannot drift
+apart in the order.
 
 Matching is by column presence, never by the name of the raw table. A raw
 `data_particles` block becomes the canonical `particles` table because a
@@ -252,6 +260,31 @@ yet covered applies.
 
 Required canonical columns that no convention produced are an error at the
 end of the read, not a column of nulls.
+
+One raw table fills one canonical table — decided on 2026-10-27, the same
+day and for the neighbouring reason. The engine takes the first raw table,
+in the order the file holds them, whose matching conventions declare every
+column the canonical table requires, and reads only from it. Before that
+rule a Relion 3.1 read of `particles` took `optics_group` from the optics
+block, one row where the particles had two, and died in the length check.
+
+The rule is narrow on purpose. A canonical column that genuinely lives in
+another table — the optics case — is the convention's own job to expand to
+one value per row, which is what the length error has always said, and the
+join it would need is still open in `docs/canonical.md`. What the rule buys
+is that the engine never guesses which block a column came from, and that a
+file with two particle-shaped blocks reads the first rather than a mixture
+of both.
+
+A read that understood nothing is an error, not an empty table — decided on
+2026-10-27, and it closes
+[#53](https://github.com/gigabit-clowns/rexlib-metadata/issues/53).
+When no convention of any bundle declares a single column of any raw table,
+and at least one raw table has at least one row, the read raises and names
+the bundles it tried and the columns it found. Both halves of the condition
+earn their place: a partial read is legitimate, so the test is *nothing*
+rather than *less than expected*, and a genuinely empty file must still read
+as empty rather than as a failure.
 
 ### In code
 
@@ -280,8 +313,10 @@ class WriteConvention(ABC):
 
 class ConventionBundle:
     name: str                                 # "relion4"
-    read_conventions: tuple[ReadConvention, ...]
-    write_conventions: tuple[WriteConvention, ...]
+    tables: tuple[str, ...]                   # ("particles", "optics")
+
+    def read_conventions(self, table: str) -> tuple[ReadConvention, ...]: ...
+    def write_conventions(self, table: str) -> tuple[WriteConvention, ...]: ...
 ```
 
 Written, in `python/rexlib_metadata/convention.py`, along with `RawSchema`,
@@ -293,11 +328,16 @@ registered: it is immutable, so that is the first and last moment anything
 could be wrong, and the registry has nothing left to check. Three ways to
 be wrong:
 
-- two `ReadConvention`s declaring the same canonical column
-- two `WriteConvention`s declaring the same file column, which the design
-  did not mention and is the same ambiguity seen from the other side
+- two `ReadConvention`s of one table declaring the same canonical column
+- two `WriteConvention`s of one table declaring the same file column, which
+  the design did not mention and is the same ambiguity seen from the other
+  side
 - a convention declaring no `target_columns` at all, which nothing would
   ever ask for
+
+The same canonical column declared by two conventions of *different* tables
+is no collision: `optics_group` is a particle's and the optics table's own,
+and the two are read from different places by different conventions.
 
 Each raises naming the bundle, the column and both conventions.
 

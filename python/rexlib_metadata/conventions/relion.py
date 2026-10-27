@@ -150,25 +150,25 @@ class ImageSize(_Renaming):
         }
 
 
-def particles_bundle() -> ConventionBundle:
-    """Return the conventions that read a Relion particle table."""
+def relion4_bundle() -> ConventionBundle:
+    """Return the conventions that read a Relion 4 file."""
     return ConventionBundle(
-        "relion4_particles",
-        [
-            ImageReference(),
-            MicrographName(),
-            Coordinates(),
-            CoordinateZ(),
-            EulerAngles(),
-            CtfMaxResolution(),
-            ParticleOpticsGroup(),
-        ],
-    )
-
-
-def optics_bundle() -> ConventionBundle:
-    """Return the conventions that read a Relion optics table."""
-    return ConventionBundle(
-        "relion4_optics",
-        [OpticsGroup(), Microscope(), PixelSize(), ImageSize()],
+        "relion4",
+        read={
+            "particles": [
+                ImageReference(),
+                MicrographName(),
+                Coordinates(),
+                CoordinateZ(),
+                EulerAngles(),
+                CtfMaxResolution(),
+                ParticleOpticsGroup(),
+            ],
+            "optics": [
+                OpticsGroup(),
+                Microscope(),
+                PixelSize(),
+                ImageSize(),
+            ],
+        },
     )

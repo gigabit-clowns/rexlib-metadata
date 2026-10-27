@@ -75,35 +75,63 @@ def test_a_convention_matches_on_the_columns_it_consumes():
 
 
 def test_a_bundle_holds_its_conventions_both_ways():
-    bundle = ConventionBundle("relion4", [EulerAngles()], [WriteEulerAngles()])
+    bundle = ConventionBundle(
+        "relion4",
+        {"particles": [EulerAngles()]},
+        {"particles": [WriteEulerAngles()]},
+    )
+
     assert bundle.name == "relion4"
-    assert len(bundle.read_conventions) == 1
-    assert len(bundle.write_conventions) == 1
+    assert bundle.tables == ("particles",)
+    assert len(bundle.read_conventions("particles")) == 1
+    assert len(bundle.write_conventions("particles")) == 1
 
 
 def test_an_empty_bundle_is_allowed():
-    assert len(ConventionBundle("empty").read_conventions) == 0
+    bundle = ConventionBundle("empty")
+
+    assert bundle.tables == ()
+    assert bundle.read_conventions("particles") == ()
+
+
+def test_a_bundle_offers_a_table_nothing_of_another():
+    bundle = ConventionBundle(
+        "relion4",
+        {"particles": [EulerAngles()], "optics": [Defocus()]},
+    )
+
+    assert bundle.read_conventions("particles") == bundle._read["particles"]
+    assert bundle.read_conventions("nothing_like_it") == ()
+
+
+def test_one_column_from_two_tables_is_not_a_collision():
+    ConventionBundle(
+        "relion4",
+        {"particles": [EulerAngles()], "optics": [OtherEulerAngles()]},
+    )
 
 
 def test_two_readers_of_one_canonical_column_are_an_error():
     conventions = [EulerAngles(), OtherEulerAngles()]
 
     with pytest.raises(ValueError, match="angle_rot"):
-        ConventionBundle("relion4", conventions)
+        ConventionBundle("relion4", {"particles": conventions})
 
 
 def test_two_writers_of_one_file_column_are_an_error():
     conventions = [WriteEulerAngles(), WriteEulerAngles()]
 
     with pytest.raises(ValueError, match="_rlnAngleRot"):
-        ConventionBundle("relion4", write_conventions=conventions)
+        ConventionBundle("relion4", write={"particles": conventions})
 
 
 def test_the_two_sides_do_not_collide_with_each_other():
     bundle = ConventionBundle(
-        "relion4", [EulerAngles()], [WriteEulerAngles()]
+        "relion4",
+        {"particles": [EulerAngles()]},
+        {"particles": [WriteEulerAngles()]},
     )
-    assert bundle.read_conventions[0].target_columns == (
+    assert bundle.read_conventions("particles")[0].target_columns == (
         "angle_rot",
         "angle_tilt",
         "angle_psi",
@@ -114,4 +142,4 @@ def test_a_convention_that_produces_nothing_is_an_error():
     conventions = [Silent()]
 
     with pytest.raises(ValueError, match="no target_columns"):
-        ConventionBundle("relion4", conventions)
+        ConventionBundle("relion4", {"particles": conventions})

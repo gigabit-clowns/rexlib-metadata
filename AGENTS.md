@@ -40,11 +40,11 @@ knowing which of the two it is talking about:
 |---|---|
 | STAR reader, values as strings, every block | Built, `src/star/` |
 | Arrow as the canonical representation | Built |
-| `Reader` ABC, `MetadataRegistry`, `ReadResult` | Built, minimal |
-| Convention layer (`ReadConvention`, `WriteConvention`, `ConventionBundle`) | Built, `python/rexlib_metadata/convention.py`; nothing drives them yet |
-| Schema layer (`ColumnDescriptor`, `TableSchema`, …) | Built, `python/rexlib_metadata/schema.py`; the catalogue it will carry is `docs/canonical.md` |
-| The read engine | Built, `python/rexlib_metadata/engine.py`, and driven by nothing yet |
-| The Relion bundle, and wiring the engine into a read | Waiting on a real file |
+| `Reader` ABC, `MetadataRegistry`, `RawResult`, `ReadResult` | Built |
+| Convention layer (`ReadConvention`, `WriteConvention`, `ConventionBundle`) | Built, `python/rexlib_metadata/convention.py` |
+| Schema layer (`ColumnDescriptor`, `TableSchema`, …) | Built, `python/rexlib_metadata/schema.py`, carrying the catalogue of `docs/canonical.md` |
+| The read engine | Built, `python/rexlib_metadata/engine.py`, and driving every read |
+| The Relion 4 bundle, and a read that comes back canonical | Built, `python/rexlib_metadata/conventions/relion.py` |
 | Writers, chunking, XMD, SQLite, HDF5 | Designed, not written |
 
 `docs/roadmap.md` is the authority on what comes next and in which order.
@@ -67,6 +67,7 @@ invariants at the end of this file already bind what gets written.
 | `python/rexlib_metadata/convention.py` | The convention interfaces and the bundles that group them |
 | `python/rexlib_metadata/canonical.py` | The canonical columns as traits and tables, from `docs/canonical.md` |
 | `python/rexlib_metadata/conventions/` | One module per format: its reader, and what its names mean |
+| `python/rexlib_metadata/result.py` | `ReadResult`, a file in canonical terms, and `RawResult`, the same file in its own |
 | `python/rexlib_metadata/_rexlib.pyi` | Stubs for the compiled module |
 | `tests/python/` | pytest suites, with their sample files in `fixtures/` |
 | `docs/` | Design notes and roadmap: everything too specific for this file |
