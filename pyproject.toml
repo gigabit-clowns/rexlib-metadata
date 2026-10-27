@@ -7,7 +7,8 @@ name        = "rexlib-metadata"
 dynamic     = ["version"]
 description = "Read and write CryoEM metadata formats (STAR, XMD, SQLite) to Pandas/Polars DataFrames. Rust core, Python API, extensible by design."
 readme      = { file = "README.md", content-type = "text/markdown" }
-license     = { file = "LICENSE" }
+license       = "LGPL-2.1-or-later"
+license-files = ["LICENSE"]
 authors     = [
     { name = "Martin Salinas", email = "ssalinasmartin@gmail.com" },
 ]
