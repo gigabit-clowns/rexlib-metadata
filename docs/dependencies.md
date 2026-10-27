@@ -14,6 +14,12 @@ stay off, two crates that move as one, and the pins that are split in half.
 | `pyarrow` (Python) | The Python half of the bridge; the only hard runtime dependency |
 | `pandas`, `polars` | Extras, one per output backend |
 
+`arrow` is taken with `default-features = false`. Its defaults are `csv`,
+`ipc` and `json`, none of which this crate imports and none of which
+`pyo3-arrow` needs — it depends on the sub-crates directly. Turning them off
+drops fifteen crates from the lockfile, which is wheel size and build time
+for one line.
+
 Do not enable arrow's `pyarrow` feature. It pulls in `arrow-pyarrow`, which
 pins an older pyo3 and conflicts with `pyo3-arrow`; `pyo3-arrow` is the only
 bridge needed, and the two together do not build.

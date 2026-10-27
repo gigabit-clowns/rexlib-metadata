@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, ErrorKind};
 
 use super::Token;
 use crate::error::{Error, parse_error};
@@ -35,18 +35,18 @@ enum State {
 impl State {
     fn into_block(self) -> Option<Block> {
         match self {
-            State::Preamble => None,
-            State::InBlock { name } => Some(Block {
+            Self::Preamble => None,
+            Self::InBlock { name } => Some(Block {
                 name,
                 columns: Vec::new(),
                 rows: Vec::new(),
             }),
-            State::ReadingColumns { name, columns } => Some(Block {
+            Self::ReadingColumns { name, columns } => Some(Block {
                 name,
                 columns,
                 rows: Vec::new(),
             }),
-            State::ReadingData {
+            Self::ReadingData {
                 name,
                 columns,
                 rows,
@@ -55,7 +55,7 @@ impl State {
                 columns,
                 rows,
             }),
-            State::ReadingTags {
+            Self::ReadingTags {
                 name,
                 columns,
                 values,
@@ -83,9 +83,12 @@ where
 
     for (index, line) in reader.lines().enumerate() {
         let line_num = index + 1;
-        let line = line.map_err(|source| Error::Io {
-            path: path.to_string(),
-            source,
+        let line = line.map_err(|source| match source.kind() {
+            ErrorKind::InvalidData => parse_error(path, line_num, "not valid UTF-8"),
+            _ => Error::Io {
+                path: path.to_string(),
+                source,
+            },
         })?;
 
         let tokens = tokenize(&line, path, line_num)?;
@@ -100,7 +103,7 @@ where
                 State::InBlock { name }
             }
             Token::Loop => open_loop(state, path, line_num)?,
-            Token::Column(_) => read_names(state, tokens, path, line_num)?,
+            Token::Column(_) => read_names(state, &tokens, path, line_num)?,
             Token::Value(_) => read_row(state, row_values_of(&tokens), path, line_num)?,
         };
     }
@@ -129,9 +132,9 @@ fn open_loop(state: State, path: &str, line: usize) -> Result<State, Error> {
     }
 }
 
-fn read_names(state: State, tokens: Vec<Token>, path: &str, line: usize) -> Result<State, Error> {
-    let values = row_values_of(&tokens);
-    let names = column_names_of(&tokens);
+fn read_names(state: State, tokens: &[Token], path: &str, line: usize) -> Result<State, Error> {
+    let values = row_values_of(tokens);
+    let names = column_names_of(tokens);
     if values.is_empty() {
         return declare_columns(state, names, path, line);
     }
@@ -412,14 +415,14 @@ _columns,uid,angle
     fn empty_block_has_zero_rows() {
         let blocks = parse("data_particles\n\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n");
         assert_eq!(blocks.len(), 1);
-        assert!(blocks[0].rows.is_empty());
+        assert_eq!(blocks[0].rows.len(), 0);
         assert_eq!(blocks[0].columns.len(), 2);
     }
 
     #[test]
     fn empty_file_returns_no_blocks() {
         let blocks = parse("");
-        assert!(blocks.is_empty());
+        assert_eq!(blocks.len(), 0);
     }
 
     #[test]
@@ -454,8 +457,8 @@ data_particles\n\nloop_\n_rlnAngleRot\n10.5\n20.1\n";
         let blocks = parse("data_optics\n\ndata_particles\n\nloop_\n_rlnAngleRot\n10.5\n");
         assert_eq!(blocks.len(), 2);
         assert_eq!(blocks[0].name, "optics");
-        assert!(blocks[0].columns.is_empty());
-        assert!(blocks[0].rows.is_empty());
+        assert_eq!(blocks[0].columns.len(), 0);
+        assert_eq!(blocks[0].rows.len(), 0);
         assert_eq!(blocks[1].rows.len(), 1);
     }
 

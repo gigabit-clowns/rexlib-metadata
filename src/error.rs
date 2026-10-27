@@ -1,5 +1,5 @@
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub(crate) enum Error {
     #[error("cannot open '{path}': {source}")]
     Io {
         path: String,
@@ -18,7 +18,7 @@ pub enum Error {
     Arrow(#[from] arrow::error::ArrowError),
 }
 
-pub fn parse_error(path: &str, line: usize, message: impl Into<String>) -> Error {
+pub(crate) fn parse_error(path: &str, line: usize, message: impl Into<String>) -> Error {
     Error::Parse {
         path: path.to_string(),
         line,
