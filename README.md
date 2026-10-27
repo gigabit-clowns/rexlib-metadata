@@ -12,7 +12,7 @@ Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 - **Extensible** — plug in custom readers and conventions by subclassing Python ABCs; no Rust required
 - **Fast core** — parsing and Arrow serialization in Rust via PyO3 + Maturin
 
-Reading STAR files is what works today. Writing, the convention system, chunked reads, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
+Reading STAR files is what works today. Writing, the conventions themselves, chunked reads, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
 
 ## Installation
 

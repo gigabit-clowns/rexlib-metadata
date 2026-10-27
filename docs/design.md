@@ -134,15 +134,15 @@ inference but transcription.
 
 `pyo3-arrow` returns an `arro3` object rather than a `pyarrow` one. arro3 is
 not a dependency and must not become one: the object is consumed through the
-Arrow protocol methods it exposes, which is what `_to_pyarrow_table` in
-`conventions/star.py` does. Any new Rust entry point returning Arrow goes
+Arrow protocol methods it exposes, which is what `to_pyarrow_table` in
+`_arrow.py` does. Any new Rust entry point returning Arrow goes
 through that same function.
 
 ## The schema layer
 
 The schema defines the canonical column structure and knows nothing about any
 file format. A `ColumnDescriptor` is one canonical column — name, Arrow type,
-and a default whose absence means the column is required. A `SchemaTrait` is
+unit, and a `required` flag that is false unless it says otherwise. A `SchemaTrait` is
 a reusable group of related columns, `EulerAngles` or `CartesianPosition`,
 and exists only so that tables can be composed out of them; it flattens into
 the table and has no identity at run time. A `TableSchema` is one table's full
@@ -223,7 +223,7 @@ what can actually be relied on.
 
 Two conventions of one bundle may not produce the same canonical column: that
 is an ambiguity inside a unit meant to be coherent, and it is rejected when
-the bundle is registered. Across bundles the conflict is legitimate and
+the bundle is built. Across bundles the conflict is legitimate and
 priority resolves it — bundles are ordered, the first to produce a canonical
 column owns it, and later bundles cannot overwrite what an earlier one
 produced. Inside a bundle, every matching convention that adds something not
@@ -236,18 +236,18 @@ end of the read, not a column of nulls.
 
 ```python
 class ReadConvention(ABC):
-    source_columns: list[str]   # file columns consumed
-    target_columns: list[str]   # canonical columns produced
+    source_columns: tuple[str, ...]   # file columns consumed
+    target_columns: tuple[str, ...]   # canonical columns produced
 
     def matches(self, raw: RawSchema) -> bool: ...
-    def load(self, raw: RecordBatch) -> dict[str, Array]: ...
+    def load(self, table: pa.Table) -> dict[str, pa.Array]: ...
 
 
 class WriteConvention(ABC):
-    source_columns: list[str]   # canonical columns consumed
-    target_columns: list[str]   # file columns produced
+    source_columns: tuple[str, ...]   # canonical columns consumed
+    target_columns: tuple[str, ...]   # file columns produced
 
-    def store(self, canonical: dict[str, Array]) -> dict[str, Array]: ...
+    def store(self, canonical: dict[str, pa.Array]) -> dict[str, pa.Array]: ...
 
 
 class ConventionBundle:
@@ -325,29 +325,29 @@ picking file would otherwise come back with forty columns of nulls.
 ### Registering a bundle
 
 ```python
-registry.register_bundle(".star", Relion4Bundle())   # tried first
-registry.register_bundle(".star", Relion3Bundle())   # fallback
+registry.register_bundle([".star"], Relion4Bundle())   # tried first
+registry.register_bundle([".star"], Relion3Bundle())   # fallback
 ```
 
 ### Writing one
 
 ```python
 class MyEulerConvention(ReadConvention):
-    source_columns = ["myAngle1", "myAngle2", "myAngle3"]
-    target_columns = ["euler_rot", "euler_tilt", "euler_psi"]
+    source_columns = ("myAngle1", "myAngle2", "myAngle3")
+    target_columns = ("euler_rot", "euler_tilt", "euler_psi")
 
     def matches(self, raw: RawSchema) -> bool:
-        return all(c in raw.column_names for c in self.source_columns)
+        return raw.has(*self.source_columns)
 
-    def load(self, raw: RecordBatch) -> dict[str, Array]:
+    def load(self, table: pa.Table) -> dict[str, pa.Array]:
         return {
-            "euler_rot":  raw.column("myAngle1"),
-            "euler_tilt": raw.column("myAngle2"),
-            "euler_psi":  raw.column("myAngle3"),
+            "euler_rot":  table.column("myAngle1"),
+            "euler_tilt": table.column("myAngle2"),
+            "euler_psi":  table.column("myAngle3"),
         }
 
 bundle = ConventionBundle("mylab", read_conventions=[MyEulerConvention()])
-global_registry.register_bundle(".star", bundle, prepend=True)
+global_registry.register_bundle([".star"], bundle, prepend=True)
 ```
 
 ## The registry, detection and injection
@@ -375,7 +375,8 @@ file handle once the call that created it has returned: handles exist only
 for the duration of actual I/O. A reader that keeps one open breaks every
 caller that reads more files than the platform has descriptors.
 
-`columns=` reads what it says and nothing else. Reading two columns of
+When `columns=` lands it will read what it says and nothing else — `read`
+takes no keyword arguments today. Reading two columns of
 forty, changing one and writing the file back still has to leave the other
 thirty-eight exactly as they were, and the way that works is that the write
 re-reads the source and substitutes as it goes, a chunk at a time. Holding
@@ -393,7 +394,9 @@ filesystem.
 
 ## The intended public API
 
-Written out as it is meant to end up. Only the first three lines exist today.
+Written out as it is meant to end up. What exists today is the plain `read`,
+`to_pandas()`, `to_polars()` and `result[name]`; `columns=`, `convention=`,
+`backend=`, `chunks()` and `write()` do not.
 
 ```python
 import rexlib_metadata as rxm

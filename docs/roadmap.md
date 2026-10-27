@@ -10,22 +10,18 @@ add the items a pull request discovers rather than leaving them in a comment.
 
 ## Where the work stands
 
-Phases 0 and 1 are on `main`. Phase 1b, the rewrite of the STAR reader, is
-finished on the `parser` branch and is what main is waiting for: the single
-`src/star.rs` became `src/star/{lexer,parser,builder,mod}.rs`, and with it
-came quoted values, comments, typed `StarError`s carrying path and line,
-multi-block parsing, and the Rust half of CI. Both suites are green, 31 tests
-in Rust and 15 in Python.
+Phases 0, 1 and 1b are on `main`. The single `src/star.rs` became
+`src/star/{lexer,mod}.rs` beside `src/text/{parser,builder,mod}.rs`, and with
+it came quoted values, comments, a typed `Error` carrying path and line,
+multi-block parsing, and the Rust half of CI. Both suites are green, 36 tests
+in Rust and 75 in Python.
 
 What the STAR parser does not do, and that a real file may yet ask for:
 
 - A data row spread over several lines, which the format allows and no
   writer we target produces.
-- More than one `loop_` in a data block, which the `StarBlock` model has
-  nowhere to put.
-- Blocks of `_name value` pairs with no `loop_`, which Relion writes in its
-  optimiser files. The lexer rejects the line, so this is a lexer change
-  before it is a parser one.
+- More than one `loop_` in a data block, which the `Block` model has nowhere
+  to put.
 
 Each of the three is an error naming the line, never a silent skip.
 
@@ -42,12 +38,11 @@ of several tables asks which one rather than handing back the last.
 
 ## Phase 1 — STAR reader, no conventions ✅
 
-- [x] `RawSchema` in Rust
+- [x] `RawSchema` in Python: a table's name and its columns as parsed
 - [x] `read_tables()`, every value `Utf8`
-- [x] `_rexlib._star_read_schema` and `_rexlib._star_read`
+- [x] `_rexlib._star_read_tables`
 - [x] `Reader` ABC, placeholder `Convention` ABC
 - [x] Lazy `ReadResult` with `to_pandas()` and `to_polars()`
-- [x] `GenericStarConvention` passthrough
 - [x] `StarReader` over the Rust entry points
 - [x] `MetadataRegistry`, `global_registry`, `.star` pre-registered
 - [x] `rxm.read()`
@@ -57,7 +52,7 @@ of several tables asks which one rather than handing back the last.
 ## Phase 1b — Parser rewrite ✅
 
 - [x] Split into lexer, parser and builder
-- [x] `StarError` with path and line, replacing `Result<_, String>`
+- [x] `Error` with path and line, replacing `Result<_, String>`
 - [x] `tokenize_line`: quoting, comments, single-token headers
 - [x] `parse_blocks`: the state machine over the tokens
 - [x] Keep the Python suites green against the rewritten reader
@@ -86,7 +81,7 @@ of several tables asks which one rather than handing back the last.
       column presence
 - [ ] Register it for `.star` in `global_registry`
 - [ ] Tests: auto-detection, explicit `bundle=`, missing required column,
-      overlapping `target_columns` raising at registration
+      overlapping `target_columns` raising when a bundle is built
 
 ## Phase 3 — Writing and roundtrip
 
@@ -116,11 +111,10 @@ of several tables asks which one rather than handing back the last.
 
 ## Phase 6 — Multi-table and CD
 
-- [ ] Surface every parsed block instead of the last one
-- [ ] `TableCollection` in `result.py`, dict-like, `__getitem__` gives a
-      `ReadResult`
-- [ ] Wire it into `ReadResult` for multi-block files
-- [ ] Tests: a Relion4 file with `data_optics` and `data_particles`
+- [x] Surface every parsed block instead of the last one
+- [x] `ReadResult.names` and `ReadResult.__getitem__`, which took the place
+      of the `TableCollection` this once planned
+- [x] Tests: a real Relion 3.1 file, its optics in a block of their own
 - [ ] Continuous deployment: a development release on push to `main`, the
       same pattern as `rexlib-python`
 
@@ -131,8 +125,8 @@ each argued from a real file in `docs/formats.md`.
 
 - [x] The state machine takes its tokens from any lexer, so that a
       block-shaped delimited file is a lexer rather than a second state
-      machine. It moved to `src/text/` with the builder and the error, since
-      neither was ever STAR's, and a line may now declare several columns —
+      machine. It moved to `src/text/` with the builder, and the error to
+      `src/error.rs`, since neither was ever STAR's, and a line may now declare several columns —
       which only a second lexer could reveal, and did
 - [ ] `read` grows named arguments for the reader and the bundle, since a
       generic container — `.csv`, `.db`, `.h5` — cannot have its dialect
@@ -171,9 +165,9 @@ each argued from a real file in `docs/formats.md`.
 Loose ends are issues, not a list in this file: an item nobody is assigned to
 and no pull request closes is a way of forgetting something in writing. The
 tracker holds the licensing scheme and the SPDX headers that follow it (#35),
-the arrow cap and what lifts it (#36), the stub that names arro3 (#37), the
-import cycle in `registry.py` (#38), SonarQube and CodeQL (#39), publishing
-(#40), and STAR's blocks of `_name value` pairs (#41).
+the arrow cap and what lifts it (#36), the stub that types Arrow as `Any`
+(#37), SonarQube and CodeQL (#39), publishing (#40), and a read that matched
+nothing coming back empty rather than saying so (#53).
 
 This file keeps the plan: the phases, in the order they are meant to happen.
 

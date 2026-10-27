@@ -17,16 +17,17 @@ to the same ref cancels the run in flight.
 
 One cell of nineteen installs the **oldest** polars and pandas this package
 says it supports rather than the newest. The extras declare a range —
-`polars>=1.0`, `pandas>=2.0` on 3.10 — and a range nobody tests at its floor
+`polars>=1.0`, `pandas>=2.2.2` on 3.10 — and a range nobody tests at its floor
 is a claim rather than a fact; the pins in `[test]` only ever prove the
 ceiling. Testing the floor and the ceiling and not the middle is the usual
 compromise, and it is cheap here because polars reaches us through one
 function.
 
-That cell is Linux on 3.10 because it has to be: the floor of the pandas
-extra ships no wheel for anything newer. Its first run moved that floor from
-2.0 to 2.2.2, pandas before then having been built against numpy 1's headers
-and dying on import beside numpy 2. It is added by an
+That cell is Linux on 3.10 because it has to be: the `<3.0` half of the
+pandas extra is declared for 3.10 alone, so 3.10 is the only cell whose floor
+2.2.2 is. Its first run moved that floor up from 2.0, pandas before 2.2.2
+having been built against numpy 1's headers and dying on import beside
+numpy 2. It is added by an
 `include` whose `extras` value is outside its dimension, which is what makes
 Actions create a cell instead of replacing the one that matches.
 
@@ -42,7 +43,7 @@ testing](../AGENTS.md#building-and-testing).
 
 Both jobs cache the Rust build. The dependency tree is the whole cost of a
 run — a cold build of arrow and its neighbours is minutes, ours is seconds —
-and without a cache it was compiled twenty-one times per run, once per cell.
+and without a cache it was compiled twenty-two times per run, once per cell.
 
 One key per platform, not per interpreter: nothing under arrow names a
 Python, so the six cells of a platform share everything but the final build
@@ -60,7 +61,7 @@ after its last read. `keep-caches-warm.yml` reads all six every morning
 through the organisation's workflow, which looks each one up by prefix and
 downloads nothing — a lookup is a read, and a read is what resets the week.
 A quiet fortnight therefore costs nothing, where before it would have cost
-the next pull request a cold build on twenty-one cells.
+the next pull request a cold build on twenty-two cells.
 
 Actions are pinned by digest, and Renovate keeps both the digests and the
 dependencies moving, under a 14-day minimum release age that security

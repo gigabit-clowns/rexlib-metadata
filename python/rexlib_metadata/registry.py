@@ -22,15 +22,15 @@ class MetadataRegistry:
         self._bundles: dict[str, list[ConventionBundle]] = {}
 
     def register_reader(
-        self, extensions: Iterable[str], reader: Reader
+        self, extensions: str | Iterable[str], reader: Reader
     ) -> None:
-        """Register `reader` as the reader of every one of `extensions`."""
-        for ext in extensions:
-            self._readers[ext.lower()] = reader
+        """Register `reader` as the reader of `extensions`, or of one."""
+        for ext in _as_extensions(extensions):
+            self._readers[ext] = reader
 
     def register_bundle(
         self,
-        extensions: Iterable[str],
+        extensions: str | Iterable[str],
         bundle: ConventionBundle,
         *,
         prepend: bool = False,
@@ -40,8 +40,8 @@ class MetadataRegistry:
         Order is priority: the first bundle to produce a canonical column
         owns it, and a later one cannot take it back.
         """
-        for ext in extensions:
-            registered = self._bundles.setdefault(ext.lower(), [])
+        for ext in _as_extensions(extensions):
+            registered = self._bundles.setdefault(ext, [])
             if prepend:
                 registered.insert(0, bundle)
             else:
@@ -64,6 +64,12 @@ class MetadataRegistry:
     def read(self, path: str) -> ReadResult:
         """Return a lazy result over `path`, through its own reader."""
         return self.reader_for(path).read(path)
+
+
+def _as_extensions(extensions: str | Iterable[str]) -> tuple[str, ...]:
+    if isinstance(extensions, str):
+        return (extensions.lower(),)
+    return tuple(ext.lower() for ext in extensions)
 
 
 def _extension(path: str) -> str:

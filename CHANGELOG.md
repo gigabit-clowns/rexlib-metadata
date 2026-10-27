@@ -7,7 +7,7 @@ Nothing has been released yet. This is what the first release will say.
 - Reads every data block of a file, not only the last. `result.names` says
   which tables there are and `result["particles"]` picks one; a file of one
   table needs no name, and a file of several asks for one.
-- Reads a STAR file into a pandas or polars DataFrame through `rm.read`,
+- Reads a STAR file into a pandas or polars DataFrame through `rxm.read`,
   with every value kept as a string.
 - Quoted values, comments and multi-block files are understood, and a
   malformed file raises an error naming the line.
