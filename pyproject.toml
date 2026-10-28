@@ -47,7 +47,7 @@ polars = ["polars>=1.0"]
 lint = [
     "ruff==0.17.3",
     "complexipy==8.3.0",
-    "mypy==2.4.0",
+    "mypy==2.4.1",
     "pyarrow-stubs==20.0.0.20260819",
     "pandas-stubs==3.0.5.260914",
     "polars==2.1.0",
