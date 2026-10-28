@@ -180,16 +180,16 @@ class ReadResult:
     ) -> pa.Table:
         table = self._schema[name]
         columns = write_canonical(self._canonical(name), bundles, table)
-        columns.update(self._carried_over(table, bundles, columns, path))
+        columns.update(self._carried_over(table, columns, path))
         return pa.table(list(columns.values()), names=list(columns))
 
     def _carried_over(
         self,
         table: TableSchema,
-        bundles: tuple[ConventionBundle, ...],
         written: dict[str, ArrowColumn],
         path: str,
     ) -> dict[str, ArrowColumn]:
+        """Return the columns of the table the read drew on, minus `written`."""
         if Path(path).suffix.lower() != Path(self._raw.path).suffix.lower():
             return {}
         source = source_table(self._raw.tables(), self._bundles, table)
