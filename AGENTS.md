@@ -63,7 +63,6 @@ invariants at the end of this file already bind what gets written.
 | `src/text/mod.rs` | `Token`, what every lexer of a text table produces |
 | `src/text/parser.rs` | `parse_blocks`, the state machine handing tokens to a `Sink` row by row, over any lexer |
 | `src/text/builder.rs` | `ArrowSink`, rows into an Arrow `RecordBatch` of `Utf8` per block, and a batch back to rows |
-| `src/text/oracle.rs` | The parser `parse_blocks` replaced, built for tests only, until it is removed |
 | `src/star/lexer.rs` | `tokenize_line`, one line of STAR to tokens, quoting and comments |
 | `src/star/writer.rs` | `write_tables`, rows to STAR blocks, deciding what to quote |
 | `src/star/mod.rs` | `read_tables`, the crate-facing STAR entry point |

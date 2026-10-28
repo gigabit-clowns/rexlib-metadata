@@ -121,10 +121,10 @@ of several tables asks which one rather than handing back the last.
 
 ## Phase 5 — Chunked reading
 
-- [ ] The state machine hands each row to a sink, and the sink appends it
+- [x] The state machine hands each row to a sink, and the sink appends it
       to the Arrow builders of its block: no `Vec<Vec<String>>`, and a whole
       read is every chunk collected
-- [ ] The parser it replaces kept as an oracle, the new one agreeing with it
+- [x] The parser it replaces kept as an oracle, the new one agreeing with it
       on every file under `tests/files/star/`, and removed once it does
 - [ ] Progressive chunk index in the STAR parser, offsets recorded as chunks
       are read, each chunk read by seeking to its offset
