@@ -84,17 +84,15 @@ a column the file does not carry at all.
 columns asked for. `write(path, updates=df)` streams the source again and
 emits the output substituting the columns that changed, so memory is one
 chunk rather than the whole file, and a file larger than RAM still works.
-The earlier design held every column in memory on every read to make this
-possible, which charged the whole file to callers who never write.
 
 Three things follow. The source has to still be there at write time, and the
-caller is trusted not to move it from under us — a guard on size and mtime
+caller is trusted not to move it from under them; a guard on size and mtime
 was considered and dropped as distrust of the user for a mistake only the
-user can make; if concurrent writers ever become a real problem, an advisory
-lock is the answer, not a heuristic. The rows have to correspond one to one,
-so a different row count is an error saying that filtering makes the caller
-the owner of every column: there is no sane answer to which source row a
-filtered row forwards from. And writing over the source goes through a
+user can make, and an advisory lock is the answer if concurrent writers ever
+become real. The rows have to correspond one to one, so a different row count
+is an error saying that filtering makes the caller the owner of every column:
+there is no sane answer to which source row a filtered row forwards from. And
+writing over the source goes through a
 temporary file **in the destination directory**, renamed at the end, since
 a rename is only atomic within one filesystem and a temporary in the system
 temp directory would degrade into a copy.
@@ -153,11 +151,10 @@ Arrow protocol methods it exposes, which is what `to_pyarrow_table` in
 through that same function.
 
 What the boundary promises is therefore a protocol and not a class.
-`ArrowArrayExportable` in `_arrow.py` is that promise written down — one
-method, `__arrow_c_array__`, which is the one `to_pyarrow_table` relies on —
-and it is what `_rexlib.pyi` types a Rust entry point as returning. Naming
-`arro3.core.RecordBatch` there would tie the stub to a package nothing
-installs; naming `Any` would promise nothing at all.
+`ArrowArrayExportable` in `_arrow.py` is that promise — one method,
+`__arrow_c_array__` — and it is what `_rexlib.pyi` types a Rust entry point
+as returning. Naming `arro3.core.RecordBatch` there would tie the stub to a
+package nothing installs.
 
 ## The schema layer
 
@@ -235,14 +232,9 @@ columns it produces, answers `matches()` for a raw schema, and `load()`s. A
 `WriteConvention` declares the canonical columns it consumes and the file
 columns it produces, and `store()`s. A `ConventionBundle` groups all the
 conventions of one format — Relion4, Relion3, Xmipp — under a name,
-**grouped by the canonical table each one fills** — decided on 2026-10-27,
-when registering Relion's two halves as two bundles made every read of a
-Relion 3.1 file fail: a convention written for the optics table was offered
-the particles schema, produced `voltage`, and the engine rightly refused a
-column that table does not declare. Nothing had said which table a bundle
-was for. Now the bundle does, one entry per format, and priority stays per
-format rather than per format and table — a format's halves cannot drift
-apart in the order.
+**grouped by the canonical table each one fills** — decided on 2026-10-27.
+One entry per format, so priority is per format and a format's halves cannot
+drift apart in the order.
 
 Matching is by column presence, never by the name of the raw table. A raw
 `data_particles` block becomes the canonical `particles` table because a
@@ -261,39 +253,26 @@ yet covered applies.
 Required canonical columns that no convention produced are an error at the
 end of the read, not a column of nulls.
 
-One raw table fills one canonical table — decided on 2026-10-27, the same
-day and for the neighbouring reason. The engine takes the first raw table,
-in the order the file holds them, whose matching conventions declare every
-column the canonical table requires, and reads only from it. Before that
-rule a Relion 3.1 read of `particles` took `optics_group` from the optics
-block, one row where the particles had two, and died in the length check.
-
-The rule is narrow on purpose. A canonical column that genuinely lives in
-another table — the optics case — is the convention's own job to expand to
-one value per row, which is what the length error has always said, and the
-join it would need is still open in `docs/canonical.md`. What the rule buys
-is that the engine never guesses which block a column came from, and that a
-file with two particle-shaped blocks reads the first rather than a mixture
-of both.
+One raw table fills one canonical table — decided on 2026-10-27. The engine
+takes the first raw table, in the order the file holds them, whose matching
+conventions declare every column the canonical table requires, and reads
+only from it. A canonical column that genuinely lives in another table — the
+optics case — is the convention's own job to expand to one value per row,
+and the join it would need is still open in `docs/canonical.md`.
 
 A read that understood nothing is an error, not an empty table — decided on
-2026-10-27, and it closes
-[#53](https://github.com/gigabit-clowns/rexlib-metadata/issues/53).
-When no convention of any bundle declares a single column of any raw table,
-and at least one raw table has at least one row, the read raises and names
-the bundles it tried and the columns it found. Both halves of the condition
-earn their place: a partial read is legitimate, so the test is *nothing*
-rather than *less than expected*, and a genuinely empty file must still read
-as empty rather than as a failure.
+2026-10-27. When no convention of any bundle declares a single column of any
+raw table, and at least one raw table has at least one row, the read raises
+and names the bundles it tried and the columns it found. The test is
+*nothing* rather than *less than expected*, a partial read being legitimate,
+and it takes a raw row so that an empty file still reads as empty.
 
 ### In code
 
-`ArrowColumn` is `pa.Array | pa.ChunkedArray`, defined in
-`convention.py`. A column taken out of a `pa.Table` is chunked, and every
-`pyarrow.compute` call over one hands a chunked array back, so chunked is
-what a convention returns in practice; one that builds a column from
-nothing returns a plain array. The engine and `pa.table` accept either, and
-the union says so rather than naming the half that happens to be rarer.
+`ArrowColumn` is `pa.Array | pa.ChunkedArray`, defined in `convention.py`.
+A column taken out of a `pa.Table` is chunked, and so is the result of every
+`pyarrow.compute` call over one; a convention that builds a column from
+nothing returns a plain array. The engine takes either.
 
 ```python
 class ReadConvention(ABC):

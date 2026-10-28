@@ -26,30 +26,23 @@ function.
 
 That cell is Linux on 3.10 because it has to be: the `<3.0` half of the
 pandas extra is declared for 3.10 alone, so 3.10 is the only cell whose floor
-2.2.2 is. Its first run moved that floor up from 2.0, pandas before 2.2.2
-having been built against numpy 1's headers and dying on import beside
-numpy 2. It is added by an
-`include` whose `extras` value is outside its dimension, which is what makes
-Actions create a cell instead of replacing the one that matches.
+2.2.2 is — `docs/dependencies.md` says why that is the floor. It is added by
+an `include` whose `extras` value is outside its dimension, which is what
+makes Actions create a cell instead of replacing the one that matches.
 
 The linters run once, in a job of their own, because they read the source and
-the source is the same in every cell. Nineteen copies of one answer was the
-smaller half of the waste: `complexipy` is a Rust package with no wheel for
-3.15 outside Linux, so two cells were building it — 177 crates, two minutes
-and ten seconds, more than this library's own build — to ask a question that
-had already been answered seventeen times.
+the source is the same in every cell.
 
-The job installs through `pip install --group lint`, which is a PEP 735
-dependency group and therefore installs the tools without the project. An
-extra would have built this crate — the Rust and all of arrow — to deliver
-ruff, which is why that job once needed a Rust toolchain and a read-only
-cache entry and now needs neither. `--only-binary :all:` goes with it: every
-tool in the group ships a wheel on the one platform the job runs.
+The job installs through `pip install --group lint`, a PEP 735 group,
+which installs the tools without the project: an extra would build this
+crate — the Rust and all of arrow — to deliver ruff, so the job needs no Rust
+toolchain and no cache. `--only-binary :all:` goes with it, every tool in the
+group shipping a wheel for the one platform it runs on.
 
 `mypy` runs there too, reading its settings from `[tool.mypy]`. The group
-carries `pyarrow-stubs` and `pandas-stubs` because neither package ships
-types, and `polars`, which does — without the three of them the check passes
-by seeing `Any` everywhere, which is how the first run of it fooled us.
+carries `pyarrow-stubs` and `pandas-stubs`, neither package shipping types,
+and `polars`, which does. Without all three the check sees `Any` everywhere
+and passes by seeing nothing.
 
 `fail-fast` is off in both matrices, so one broken cell does not hide the
 others. The
@@ -77,12 +70,11 @@ cannot evict another's, and the cache a pull request reads is the one its
 base produced. Nothing evicts them either: GitHub starts at 10 GiB and there
 are six entries.
 
-What would have dropped them is the other rule, that an entry goes a week
+The rule that would drop them is the other one, that an entry goes a week
 after its last read. `keep-caches-warm.yml` reads all six every morning
 through the organisation's workflow, which looks each one up by prefix and
 downloads nothing — a lookup is a read, and a read is what resets the week.
-A quiet fortnight therefore costs nothing, where before it would have cost
-the next pull request a cold build on twenty-two cells.
+A quiet fortnight therefore costs nothing.
 
 Actions are pinned by digest, and Renovate keeps both the digests and the
 dependencies moving, under a 14-day minimum release age that security
@@ -97,18 +89,13 @@ The organisation's own are not pinned, and `renovate.json` disables
 `gigabit-clowns/.github` so that they stay that way. They are taken from
 `main` on purpose: a fix to a composite reaches every repository of the suite
 the moment it lands, where a digest would need a pull request per repository
-to arrive. The trust that gives up is trust in ourselves. Should Sonar come to
-ask for the commit hash — `githubactions:S7637`, which it does not raise
-today on any repository of the suite — the answer is to accept the finding in
-the interface, with that as the reason, since `.sonarcloud.properties` does
-not accept a rule to ignore.
+to arrive. The trust that gives up is trust in ourselves.
 
 The Rust toolchain is the exception: `dtolnay/rust-toolchain@stable` follows
-stable wherever it goes, and clippy's `pedantic` group grows with it. A new
-release can therefore fail a build nobody touched — it has happened once,
-with `assert_is_empty`, and the lint was right. The tax is small and the
-lints have been improvements, so the arrangement stays; pinning the toolchain
-in `rust-toolchain.toml` is the alternative, and the moment to take it is the
+stable wherever it goes, and clippy's `pedantic` group grows with it, so a
+new release can fail a build nobody touched. The lints have been
+improvements, so the arrangement stays; pinning the toolchain in
+`rust-toolchain.toml` is the alternative, and the moment to take it is the
 second time a release costs more than it gave.
 
 ## Static analysis

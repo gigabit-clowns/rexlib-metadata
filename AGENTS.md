@@ -269,31 +269,25 @@ are allowed inside `mod tests`, where indexing a fixture is the point.
 ### Comments
 
 As few as possible, and none at all wherever that is possible. A comment says
-**what**, never **why**. The why belongs in the commit message and the pull
-request, where it can be read against the change that motivated it instead of
-rotting in a file that moved on without it.
+**what**, never **why**: the why belongs in the commit message, where it is
+read against the change that motivated it instead of rotting in a file that
+moved on without it.
 
-And the what only when the code does not already say it. If a reader
-understands the line without the comment, the comment does not go in. A
-banner announcing that the types come next, a note restating the signature
-above it, an explanation of what a well-known macro generates — all of that
-is text to be kept true for no gain.
+And the what only when the code does not already say it. A banner announcing
+that the types come next, a note restating the signature above it, an
+explanation of what a well-known macro generates — all of that is text to be
+kept true for no gain. The rule covers every file, a workflow step included.
+What stays is the thing that is not a comment at all: a docstring, a
+`# noqa`, an attribute. A contract that has to be written down somewhere goes
+in `docs/`.
 
-The rule covers every file, not just the Rust and the Python: a workflow step
-whose name already says what it runs does not also need a paragraph above it.
-What does stay is the thing that is not a comment at all — a docstring, a
-`# noqa`, an attribute — and, where a contract has to be written down
-somewhere, `docs/` is where it goes.
+Unfinished work is an issue, never a `TODO`: `docs/roadmap.md` keeps the
+phases in order and the tracker keeps everything else.
 
-There is not a single `TODO` in the repository, and there is not meant to be.
-Unfinished work is an issue: a comment nobody is assigned to, that no search
-finds and that no pull request closes, is a way of forgetting something in
-writing. `docs/roadmap.md` keeps the plan — the phases, in order — and
-everything else that is missing lives in the tracker.
+### Typing and errors
 
-The package targets Python 3.10, which is what Ubuntu 22.04 ships and what
-its users therefore have; the end of 3.10's own support is not the thing
-that decides this. Every module that annotates anything opens with
+The package targets Python 3.10, which is what Ubuntu 22.04 ships. Every
+module that annotates anything opens with
 `from __future__ import annotations`, and `X | None` is written only under
 it. pandas, polars and even pyarrow go inside `if TYPE_CHECKING:` where
 they are used for types alone, and inside the function where they are used at
@@ -304,6 +298,8 @@ On the Rust side, errors are a `thiserror` enum per format, carrying the path
 and the line number where there is one, and `lib.rs` converts them at the
 boundary. Nothing panics on bad input: `expect` is for what the code itself
 has just proven, and its message names the guard that proves it.
+
+### Tests and fixtures
 
 Tests come first and they stay small. A Rust module keeps its tests at its
 own foot in `mod tests`; the Python suites live under `tests/python/`, with
@@ -325,15 +321,14 @@ paste it. A remembered number is a guess, and a test built on one fails for
 the wrong reason or, worse, passes.
 
 **A fixture of a file format comes from a program that writes that format**,
-trimmed to a few rows, never typed out from our reading of the specification.
-A hand-written STAR file tests that the parser agrees with whoever wrote the
+trimmed to a few rows, never typed out from a reading of the specification. A
+hand-written STAR file tests that the parser agrees with whoever wrote the
 fixture, which is the same person who wrote the parser; only a file Relion,
-Xmipp or cryoSPARC actually produced can contradict us. The real ones live in
-`tests/files/`, with a note beside them saying where each came from and what
-it is there for, and the licence of whoever wrote them where that applies.
-`tests/files/star/` is the first of these. The small invented ones
-that predate this rule stay for what they are, cases the format allows that
-no file we have happens to contain.
+Xmipp or cryoSPARC actually produced can contradict it. The real ones live in
+`tests/files/`, each with a note saying where it came from and what it is
+there for, and the licence of whoever wrote it where that applies. The
+invented ones that remain cover cases the format allows and no real file
+happens to contain.
 
 ## Working here
 
