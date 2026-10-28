@@ -99,10 +99,12 @@ of several tables asks which one rather than handing back the last.
 - [x] `RawResult.write(path)`, the writer chosen by the destination's
       extension, no forwarding yet
 - [x] Tests: read → write → read on five real files, compared as DataFrames
-- [ ] Relion's `WriteConvention`s, one per column group, the mirror of the
+- [x] Relion's `WriteConvention`s, one per column group, the mirror of the
       read conventions in `conventions/relion.py`
-- [ ] `ReadResult.write(path)`: the canonical columns through the write
-      conventions of the destination's extension, or of `bundle=` when given
+- [x] `ReadResult.write(path)`: the canonical columns through the write
+      conventions of the destination's extension, or of `bundle=` when given,
+      carrying over the columns no convention writes when the destination is
+      the format the result was read from
 
 ## Phase 4 — Write-forwarding
 

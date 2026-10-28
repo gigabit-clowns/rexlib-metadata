@@ -16,6 +16,7 @@ if TYPE_CHECKING:
         ConventionBundle,
         RawTable,
         ReadConvention,
+        WriteConvention,
     )
     from rexlib_metadata.schema import (
         ColumnDescriptor,
@@ -45,6 +46,102 @@ def read_canonical(
     rows = _row_count(covered, schema)
     _check_required(covered, schema)
     return _assemble(covered, schema, rows)
+
+
+def source_table(
+    raw_tables: Iterable[RawTable],
+    bundles: Iterable[ConventionBundle],
+    schema: TableSchema,
+) -> RawTable | None:
+    """Return the raw table a read of `schema` fills from, if there is one."""
+    return _source_of(schema, tuple(raw_tables), tuple(bundles))
+
+
+def write_canonical(
+    table: pa.Table,
+    bundles: Iterable[ConventionBundle],
+    schema: TableSchema,
+) -> dict[str, ArrowColumn]:
+    """Turn a canonical table into the columns one format writes.
+
+    Bundles are tried in the order given, which is their priority: the
+    first one to produce a file column owns it.
+    """
+    bundles = tuple(bundles)
+    canonical: dict[str, ArrowColumn] = {
+        name: table.column(name) for name in table.column_names
+    }
+    produced: dict[str, ArrowColumn] = {}
+
+    for bundle, convention in _stores(bundles, schema):
+        if not _has_something_to_write(convention, canonical, produced):
+            continue
+        _keep_first_written(
+            produced, convention.store(canonical), convention, bundle
+        )
+
+    _check_anything_was_written(produced, bundles, schema)
+    return produced
+
+
+def _stores(
+    bundles: tuple[ConventionBundle, ...], schema: TableSchema
+) -> Iterator[tuple[ConventionBundle, WriteConvention]]:
+    return (
+        (bundle, convention)
+        for bundle in bundles
+        for convention in bundle.write_conventions(schema.name)
+    )
+
+
+def _has_something_to_write(
+    convention: WriteConvention,
+    canonical: dict[str, ArrowColumn],
+    produced: dict[str, ArrowColumn],
+) -> bool:
+    if not all(name in canonical for name in convention.source_columns):
+        return False
+    return any(name not in produced for name in convention.target_columns)
+
+
+def _keep_first_written(
+    produced: dict[str, ArrowColumn],
+    stored: dict[str, ArrowColumn],
+    convention: WriteConvention,
+    bundle: ConventionBundle,
+) -> None:
+    origin = _origin(bundle, convention)
+    for name, column in stored.items():
+        if name in produced:
+            continue
+        _check_declared(name, convention, origin)
+        produced[name] = column
+
+
+def _check_declared(
+    name: str, convention: WriteConvention, origin: str
+) -> None:
+    if name not in convention.target_columns:
+        raise ValueError(
+            f"{origin} produced '{name}', which it does not declare in "
+            "target_columns; a bundle can only be checked for ambiguity "
+            "against what its conventions say they produce"
+        )
+
+
+def _check_anything_was_written(
+    produced: dict[str, ArrowColumn],
+    bundles: tuple[ConventionBundle, ...],
+    schema: TableSchema,
+) -> None:
+    if produced:
+        return
+    raise ValueError(
+        f"No convention of {_bundle_names(bundles)} writes canonical table "
+        f"'{schema.name}', so the file would hold nothing. Register a bundle "
+        "for this format, pass one as bundle=, or write the file's own "
+        "columns through .raw"
+    )
 
 
 def _source_of(
@@ -180,7 +277,9 @@ def _keep_first(
         covered[name] = array
 
 
-def _origin(bundle: ConventionBundle, convention: ReadConvention) -> str:
+def _origin(
+    bundle: ConventionBundle, convention: ReadConvention | WriteConvention
+) -> str:
     return f"{type(convention).__name__} of bundle '{bundle.name}'"
 
 

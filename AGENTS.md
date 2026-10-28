@@ -46,7 +46,7 @@ knowing which of the two it is talking about:
 | Schema layer (`ColumnDescriptor`, `TableSchema`, …) | Built, `python/rexlib_metadata/schema.py`, carrying the catalogue of `docs/canonical.md` |
 | The read engine | Built, `python/rexlib_metadata/engine.py`, and driving every read |
 | The Relion 4 bundle, and a read that comes back canonical | Built, `python/rexlib_metadata/conventions/relion.py` |
-| Write conventions, and a canonical `write` | Designed, not written |
+| Relion's write conventions, and a canonical `write` | Built, and carrying over what no convention covers |
 | Chunking, XMD, SQLite, HDF5 | Designed, not written |
 
 `docs/roadmap.md` is the authority on what comes next and in which order.

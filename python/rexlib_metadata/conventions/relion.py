@@ -13,12 +13,14 @@ from rexlib_metadata.convention import (
     ArrowColumn,
     ConventionBundle,
     ReadConvention,
+    WriteConvention,
 )
 
 if TYPE_CHECKING:
     from rexlib_metadata.convention import RawSchema
 
 _IMAGE_REFERENCE = r"^(?:(?P<index>[0-9]+)@)?(?P<path>.*)$"
+_INDEX_WIDTH = 6
 
 
 class _Renaming(ReadConvention):
@@ -150,8 +152,128 @@ class ImageSize(_Renaming):
         }
 
 
+class _Spelling(WriteConvention):
+    """A convention that only renames, column for column, as text.
+
+    The cast is Arrow's: the shortest text that reads back as the same
+    number. Relion's own files disagree about how many decimals to write,
+    so there is no habit of the format to imitate.
+    """
+
+    def store(
+        self, canonical: dict[str, ArrowColumn]
+    ) -> dict[str, ArrowColumn]:
+        """Return each canonical column under its file name, as text."""
+        return {
+            file_column: pc.cast(canonical[source], pa.string())
+            for source, file_column in zip(
+                self.source_columns, self.target_columns, strict=True
+            )
+        }
+
+
+class WriteImageReference(_Spelling):
+    """Joins a path and a zero-based index into Relion's `index@path`."""
+
+    source_columns = ("image_path", "image_index")
+    target_columns = ("_rlnImageName",)
+
+    def store(
+        self, canonical: dict[str, ArrowColumn]
+    ) -> dict[str, ArrowColumn]:
+        """Count from one where the canonical form counts from zero."""
+        one_based = pc.add(canonical["image_index"], pa.scalar(1, pa.int64()))
+        return {
+            "_rlnImageName": pc.binary_join_element_wise(  # type: ignore[call-overload]
+                _padded(one_based), canonical["image_path"], pa.scalar("@")
+            )
+        }
+
+
+class WriteMicrographName(_Spelling):
+    """The micrograph a particle was taken from."""
+
+    source_columns = ("micrograph_path",)
+    target_columns = ("_rlnMicrographName",)
+
+
+class WriteCoordinates(_Spelling):
+    """Where on the micrograph a particle sits, in pixels."""
+
+    source_columns = ("coord_x", "coord_y")
+    target_columns = ("_rlnCoordinateX", "_rlnCoordinateY")
+
+
+class WriteCoordinateZ(_Spelling):
+    """The third coordinate, which only a subtomogram has."""
+
+    source_columns = ("coord_z",)
+    target_columns = ("_rlnCoordinateZ",)
+
+
+class WriteEulerAngles(_Spelling):
+    """Relion's three ZYZ angles, already in degrees."""
+
+    source_columns = ("angle_rot", "angle_tilt", "angle_psi")
+    target_columns = ("_rlnAngleRot", "_rlnAngleTilt", "_rlnAnglePsi")
+
+
+class WriteCtfMaxResolution(_Spelling):
+    """How far the CTF fit was trusted, in Ångström."""
+
+    source_columns = ("ctf_max_resolution",)
+    target_columns = ("_rlnCtfMaxResolution",)
+
+
+class WriteParticleOpticsGroup(_Spelling):
+    """Which optics group a particle belongs to."""
+
+    source_columns = ("optics_group",)
+    target_columns = ("_rlnOpticsGroup",)
+
+
+class WriteOpticsGroup(_Spelling):
+    """The optics group a row of the optics table describes."""
+
+    source_columns = ("optics_group",)
+    target_columns = ("_rlnOpticsGroup",)
+
+
+class WriteMicroscope(_Spelling):
+    """What the microscope was set to."""
+
+    source_columns = (
+        "voltage",
+        "spherical_aberration",
+        "amplitude_contrast",
+    )
+    target_columns = (
+        "_rlnVoltage",
+        "_rlnSphericalAberration",
+        "_rlnAmplitudeContrast",
+    )
+
+
+class WritePixelSize(_Spelling):
+    """The pixel size of the particle images, in Ångström."""
+
+    source_columns = ("pixel_size",)
+    target_columns = ("_rlnImagePixelSize",)
+
+
+class WriteImageSize(_Spelling):
+    """The box edge in pixels, and whether it is a square or a cube."""
+
+    source_columns = ("image_size", "image_dimensionality")
+    target_columns = ("_rlnImageSize", "_rlnImageDimensionality")
+
+
+def _padded(index: ArrowColumn) -> ArrowColumn:
+    return pc.utf8_lpad(pc.cast(index, pa.string()), _INDEX_WIDTH, padding="0")
+
+
 def relion4_bundle() -> ConventionBundle:
-    """Return the conventions that read a Relion 4 file."""
+    """Return the conventions that read and write a Relion 4 file."""
     return ConventionBundle(
         "relion4",
         read={
@@ -169,6 +291,23 @@ def relion4_bundle() -> ConventionBundle:
                 Microscope(),
                 PixelSize(),
                 ImageSize(),
+            ],
+        },
+        write={
+            "particles": [
+                WriteImageReference(),
+                WriteMicrographName(),
+                WriteCoordinates(),
+                WriteCoordinateZ(),
+                WriteEulerAngles(),
+                WriteCtfMaxResolution(),
+                WriteParticleOpticsGroup(),
+            ],
+            "optics": [
+                WriteOpticsGroup(),
+                WriteMicroscope(),
+                WritePixelSize(),
+                WriteImageSize(),
             ],
         },
     )
