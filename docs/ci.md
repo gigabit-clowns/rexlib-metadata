@@ -88,6 +88,19 @@ Actions are pinned by digest, and Renovate keeps both the digests and the
 dependencies moving, under a 14-day minimum release age that security
 advisories skip.
 
+Renovate merges its own pull requests once they are green. Three things
+stand between a release and `main`, and they are the reason this is not
+reckless: the release is at least a fortnight old, every required check of
+the branch protection has to pass, and every version in this repository is
+an exact pin, so what CI proved is what lands. A major that breaks something
+fails and waits, which is the design for the `pyo3`/`pyo3-arrow` and
+`arrow`/`pyo3-arrow` pairs described in `docs/dependencies.md` — their
+half-updates are *meant* to fail, and automerge cannot swallow them.
+
+Pushing a commit to one of its branches turns automerge off for that pull
+request, Renovate treating it as modified. That is the case when a pair has
+to be raised by hand, and such a branch is merged by a person.
+
 The organisation's own are not pinned, and `renovate.json` disables
 `gigabit-clowns/.github` so that they stay that way. They are taken from
 `main` on purpose: a fix to a composite reaches every repository of the suite
