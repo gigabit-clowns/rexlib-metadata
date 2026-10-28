@@ -8,12 +8,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rexlib_metadata.canonical import SCHEMA
-from rexlib_metadata.result import ReadResult
+from rexlib_metadata.result import RawResult, ReadResult
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from rexlib_metadata.abc import Reader
+    from rexlib_metadata.abc import Reader, Writer
     from rexlib_metadata.convention import ConventionBundle
     from rexlib_metadata.schema import Schema
 
@@ -25,6 +25,7 @@ class MetadataRegistry:
         """Start with nothing registered, filling `schema` when read."""
         self._schema = schema
         self._readers: dict[str, Reader] = {}
+        self._writers: dict[str, Writer] = {}
         self._bundles: dict[str, list[ConventionBundle]] = {}
 
     def register_reader(
@@ -33,6 +34,13 @@ class MetadataRegistry:
         """Register `reader` as the reader of `extensions`, or of one."""
         for ext in _as_extensions(extensions):
             self._readers[ext] = reader
+
+    def register_writer(
+        self, extensions: str | Iterable[str], writer: Writer
+    ) -> None:
+        """Register `writer` as the writer of `extensions`, or of one."""
+        for ext in _as_extensions(extensions):
+            self._writers[ext] = writer
 
     def register_bundle(
         self,
@@ -63,6 +71,16 @@ class MetadataRegistry:
             )
         return reader
 
+    def writer_for(self, path: str) -> Writer:
+        """Return a writer for `path`, or raise if its extension has none."""
+        ext = _extension(path)
+        writer = self._writers.get(ext)
+        if writer is None:
+            raise ValueError(
+                f"No writer registered for '{ext}' (path: {path!r})"
+            )
+        return writer
+
     def bundles_for(self, path: str) -> tuple[ConventionBundle, ...]:
         """Return the bundles of `path`, highest priority first."""
         return tuple(self._bundles.get(_extension(path), ()))
@@ -76,7 +94,7 @@ class MetadataRegistry:
         unless `bundle` names the one to use instead.
         """
         bundles = (bundle,) if bundle is not None else self.bundles_for(path)
-        raw = self.reader_for(path).read(path)
+        raw = RawResult(path, self.reader_for(path), self)
         return ReadResult(raw, bundles, self._schema)
 
 

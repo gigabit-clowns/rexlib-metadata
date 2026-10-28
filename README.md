@@ -26,12 +26,13 @@ Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 
 - **One vocabulary, whatever the file** — a read comes back under canonical column names, typed; `_rlnCoordinateX` and whatever Xmipp calls it both arrive as `coord_x`
 - **Read STAR files** to Pandas or Polars DataFrames with a single call
+- **Write them back** — `result.raw.write(path)` round-trips a file through Arrow and out again, quoting whatever the format needs quoting
 - **The file's own names too** — `result.raw` is the same read as the format wrote it, every value a string, for when the format is what you are working on
 - **Lazy I/O** — `rxm.read()` returns immediately with no file I/O; data is only loaded when you call `to_pandas()` or `to_polars()`
 - **Extensible** — plug in custom readers and conventions by subclassing Python ABCs; no Rust required
 - **Fast core** — parsing and Arrow serialization in Rust via PyO3 + Maturin
 
-Reading STAR files through Relion's conventions is what works today. Writing, chunked reads, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
+Reading STAR files through Relion's conventions is what works today, and writing them back under the names the file used. Writing *canonical* columns, which needs a write convention per format, and chunked reads, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
 
 ## Installation
 
@@ -148,9 +149,22 @@ global_registry.register_reader([".myext"], MyFormatReader())
 result = rxm.read("data.myext")
 ```
 
-`read_tables` is all a reader has to write: `Reader.read` already returns the
-lazy result, and leaving it alone is what keeps the file closed until
-somebody asks for rows.
+`read_tables` is all a reader has to write, and `write_tables` all a writer
+has to. The registry composes them and builds the lazy result, which is what
+keeps the file closed until somebody asks for rows.
+
+### Writing
+
+```python
+result = rxm.read("run_data.star")
+
+result.raw.write("copy.star")              # every block, under its own names
+result.raw["particles"].write("one.star")  # just that block
+```
+
+The writer is chosen by the destination's extension, exactly as the reader is
+chosen by the source's. Writing the *canonical* columns needs a write
+convention for the destination format, which is the next phase.
 
 ## Development
 

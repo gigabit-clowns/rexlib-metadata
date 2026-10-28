@@ -253,6 +253,15 @@ yet covered applies.
 Required canonical columns that no convention produced are an error at the
 end of the read, not a column of nulls.
 
+**The destination chooses the write convention** — decided on 2026-10-28.
+Reading picks the bundle from the source's extension; writing picks it from
+the destination's, so `read("a.star").write("b.xmd")` converts and nothing
+has to be said about either format. Writing the canonical names themselves is
+not a default: a `.star` file holding `_coord_x` is valid STAR that no
+CryoEM program reads, and the file has a consumer. `result.raw.write(path)`
+writes the names the file used, and `bundle=` names a convention to write
+through instead.
+
 One raw table fills one canonical table — decided on 2026-10-27. The engine
 takes the first raw table, in the order the file holds them, whose matching
 conventions declare every column the canonical table requires, and reads

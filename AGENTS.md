@@ -39,13 +39,15 @@ knowing which of the two it is talking about:
 | Layer | State |
 |---|---|
 | STAR reader, values as strings, every block | Built, `src/star/` |
+| STAR writer, a block per table, round-tripping | Built, `src/star/writer.rs` |
 | Arrow as the canonical representation | Built |
-| `Reader` ABC, `MetadataRegistry`, `RawResult`, `ReadResult` | Built |
+| `Reader` and `Writer` ABCs, `MetadataRegistry`, `RawResult`, `ReadResult` | Built |
 | Convention layer (`ReadConvention`, `WriteConvention`, `ConventionBundle`) | Built, `python/rexlib_metadata/convention.py` |
 | Schema layer (`ColumnDescriptor`, `TableSchema`, …) | Built, `python/rexlib_metadata/schema.py`, carrying the catalogue of `docs/canonical.md` |
 | The read engine | Built, `python/rexlib_metadata/engine.py`, and driving every read |
 | The Relion 4 bundle, and a read that comes back canonical | Built, `python/rexlib_metadata/conventions/relion.py` |
-| Writers, chunking, XMD, SQLite, HDF5 | Designed, not written |
+| Write conventions, and a canonical `write` | Designed, not written |
+| Chunking, XMD, SQLite, HDF5 | Designed, not written |
 
 `docs/roadmap.md` is the authority on what comes next and in which order.
 Nothing here commits to a shape the roadmap has not reached yet, but the
@@ -59,8 +61,9 @@ invariants at the end of this file already bind what gets written.
 | `src/error.rs` | `Error`, one for the crate, carrying the path and the line |
 | `src/text/mod.rs` | `Token`, what every lexer of a text table produces |
 | `src/text/parser.rs` | `parse_blocks`, the state machine from tokens to `Block`s, over any lexer |
-| `src/text/builder.rs` | `Block` rows to an Arrow `RecordBatch` of `Utf8` |
+| `src/text/builder.rs` | `Block` rows to an Arrow `RecordBatch` of `Utf8`, and a batch back to rows |
 | `src/star/lexer.rs` | `tokenize_line`, one line of STAR to tokens, quoting and comments |
+| `src/star/writer.rs` | `write_tables`, rows to STAR blocks, deciding what to quote |
 | `src/star/mod.rs` | `read_tables`, the crate-facing STAR entry point |
 | `python/rexlib_metadata/` | The public Python package |
 | `python/rexlib_metadata/schema.py` | The canonical columns and the tables they compose |
@@ -80,14 +83,15 @@ Rust unit tests live in a `mod tests` at the foot of the file they cover,
 which is why there is no `tests/rust/`. `tests/` is the Python side only.
 
 The split is by *stage* — lex, parse, build — and by whether a stage knows
-one format. `src/star/` holds the only thing that is STAR's: a lexer that
-turns a line into tokens. The state machine that assembles those tokens into
-blocks, and the builder that turns a block into Arrow, know nothing about any
-format and live under `src/text/`, where the next delimited format reaches
-them by handing `parse_blocks` its own lexer.
+one format. `src/star/` holds what is STAR's: a lexer that turns a line into
+tokens, and a writer that spells a block and decides what to quote. The state
+machine that assembles those tokens into blocks, and the builder that turns a
+block into Arrow and a batch back into rows, know nothing about any format
+and live under `src/text/`, where the next delimited format reaches them by
+handing `parse_blocks` its own lexer.
 
-That is the shape to follow when a second format arrives: write a lexer, not
-a parser.
+That is the shape to follow when a second format arrives: write a lexer and a
+speller, not a parser and a serializer.
 
 ## The two sides
 
@@ -112,9 +116,11 @@ and what ships in the box; `registry.py` names no format.
 
 A reader implements `read_tables` and nothing else, returning one `RawTable`
 per table the file holds, because a file holding several is the ordinary case
-and not the exception. `Reader.read` is concrete and returns the lazy result,
-because there is exactly one correct body for it and a second copy of that
-line is a chance to break the rule that a read opens no file.
+and not the exception. A writer implements `write_tables` and nothing else,
+taking them back. Neither ABC knows the registry: composing a reader, a
+writer and the bundles of an extension is `MetadataRegistry`'s whole job, and
+it is what builds the lazy result so that nothing else can build one that
+opens a file too early.
 
 `src/lib.rs` keeps no logic. It wraps, turns `Error` into the Python
 exception that answers it — a missing file into `FileNotFoundError`, a
@@ -311,7 +317,8 @@ name is a failure that only shows up on somebody else's machine.
 
 A Python test file is named after the source file it exercises and sits where
 that file sits, so that `conventions/star.py` is answered by
-`test_star_reader.py` and a reader of either can find the other. A
+`test_star_reader.py` and `test_star_writer.py`, and a reader of any of them
+can find the others. A
 parametrized case carries a short `id` through `pytest.param`, because a
 failure reported as `[case3]` says nothing. A fixture only one file uses
 starts with an underscore.

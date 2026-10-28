@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 pub(crate) mod lexer;
+pub(crate) mod writer;
 
 use arrow::record_batch::RecordBatch;
 

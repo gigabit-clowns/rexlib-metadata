@@ -16,6 +16,9 @@ pub(crate) enum Error {
         message: String,
     },
 
+    #[error("{message}")]
+    Unwritable { message: String },
+
     #[error("{0}")]
     Arrow(#[from] arrow::error::ArrowError),
 }
@@ -24,6 +27,12 @@ pub(crate) fn parse_error(path: &str, line: usize, message: impl Into<String>) -
     Error::Parse {
         path: path.to_string(),
         line,
+        message: message.into(),
+    }
+}
+
+pub(crate) fn unwritable(message: impl Into<String>) -> Error {
+    Error::Unwritable {
         message: message.into(),
     }
 }

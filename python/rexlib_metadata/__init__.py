@@ -7,13 +7,14 @@ from __future__ import annotations
 from rexlib_metadata._rexlib import version as _version
 from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.conventions.relion import relion4_bundle
-from rexlib_metadata.conventions.star import StarReader
+from rexlib_metadata.conventions.star import StarReader, StarWriter
 from rexlib_metadata.registry import global_registry
 from rexlib_metadata.result import RawResult, ReadResult
 
 __version__: str = _version()
 
 global_registry.register_reader([".star"], StarReader())
+global_registry.register_writer([".star"], StarWriter())
 global_registry.register_bundle([".star"], relion4_bundle())
 
 

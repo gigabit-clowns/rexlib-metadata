@@ -10,6 +10,10 @@ Nothing has been released yet. This is what the first release will say.
   where everything used to be a `RuntimeError`.
 
 ### New
+- Writes a STAR file back: `result.raw.write(path)` writes every table the
+  result holds, one data block each, under the names they carry, and the
+  writer is chosen by the destination's extension. Reading a file and writing
+  it again gives the same frame, quoting and all.
 - A read comes back in one vocabulary, whatever the file: `rxm.read(path)`
   gives canonical column names, typed, and `result.names` says which
   canonical tables the file fills. A Relion file needs nothing said about

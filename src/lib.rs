@@ -8,6 +8,7 @@ mod text;
 
 use std::io::ErrorKind;
 
+use arrow::record_batch::RecordBatch;
 use pyo3::exceptions::{
     PyFileNotFoundError, PyOSError, PyPermissionError, PyRuntimeError, PyValueError,
 };
@@ -32,6 +33,16 @@ fn _star_read_tables(py: Python<'_>, path: &str) -> PyResult<Vec<(String, PyReco
         .collect())
 }
 
+#[pyfunction]
+fn _star_write(py: Python<'_>, path: &str, tables: Vec<(String, PyRecordBatch)>) -> PyResult<()> {
+    let owned: Vec<(String, RecordBatch)> = tables
+        .into_iter()
+        .map(|(name, batch)| (name, batch.into_inner()))
+        .collect();
+    py.detach(|| star::writer::write_tables(path, &owned))
+        .map_err(to_python_error)
+}
+
 fn to_python_error(error: Error) -> PyErr {
     let message = error.to_string();
     match error {
@@ -40,7 +51,7 @@ fn to_python_error(error: Error) -> PyErr {
             ErrorKind::PermissionDenied => PyPermissionError::new_err(message),
             _ => PyOSError::new_err(message),
         },
-        Error::Parse { .. } => PyValueError::new_err(message),
+        Error::Parse { .. } | Error::Unwritable { .. } => PyValueError::new_err(message),
         Error::Arrow(_) => PyRuntimeError::new_err(message),
     }
 }
@@ -49,5 +60,6 @@ fn to_python_error(error: Error) -> PyErr {
 fn _rexlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(version, m)?)?;
     m.add_function(wrap_pyfunction!(_star_read_tables, m)?)?;
+    m.add_function(wrap_pyfunction!(_star_write, m)?)?;
     Ok(())
 }
