@@ -88,6 +88,11 @@ Actions are pinned by digest, and Renovate keeps both the digests and the
 dependencies moving, under a 14-day minimum release age that security
 advisories skip.
 
+Renovate turns GitHub's auto-merge on for its own pull requests rather than
+merging them. The merge still waits on the checks and on the code-owner
+review the ruleset asks for, which stays a person's. A commit pushed to one
+of its branches turns auto-merge off for that pull request.
+
 The organisation's own are not pinned, and `renovate.json` disables
 `gigabit-clowns/.github` so that they stay that way. They are taken from
 `main` on purpose: a fix to a composite reaches every repository of the suite
