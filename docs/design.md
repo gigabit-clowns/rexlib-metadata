@@ -127,6 +127,34 @@ back the day a benchmark on the parse path says what it is worth — with the
 numbers in the pull request that restores it. Nothing is published yet, so
 no wheel anybody has is affected.
 
+**One parser, and a whole read is every chunk of it** (2026-10-28). The
+state machine hands each row to a sink instead of keeping it, and the sink
+appends it to the Arrow builders of its block, cutting a chunk every so many
+rows. Reading a whole file is collecting every chunk; reading in chunks is
+the same machine stopping at each one. A second, simpler parser for the
+whole-file case was considered and dropped: two grammars of one format
+drift apart, and a case fixed in one is a case still broken in the other.
+While the parser is rewritten, the one it replaces stays as an oracle that
+the new one has to agree with on every real file, and goes when it does.
+
+**No memory map** (2026-10-28). The crate forbids `unsafe_code`, and mapping
+a file is unsafe for a reason that matters here: another process truncating
+the file while it is mapped is a `SIGBUS`, a file taking the process down,
+where the rule is that nothing that comes out of a file reaches a panic.
+A chunk is read by seeking to the offset the index recorded, which gives
+the same random access and the same bounded memory without it.
+
+**A reader may narrow a read, and never has to** (2026-10-28). The columns
+a caller asks for are canonical, and a reader knows only its own names, so
+what reaches it is a function from a table's `RawSchema` to the columns of
+it to keep, which the engine answers through `matches()` and each
+convention's `source_columns`. It reaches it through
+`Reader.read_tables_keeping(path, keep)`, which is not abstract: by default
+it calls `read_tables` and drops the rest, so a reader a user wrote is
+correct without it and faster with it, and `read_tables` stays the one
+method a reader has to write. `StarReader` overrides it to drop the columns
+inside the parser, before a value is ever built.
+
 ## The canonical representation
 
 Apache Arrow is the canonical in-memory form: `arrow-rs` on the Rust side,
@@ -535,8 +563,8 @@ also the last moment it is free.
 
 ## Pagination
 
-Text formats get a progressive lazy index of chunk-level byte offsets over a
-memory-mapped file. The index is built as chunks are read rather than by a
+Text formats get a progressive lazy index of chunk-level byte offsets into
+the file, each chunk read by seeking to its offset. The index is built as chunks are read rather than by a
 mandatory first scan, so sequential access pays nothing and random access
 pays only for what it has already passed. SQLite and HDF5 use what they
 have — `LIMIT`/`OFFSET`, dataset slicing. The API the user sees is the same
