@@ -10,11 +10,13 @@ add the items a pull request discovers rather than leaving them in a comment.
 
 ## Where the work stands
 
-Phases 0, 1 and 1b are on `main`. The single `src/star.rs` became
+Phases 0, 1, 1b and 2 are on `main`. The single `src/star.rs` became
 `src/star/{lexer,mod}.rs` beside `src/text/{parser,builder,mod}.rs`, and with
 it came quoted values, comments, a typed `Error` carrying path and line,
-multi-block parsing, and the Rust half of CI. Both suites are green, 36 tests
-in Rust and 75 in Python.
+multi-block parsing, and the Rust half of CI. Then the schema, the
+conventions and the engine, which a read now goes through: `rxm.read(path)`
+comes back under canonical names, and `result.raw` is the file under its own.
+Both suites are green, 49 tests in Rust and 92 in Python.
 
 What the STAR parser does not do, and that a real file may yet ask for:
 
@@ -79,11 +81,14 @@ of several tables asks which one rather than handing back the last.
       and a column of the wrong type or the wrong length raises too
 - [x] Relion's conventions, one per column group, matching on column
       presence, in `conventions/relion.py` and tested against real files
-- [ ] Register them for `.star` and have a read apply them, which is the
-      decision of what `to_pandas()` means on a file that has conventions
-- [ ] Register it for `.star` in `global_registry`
-- [ ] Tests: auto-detection, explicit `bundle=`, missing required column,
-      overlapping `target_columns` raising when a bundle is built
+- [x] One bundle per format, its conventions grouped by the canonical table
+      each fills, registered for `.star` in `global_registry`
+- [x] A read comes back canonical: `rxm.read(path)` names the canonical
+      tables a file fills and `result[name]` is one of them, with
+      `result.raw` the same file under its own names
+- [x] Tests: auto-detection, explicit `bundle=`, missing required column,
+      overlapping `target_columns` raising when a bundle is built, a file no
+      convention understands, and the two views side by side
 
 ## Phase 3 — Writing and roundtrip
 

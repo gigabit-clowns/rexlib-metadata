@@ -31,7 +31,7 @@ def test_unknown_extension_raises():
 def test_file_not_found_raises_on_materialize():
     result = rxm.read(str(FIXTURES / "nonexistent.star"))
     with pytest.raises(FileNotFoundError, match="nonexistent"):
-        result.to_pandas()
+        result.raw.to_pandas()
 
 
 def test_a_malformed_file_raises_a_value_error_naming_the_line(tmp_path):
@@ -41,49 +41,49 @@ def test_a_malformed_file_raises_a_value_error_naming_the_line(tmp_path):
     result = rxm.read(str(broken))
 
     with pytest.raises(ValueError, match=r"broken\.star:6"):
-        result.to_pandas()
+        result.raw.to_pandas()
 
 
 def test_to_pandas_shape():
-    df = rxm.read(str(MINI)).to_pandas()
+    df = rxm.read(str(MINI)).raw.to_pandas()
     assert df.shape == (EXPECTED_ROWS, len(EXPECTED_COLUMNS))
 
 
 def test_to_pandas_column_names():
-    df = rxm.read(str(MINI)).to_pandas()
+    df = rxm.read(str(MINI)).raw.to_pandas()
     assert list(df.columns) == EXPECTED_COLUMNS
 
 
 def test_to_pandas_values():
-    df = rxm.read(str(MINI)).to_pandas()
+    df = rxm.read(str(MINI)).raw.to_pandas()
     assert list(df["_rlnAngleRot"]) == ["10.5", "30.2", "50.7"]
     assert list(df["_rlnCoordinateX"]) == ["1024.0", "2048.0", "3072.0"]
 
 
 def test_to_pandas_all_strings():
-    df = rxm.read(str(MINI)).to_pandas()
+    df = rxm.read(str(MINI)).raw.to_pandas()
     for col in df.columns:
         assert all(isinstance(v, str) for v in df[col])
 
 
 def test_to_polars_shape():
-    df = rxm.read(str(MINI)).to_polars()
+    df = rxm.read(str(MINI)).raw.to_polars()
     assert df.shape == (EXPECTED_ROWS, len(EXPECTED_COLUMNS))
 
 
 def test_to_polars_column_names():
-    df = rxm.read(str(MINI)).to_polars()
+    df = rxm.read(str(MINI)).raw.to_polars()
     assert df.columns == EXPECTED_COLUMNS
 
 
 def test_to_polars_values():
-    df = rxm.read(str(MINI)).to_polars()
+    df = rxm.read(str(MINI)).raw.to_polars()
     assert df["_rlnAngleRot"].to_list() == ["10.5", "30.2", "50.7"]
     assert df["_rlnCoordinateX"].to_list() == ["1024.0", "2048.0", "3072.0"]
 
 
 def test_to_polars_all_strings():
-    df = rxm.read(str(MINI)).to_polars()
+    df = rxm.read(str(MINI)).raw.to_polars()
     for col in df.columns:
         assert df[col].dtype == pl.String
 
@@ -92,7 +92,7 @@ QUOTED = FIXTURES / "quoted.star"
 
 
 def test_quoted_paths_keep_their_spaces():
-    df = rxm.read(str(QUOTED)).to_pandas()
+    df = rxm.read(str(QUOTED)).raw.to_pandas()
     assert list(df["_rlnMicrographName"]) == [
         "folder with spaces/mic 001.mrcs",
         "another folder/mic 002.mrcs",
@@ -101,7 +101,7 @@ def test_quoted_paths_keep_their_spaces():
 
 
 def test_trailing_comment_is_not_a_value():
-    df = rxm.read(str(QUOTED)).to_pandas()
+    df = rxm.read(str(QUOTED)).raw.to_pandas()
     assert df.shape == (3, 3)
     assert list(df["_rlnCoordinateX"]) == ["1024.0", "2048.0", "3072.0"]
 

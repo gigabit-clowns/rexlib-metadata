@@ -102,28 +102,32 @@ class Shorter(ReadConvention):
         return {"angle_tilt": pa.array([1.0], type=pa.float64())}
 
 
+def a_bundle(name, *conventions):
+    return ConventionBundle(name, {"particles": list(conventions)})
+
+
 def read(*bundles, raw_tables=(RAW,), schema=PARTICLES):
     return read_canonical(raw_tables, bundles, schema)
 
 
 def test_a_bundle_produces_the_canonical_columns():
-    table = read(ConventionBundle("relion4", [Images(), Rot()]))
+    table = read(a_bundle("relion4", Images(), Rot()))
     assert table.column_names == ["image_path", "angle_rot", "class_id"]
     assert table.column("angle_rot").to_pylist() == [10.5, 10.5, 10.5]
 
 
 def test_the_first_bundle_to_produce_a_column_owns_it():
     table = read(
-        ConventionBundle("mylab", [Images(), Rot()]),
-        ConventionBundle("relion4", [OtherRot()]),
+        a_bundle("mylab", Images(), Rot()),
+        a_bundle("relion4", OtherRot()),
     )
     assert table.column("angle_rot").to_pylist() == [10.5, 10.5, 10.5]
 
 
 def test_a_convention_whose_columns_are_covered_is_not_called():
     read(
-        ConventionBundle("mylab", [Images(), Rot()]),
-        ConventionBundle("relion4", [Exploding()]),
+        a_bundle("mylab", Images(), Rot()),
+        a_bundle("relion4", Exploding()),
     )
 
 
@@ -132,44 +136,44 @@ def test_a_convention_that_does_not_match_is_not_called():
         def matches(self, raw):
             return False
 
-    read(ConventionBundle("relion4", [Images(), Never()]))
+    read(a_bundle("relion4", Images(), Never()))
 
 
 def test_a_column_the_table_does_not_declare_is_an_error():
-    bundle = ConventionBundle("relion4", [Images(), Undeclared()])
+    bundle = a_bundle("relion4", Images(), Undeclared())
 
     with pytest.raises(ValueError, match="angle_phi"):
         read(bundle)
 
 
 def test_a_column_of_the_wrong_type_is_an_error():
-    bundle = ConventionBundle("relion4", [Images(), WrongType()])
+    bundle = a_bundle("relion4", Images(), WrongType())
 
     with pytest.raises(TypeError, match="angle_tilt"):
         read(bundle)
 
 
 def test_a_missing_required_column_is_an_error():
-    bundle = ConventionBundle("relion4", [Rot()])
+    bundle = a_bundle("relion4", Rot())
 
     with pytest.raises(ValueError, match="image_path"):
         read(bundle)
 
 
 def test_columns_of_different_lengths_are_an_error():
-    bundle = ConventionBundle("relion4", [Images(), Shorter()])
+    bundle = a_bundle("relion4", Images(), Shorter())
 
     with pytest.raises(ValueError, match="different lengths"):
         read(bundle)
 
 
 def test_a_default_fills_a_column_nobody_produced():
-    table = read(ConventionBundle("relion4", [Images()]))
+    table = read(a_bundle("relion4", Images()))
     assert table.column("class_id").to_pylist() == [1, 1, 1]
 
 
 def test_an_optional_column_with_no_default_is_left_out():
-    table = read(ConventionBundle("relion4", [Images()]))
+    table = read(a_bundle("relion4", Images()))
     assert "phase_shift" not in table.column_names
 
 
@@ -184,7 +188,7 @@ def test_the_columns_come_in_the_order_the_schema_declares():
                 )
             }
 
-    table = read(ConventionBundle("relion4", [Tilt(), Rot(), Images()]))
+    table = read(a_bundle("relion4", Tilt(), Rot(), Images()))
     assert table.column_names == [
         "image_path",
         "angle_rot",
@@ -233,7 +237,7 @@ class ChunkedRot(ReadConvention):
 
 
 def test_a_column_the_convention_does_not_declare_is_an_error():
-    bundle = ConventionBundle("relion4", [Sneaky()])
+    bundle = a_bundle("relion4", Sneaky())
 
     with pytest.raises(ValueError, match="does not declare"):
         read(bundle)
@@ -241,18 +245,18 @@ def test_a_column_the_convention_does_not_declare_is_an_error():
 
 def test_a_convention_that_lost_cannot_break_the_read():
     table = read(
-        ConventionBundle("mylab", [Images(), Rot()]),
-        ConventionBundle("relion4", [LosingWrongType()]),
+        a_bundle("mylab", Images(), Rot()),
+        a_bundle("relion4", LosingWrongType()),
     )
     assert table.column("angle_rot").to_pylist() == [10.5, 10.5, 10.5]
 
 
 def test_a_chunked_column_is_taken_as_it_comes():
-    table = read(ConventionBundle("relion4", [Images(), ChunkedRot()]))
+    table = read(a_bundle("relion4", Images(), ChunkedRot()))
     assert table.column("angle_rot").to_pylist() == [1.0, 2.0, 3.0]
 
 
-def test_two_raw_tables_each_give_what_they_have():
+def test_one_canonical_table_is_filled_from_one_raw_table():
     class Voltage(ReadConvention):
         target_columns = ("angle_tilt",)
 
@@ -264,7 +268,7 @@ def test_two_raw_tables_each_give_what_they_have():
 
     optics = RawTable.of("optics", pa.table({"_rlnVoltage": ["300.0"]}))
     table = read(
-        ConventionBundle("relion4", [Images(), Voltage()]),
+        a_bundle("relion4", Images(), Voltage()),
         raw_tables=(optics, RAW),
     )
     assert table.column("image_path").to_pylist() == [
@@ -272,4 +276,13 @@ def test_two_raw_tables_each_give_what_they_have():
         "b.mrcs",
         "c.mrcs",
     ]
-    assert table.column("angle_tilt").to_pylist() == [300.0, 300.0, 300.0]
+    assert "angle_tilt" not in table.column_names
+
+
+def test_the_raw_table_that_fills_it_is_the_first_that_can():
+    other = RawTable.of(
+        "more_particles", pa.table({"_rlnImageName": ["z.mrcs"]})
+    )
+    table = read(a_bundle("relion4", Images()), raw_tables=(other, RAW))
+
+    assert table.column("image_path").to_pylist() == ["z.mrcs"]

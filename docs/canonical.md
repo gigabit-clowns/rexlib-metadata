@@ -84,6 +84,14 @@ What a microscope and a detector were doing. Relion 3.1 and later keep it in
 `data_optics`; cryoSPARC and Xmipp repeat it per particle, and the read puts
 it back into a table of its own.
 
+Resolving it per row, which the principles above promise, is not done. A read
+of a Relion file gives `particles` and `optics` as two tables, joined by
+`optics_group` and nothing more: one raw table fills one canonical table, so
+the engine will not reach into the optics block while filling the particles,
+and the convention that would do it has no way to ask for a second table yet.
+That is the join this file has always said was open, now pinned to the rule
+that keeps it honest in the meantime.
+
 | Column | Type | Unit | Required |
 |---|---|---|---|
 | `optics_group` | `int32` | — | yes |

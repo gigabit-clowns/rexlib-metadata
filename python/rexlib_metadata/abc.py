@@ -7,7 +7,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from rexlib_metadata.result import ReadResult
+from rexlib_metadata.result import RawResult
 
 if TYPE_CHECKING:
     from rexlib_metadata.convention import RawTable
@@ -20,7 +20,7 @@ class Reader(ABC):
     def read_tables(self, path: str) -> list[RawTable]:
         """Read the file at `path` into one raw table per table it holds."""
 
-    def read(self, path: str) -> ReadResult:
-        """Return a lazy result over `path`, reading no row yet."""
-        return ReadResult(path, self)
+    def read(self, path: str) -> RawResult:
+        """Return a lazy result over the file's own tables, reading none."""
+        return RawResult(path, self)
 

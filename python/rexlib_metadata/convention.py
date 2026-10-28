@@ -5,8 +5,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
+from typing import TypeVar
 
 import pyarrow as pa
 
@@ -67,25 +68,44 @@ class WriteConvention(ABC):
 
 
 _Convention = ReadConvention | WriteConvention
+_C = TypeVar("_C", bound=_Convention)
 
 
 class ConventionBundle:
-    """Every convention of one format, with read and write kept apart."""
+    """Every convention of one format, grouped by the table it fills."""
 
     def __init__(
         self,
         name: str,
-        read_conventions: Iterable[ReadConvention] = (),
-        write_conventions: Iterable[WriteConvention] = (),
+        read: Mapping[str, Iterable[ReadConvention]] | None = None,
+        write: Mapping[str, Iterable[WriteConvention]] | None = None,
     ) -> None:
-        """Hold the conventions of `name`, rejecting an ambiguous set."""
+        """Hold the conventions of `name`, rejecting an ambiguous group."""
         self.name = name
-        self.read_conventions = tuple(read_conventions)
-        self.write_conventions = tuple(write_conventions)
-        self._reject_silent(self.read_conventions)
-        self._reject_silent(self.write_conventions)
-        self._reject_overlap(self.read_conventions, "canonical column")
-        self._reject_overlap(self.write_conventions, "file column")
+        self._read = _grouped(read)
+        self._write = _grouped(write)
+        self._validate(self._read, "canonical column")
+        self._validate(self._write, "file column")
+
+    @property
+    def tables(self) -> tuple[str, ...]:
+        """Name every canonical table this bundle reads into."""
+        return tuple(self._read)
+
+    def read_conventions(self, table: str) -> tuple[ReadConvention, ...]:
+        """Return the conventions that fill canonical table `table`."""
+        return self._read.get(table, ())
+
+    def write_conventions(self, table: str) -> tuple[WriteConvention, ...]:
+        """Return the conventions that write canonical table `table`."""
+        return self._write.get(table, ())
+
+    def _validate(
+        self, groups: Mapping[str, tuple[_Convention, ...]], what: str
+    ) -> None:
+        for table, conventions in groups.items():
+            self._reject_silent(conventions)
+            self._reject_overlap(table, conventions, what)
 
     def _reject_silent(self, conventions: tuple[_Convention, ...]) -> None:
         for convention in conventions:
@@ -97,7 +117,7 @@ class ConventionBundle:
                 )
 
     def _reject_overlap(
-        self, conventions: tuple[_Convention, ...], what: str
+        self, table: str, conventions: tuple[_Convention, ...], what: str
     ) -> None:
         owner: dict[str, _Convention] = {}
         for column, convention in _declarations(conventions):
@@ -105,18 +125,23 @@ class ConventionBundle:
             if first is not convention:
                 raise ValueError(
                     f"Bundle '{self.name}' produces the {what} '{column}' "
-                    f"twice, from {type(first).__name__} and from "
+                    f"twice for table '{table}', from "
+                    f"{type(first).__name__} and from "
                     f"{type(convention).__name__}; which one wins would be "
                     "nobody's decision"
                 )
 
     def __repr__(self) -> str:
-        """Name the bundle and how many conventions it holds each way."""
-        return (
-            f"ConventionBundle({self.name!r}, "
-            f"{len(self.read_conventions)} read, "
-            f"{len(self.write_conventions)} write)"
-        )
+        """Name the bundle and the tables it reads into."""
+        return f"ConventionBundle({self.name!r}, {list(self._read)})"
+
+
+def _grouped(
+    groups: Mapping[str, Iterable[_C]] | None,
+) -> dict[str, tuple[_C, ...]]:
+    if groups is None:
+        return {}
+    return {table: tuple(group) for table, group in groups.items()}
 
 
 def _declarations(
