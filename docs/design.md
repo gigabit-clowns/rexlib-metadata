@@ -461,15 +461,14 @@ What follows from re-reading: the source has to still be there when the
 write happens, the rows have to correspond one to one — a `updates` frame of
 a different length is an error, because a filtered row forwards from nothing
 in particular — and a write over the source goes through a temporary file in
-the destination directory, renamed at the end.
-
-A view never narrows what is written — decided on 2026-10-28.
-`result["particles"]` and
-`columns=` decide what a read shows and which table `updates` lands in;
-`write` writes every canonical table the source fills, every column of
-each, whatever the view. The destination directory
+the destination directory, renamed at the end. The destination directory
 rather than the system temp one: a rename is atomic only within a
 filesystem.
+
+A view never narrows what is written — decided on 2026-10-28.
+`result["particles"]` and `columns=` decide what a read shows and which
+table `updates` lands in; `write` writes every canonical table the source
+fills, every column of each, whatever the view.
 
 ## The intended public API
 
