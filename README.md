@@ -26,13 +26,13 @@ Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 
 - **One vocabulary, whatever the file** — a read comes back under canonical column names, typed; `_rlnCoordinateX` and whatever Xmipp calls it both arrive as `coord_x`
 - **Read STAR files** to Pandas or Polars DataFrames with a single call
-- **Write them back** — `result.raw.write(path)` round-trips a file through Arrow and out again, quoting whatever the format needs quoting
+- **Write them back** — `result.write(path)` spells the canonical columns the way the destination format does, carrying over whatever no convention covers; `result.raw.write(path)` writes the file's own names untouched
 - **The file's own names too** — `result.raw` is the same read as the format wrote it, every value a string, for when the format is what you are working on
 - **Lazy I/O** — `rxm.read()` returns immediately with no file I/O; data is only loaded when you call `to_pandas()` or `to_polars()`
 - **Extensible** — plug in custom readers and conventions by subclassing Python ABCs; no Rust required
 - **Fast core** — parsing and Arrow serialization in Rust via PyO3 + Maturin
 
-Reading STAR files through Relion's conventions is what works today, and writing them back under the names the file used. Writing *canonical* columns, which needs a write convention per format, and chunked reads, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
+Reading and writing STAR files through Relion's conventions is what works today. Chunked reads, write-forwarding a chunk at a time, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
 
 ## Installation
 
@@ -158,13 +158,23 @@ keeps the file closed until somebody asks for rows.
 ```python
 result = rxm.read("run_data.star")
 
-result.raw.write("copy.star")              # every block, under its own names
+result.write("copy.star")                  # canonical, spelled as Relion does
+result.raw.write("verbatim.star")          # the file's own names, untouched
 result.raw["particles"].write("one.star")  # just that block
 ```
 
-The writer is chosen by the destination's extension, exactly as the reader is
-chosen by the source's. Writing the *canonical* columns needs a write
-convention for the destination format, which is the next phase.
+The writer and the conventions are chosen by the destination's extension,
+exactly as the reader and the conventions of a read are chosen by the
+source's. So a conversion is a change of extension:
+
+```python
+rxm.read("particles.star").write("particles.xmd")
+```
+
+A column no convention writes — `_rlnCtfImage` and its kind — is carried over
+untouched when the destination is the format the result was read from, so
+filtering rows and writing them back loses nothing. Numbers are written as
+short as they can be while reading back exactly: `587.0` goes out as `587`.
 
 ## Development
 

@@ -4,21 +4,29 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from rexlib_metadata.engine import produced_tables, read_canonical
+import pyarrow as pa
+
+from rexlib_metadata.convention import RawTable
+from rexlib_metadata.engine import (
+    produced_tables,
+    read_canonical,
+    source_table,
+    write_canonical,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     import pandas as pd
     import polars as pl
-    import pyarrow as pa
 
     from rexlib_metadata.abc import Reader
-    from rexlib_metadata.convention import ConventionBundle, RawTable
+    from rexlib_metadata.convention import ArrowColumn, ConventionBundle
     from rexlib_metadata.registry import MetadataRegistry
-    from rexlib_metadata.schema import Schema
+    from rexlib_metadata.schema import Schema, TableSchema
 
 
 class RawResult:
@@ -37,6 +45,11 @@ class RawResult:
     def path(self) -> str:
         """The file this result reads."""
         return self._path
+
+    @property
+    def registry(self) -> MetadataRegistry:
+        """The registry that answers for this file's format."""
+        return self._registry
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -140,11 +153,62 @@ class ReadResult:
 
         return cast("pl.DataFrame", pl.from_arrow(self._one()))
 
-    def _one(self) -> pa.Table:
-        name = self._table if self._table is not None else self._sole_name()
+    def write(
+        self, path: str, *, bundle: ConventionBundle | None = None
+    ) -> None:
+        """Write every canonical table this result fills to `path`.
+
+        The conventions come from the destination's extension, the way a
+        read takes them from the source's, unless `bundle` names the one to
+        write through. A column of the file that no convention writes is
+        carried over untouched when the destination is the format the
+        result was read from, and left out when it is not.
+        """
+        registry = self._raw.registry
+        writer = registry.writer_for(path)
+        bundles = (
+            (bundle,) if bundle is not None else registry.bundles_for(path)
+        )
+        tables = [
+            RawTable.of(name, self._file_table(name, bundles, path))
+            for name in self.names
+        ]
+        writer.write_tables(path, tables)
+
+    def _file_table(
+        self, name: str, bundles: tuple[ConventionBundle, ...], path: str
+    ) -> pa.Table:
+        table = self._schema[name]
+        columns = write_canonical(self._canonical(name), bundles, table)
+        columns.update(self._carried_over(table, bundles, columns, path))
+        return pa.table(list(columns.values()), names=list(columns))
+
+    def _carried_over(
+        self,
+        table: TableSchema,
+        bundles: tuple[ConventionBundle, ...],
+        written: dict[str, ArrowColumn],
+        path: str,
+    ) -> dict[str, ArrowColumn]:
+        if Path(path).suffix.lower() != Path(self._raw.path).suffix.lower():
+            return {}
+        source = source_table(self._raw.tables(), self._bundles, table)
+        if source is None:
+            return {}
+        return {
+            column: source.table.column(column)
+            for column in source.table.column_names
+            if column not in written
+        }
+
+    def _canonical(self, name: str) -> pa.Table:
         return read_canonical(
             self._raw.tables(), self._bundles, self._schema[name]
         )
+
+    def _one(self) -> pa.Table:
+        name = self._table if self._table is not None else self._sole_name()
+        return self._canonical(name)
 
     def _sole_name(self) -> str:
         names = self.names

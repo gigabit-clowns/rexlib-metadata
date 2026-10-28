@@ -60,6 +60,11 @@ plain string and a plain integer can be handed to `mrcfile`, to vitrio, or to
 anything else, which is how this library stays independent of every image
 library.
 
+A reference written without an index — a bare path, which the format allows —
+reads as index zero and is written back as `000001@path`. The two mean the
+same to Relion, and telling them apart would cost the consumer a nullable
+index, which is the thing splitting the reference was for.
+
 **Paths are not resolved.** Relion writes them relative to a project
 directory the file does not name, so resolving one here would be guessing.
 They are kept as written, and a `root` argument may later be offered to
@@ -152,7 +157,7 @@ The mappings that are not a rename, which are the ones worth writing down.
 
 | Canonical | Relion 4 and 5 | Note |
 |---|---|---|
-| `image_path` + `image_index` | `_rlnImageName` | `index@path`, one-based, split and rebased |
+| `image_path` + `image_index` | `_rlnImageName` | `index@path`, one-based, split and rebased; written back zero-padded to six digits, which is what Relion writes |
 | `shift_x`, `shift_y` | `_rlnOriginXAngst`, `_rlnOriginYAngst` | already Å |
 | `shift_x`, `shift_y` | `_rlnOriginX`, `_rlnOriginY` (3.0 and before) | pixels; × `pixel_size` from the optics group |
 | `pixel_size` | `_rlnImagePixelSize` | in `data_optics` |

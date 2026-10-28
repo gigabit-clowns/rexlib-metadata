@@ -10,6 +10,14 @@ Nothing has been released yet. This is what the first release will say.
   where everything used to be a `RuntimeError`.
 
 ### New
+- Writes a canonical table back out as the format spells it:
+  `result.write(path)` turns every canonical table the file fills into a data
+  block, through the write conventions of the destination's extension — so
+  `read("a.star").write("b.star")` round-trips and nothing has to be said
+  about the format. `bundle=` writes through one of your own.
+- A column the conventions do not cover is carried over untouched when the
+  destination is the format the result was read from, so filtering rows and
+  writing them back does not quietly drop `_rlnCtfImage` and its neighbours.
 - Writes a STAR file back: `result.raw.write(path)` writes every table the
   result holds, one data block each, under the names they carry, and the
   writer is chosen by the destination's extension. Reading a file and writing

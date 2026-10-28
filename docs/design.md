@@ -262,6 +262,23 @@ CryoEM program reads, and the file has a consumer. `result.raw.write(path)`
 writes the names the file used, and `bundle=` names a convention to write
 through instead.
 
+**A write converts with Arrow's own cast** — decided on 2026-10-28. A float
+becomes the shortest text that reads back as the same float64, so `587.0` is
+written `587` and nothing is rounded. Imitating a format's habit was the
+alternative and there is no habit to imitate: Relion's own files hold
+`587.000000`, `1572.444`, `-51.52270` and `7.4` for columns of the same kind.
+A convention is free to format its own column where a format demands it, the
+conversion being the convention's job and not the engine's.
+
+**A column no convention writes is carried over** — decided on 2026-10-28 —
+when the destination is the format the result was read from. Reading a Relion
+file and writing it again keeps `_rlnCtfImage` and its neighbours, which no
+canonical column covers, rather than dropping them where the caller only
+meant to filter rows. Towards another format nothing is carried: a Relion
+label inside an Xmipp file would be noise. This is the column half of the
+forwarding of Phase 4; the other half, doing it a chunk at a time rather than
+a file at a time, is still that phase's.
+
 One raw table fills one canonical table — decided on 2026-10-27. The engine
 takes the first raw table, in the order the file holds them, whose matching
 conventions declare every column the canonical table requires, and reads
