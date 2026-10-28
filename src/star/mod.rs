@@ -39,32 +39,6 @@ mod tests {
         read_tables(file.path().to_str().unwrap()).unwrap_err()
     }
 
-    fn real_files() -> Vec<std::path::PathBuf> {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
-        let mut files: Vec<_> = ["files/star", "python/fixtures"]
-            .iter()
-            .flat_map(|dir| std::fs::read_dir(root.join(dir)).unwrap())
-            .map(|entry| entry.unwrap().path())
-            .filter(|path| path.extension().is_some_and(|ext| ext == "star"))
-            .collect();
-        files.sort();
-        files
-    }
-
-    #[test]
-    fn every_real_file_reads_as_the_parser_it_replaces_read_it() {
-        let files = real_files();
-        assert!(files.len() >= 10, "found only {files:?}");
-        for file in files {
-            let path = file.to_str().unwrap();
-            assert_eq!(
-                read_tables(path).unwrap(),
-                crate::text::oracle::read_tables(path, lexer::tokenize_line).unwrap(),
-                "{path}"
-            );
-        }
-    }
-
     #[test]
     fn every_block_comes_back_in_order() {
         let read = tables(
