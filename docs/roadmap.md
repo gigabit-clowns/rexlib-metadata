@@ -10,13 +10,16 @@ add the items a pull request discovers rather than leaving them in a comment.
 
 ## Where the work stands
 
-Phases 0, 1, 1b and 2 are on `main`. The single `src/star.rs` became
+Phases 0 to 4 are on `main`. The single `src/star.rs` became
 `src/star/{lexer,mod}.rs` beside `src/text/{parser,builder,mod}.rs`, and with
 it came quoted values, comments, a typed `Error` carrying path and line,
 multi-block parsing, and the Rust half of CI. Then the schema, the
 conventions and the engine, which a read now goes through: `rxm.read(path)`
 comes back under canonical names, and `result.raw` is the file under its own.
-Both suites are green, 49 tests in Rust and 92 in Python.
+Then writing, through write conventions, and forwarding: `columns=` narrows
+what a read shows, and a write reads the source again and carries every
+column of it, a whole file at a time until Phase 5. Both suites are green,
+59 tests in Rust and 127 in Python.
 
 What the STAR parser does not do, and that a real file may yet ask for:
 
@@ -108,12 +111,18 @@ of several tables asks which one rather than handing back the last.
 
 ## Phase 4 — Write-forwarding
 
-- [ ] `ReadResult` always holds the full batch; `columns=` becomes a view
-- [ ] `ReadResult.write(path, updates=None)` merges and writes every column
-- [ ] Tests: read 2 of N columns, modify, write, verify all N are intact
+- [x] `columns=` narrows a result to the canonical columns asked for,
+      projected in Python after the reader has parsed every one, and keeps
+      none of the rest once the call returns
+- [x] `ReadResult.write(path, updates=None)` reads the source again and
+      writes every table and every column, the columns of `updates`
+      substituted, through a temporary file in the destination directory
+- [x] Tests: read 2 of N columns, modify, write, verify all N are intact
 
 ## Phase 5 — Chunked reading
 
+- [ ] `columns=` handed to the reader, so that a column not asked for is
+      never built, rather than built and dropped
 - [ ] Progressive chunk index in the STAR parser, offsets recorded as chunks
       are read
 - [ ] Memory-mapped file access

@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -18,7 +20,7 @@ from rexlib_metadata.engine import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
 
     import pandas as pd
     import polars as pl
@@ -79,8 +81,12 @@ class RawResult:
     def tables(self) -> tuple[RawTable, ...]:
         """Read the file, if it has not been read, and return every table."""
         if self._tables is None:
-            self._tables = tuple(self._reader.read_tables(self._path))
+            self._tables = self.reread()
         return self._tables
+
+    def reread(self) -> tuple[RawTable, ...]:
+        """Read the file again and return every table, keeping none of them."""
+        return tuple(self._reader.read_tables(self._path))
 
     def write(self, path: str) -> None:
         """Write the tables this result holds to `path`, as they are.
@@ -88,7 +94,9 @@ class RawResult:
         The writer is chosen by the destination's extension, and the names
         written are the ones the tables carry.
         """
-        self._registry.writer_for(path).write_tables(path, self.tables())
+        tables = self.tables()
+        writer = self._registry.writer_for(path)
+        _replace(path, lambda temporary: writer.write_tables(temporary, tables))
 
     def _one(self) -> pa.Table:
         tables = self.tables()
@@ -115,12 +123,19 @@ class ReadResult:
         bundles: Iterable[ConventionBundle],
         schema: Schema,
         table: str | None = None,
+        columns: Iterable[str] | None = None,
     ) -> None:
-        """Hold the raw read, the bundles to apply and the schema to fill."""
+        """Hold the raw read, the bundles to apply and the schema to fill.
+
+        `columns`, when given, is the canonical columns this result shows;
+        a name no canonical table declares raises here, before any I/O.
+        """
         self._raw = raw
         self._bundles = tuple(bundles)
         self._schema = schema
         self._table = table
+        self._columns = None if columns is None else tuple(columns)
+        _check_declared(self._columns, schema)
 
     @property
     def raw(self) -> RawResult:
@@ -129,19 +144,20 @@ class ReadResult:
 
     @property
     def names(self) -> tuple[str, ...]:
-        """Name the canonical tables these conventions fill from this file."""
-        if self._table is not None:
-            return (self._table,)
-        return produced_tables(self._raw.tables(), self._bundles, self._schema)
+        """Name the canonical tables this result shows from this file."""
+        return self._names(self._raw_tables())
 
     def __getitem__(self, name: str) -> ReadResult:
         """Return a result over the one canonical table called `name`."""
-        if name not in self.names:
+        names = self.names
+        if name not in names:
             raise KeyError(
                 f"{self._raw.path} fills no canonical table '{name}'; it "
-                f"fills {', '.join(repr(n) for n in self.names)}"
+                f"fills {', '.join(repr(n) for n in names)}"
             )
-        return ReadResult(self._raw, self._bundles, self._schema, name)
+        return ReadResult(
+            self._raw, self._bundles, self._schema, name, self._columns
+        )
 
     def to_pandas(self) -> pd.DataFrame:
         """Read the file, if it has not been read, and return it as pandas."""
@@ -154,37 +170,62 @@ class ReadResult:
         return cast("pl.DataFrame", pl.from_arrow(self._one()))
 
     def write(
-        self, path: str, *, bundle: ConventionBundle | None = None
+        self,
+        path: str,
+        *,
+        bundle: ConventionBundle | None = None,
+        updates: pa.Table | pd.DataFrame | pl.DataFrame | None = None,
     ) -> None:
-        """Write every canonical table this result fills to `path`.
+        """Write the whole file this result was read from to `path`.
+
+        The source is read again, so that every canonical table and every
+        column reaches the destination whatever this result shows, and the
+        columns of `updates` take the place of their namesakes in the one
+        canonical table this result shows. `updates` holds a row for every
+        row of that table, in the same order.
 
         The conventions come from the destination's extension, the way a
         read takes them from the source's, unless `bundle` names the one to
         write through. A column of the file that no convention writes is
         carried over untouched when the destination is the format the
-        result was read from, and left out when it is not.
+        result was read from, and left out when it is not. The file is
+        written beside the destination and moved over it at the end.
         """
         registry = self._raw.registry
         writer = registry.writer_for(path)
         bundles = (
             (bundle,) if bundle is not None else registry.bundles_for(path)
         )
+        source = self._raw.reread()
+        changed = {} if updates is None else {self._one_name(source): updates}
         tables = [
-            RawTable.of(name, self._file_table(name, bundles, path))
-            for name in self.names
+            RawTable.of(
+                name,
+                self._file_table(
+                    name, source, bundles, path, changed.get(name)
+                ),
+            )
+            for name in produced_tables(source, self._bundles, self._schema)
         ]
-        writer.write_tables(path, tables)
+        _replace(path, lambda temporary: writer.write_tables(temporary, tables))
 
     def _file_table(
-        self, name: str, bundles: tuple[ConventionBundle, ...], path: str
+        self,
+        name: str,
+        source: tuple[RawTable, ...],
+        bundles: tuple[ConventionBundle, ...],
+        path: str,
+        updates: pa.Table | pd.DataFrame | pl.DataFrame | None,
     ) -> pa.Table:
         table = self._schema[name]
-        columns = write_canonical(self._canonical(name), bundles, table)
-        columns.update(self._carried_over(table, columns, path))
+        canonical = _merged(self._canonical(source, name), updates, table)
+        columns = write_canonical(canonical, bundles, table)
+        columns.update(self._carried_over(source, table, columns, path))
         return pa.table(list(columns.values()), names=list(columns))
 
     def _carried_over(
         self,
+        raw_tables: tuple[RawTable, ...],
         table: TableSchema,
         written: dict[str, ArrowColumn],
         path: str,
@@ -192,7 +233,7 @@ class ReadResult:
         """Return the columns of the table the read drew on, minus `written`."""
         if Path(path).suffix.lower() != Path(self._raw.path).suffix.lower():
             return {}
-        source = source_table(self._raw.tables(), self._bundles, table)
+        source = source_table(raw_tables, self._bundles, table)
         if source is None:
             return {}
         return {
@@ -201,17 +242,38 @@ class ReadResult:
             if column not in written
         }
 
-    def _canonical(self, name: str) -> pa.Table:
-        return read_canonical(
-            self._raw.tables(), self._bundles, self._schema[name]
+    def _raw_tables(self) -> tuple[RawTable, ...]:
+        if self._columns is None:
+            return self._raw.tables()
+        return self._raw.reread()
+
+    def _names(self, raw_tables: tuple[RawTable, ...]) -> tuple[str, ...]:
+        if self._table is not None:
+            return (self._table,)
+        filled = produced_tables(raw_tables, self._bundles, self._schema)
+        if self._columns is None:
+            return filled
+        return tuple(
+            name
+            for name in filled
+            if any(column in self._schema[name] for column in self._columns)
         )
 
-    def _one(self) -> pa.Table:
-        name = self._table if self._table is not None else self._sole_name()
-        return self._canonical(name)
+    def _canonical(
+        self, raw_tables: tuple[RawTable, ...], name: str
+    ) -> pa.Table:
+        return read_canonical(raw_tables, self._bundles, self._schema[name])
 
-    def _sole_name(self) -> str:
-        names = self.names
+    def _one(self) -> pa.Table:
+        raw_tables = self._raw_tables()
+        name = self._one_name(raw_tables)
+        table = self._canonical(raw_tables, name)
+        if self._columns is None:
+            return table
+        return _projected(table, self._columns, self._schema[name])
+
+    def _one_name(self, raw_tables: tuple[RawTable, ...]) -> str:
+        names = self._names(raw_tables)
         if len(names) == 1:
             return names[0]
         if not names:
@@ -225,3 +287,81 @@ class ReadResult:
             f"{', '.join(repr(n) for n in names)}; name the one you mean, "
             "as result[name]"
         )
+
+
+def _check_declared(columns: tuple[str, ...] | None, schema: Schema) -> None:
+    unknown = [
+        name
+        for name in columns or ()
+        if not any(name in table for table in schema)
+    ]
+    if unknown:
+        raise ValueError(
+            f"No canonical table declares "
+            f"{', '.join(repr(name) for name in unknown)}"
+        )
+
+
+def _projected(
+    table: pa.Table, columns: tuple[str, ...], schema: TableSchema
+) -> pa.Table:
+    wanted = [name for name in columns if name in schema]
+    absent = [name for name in wanted if name not in table.column_names]
+    if absent:
+        raise ValueError(
+            f"Table '{schema.name}' holds no "
+            f"{', '.join(repr(name) for name in absent)} in this file"
+        )
+    return table.select(wanted)
+
+
+def _merged(
+    canonical: pa.Table,
+    updates: pa.Table | pd.DataFrame | pl.DataFrame | None,
+    schema: TableSchema,
+) -> pa.Table:
+    """Return `canonical` with the columns of `updates` in place of its own."""
+    if updates is None:
+        return canonical
+    changed = _as_arrow(updates)
+    if changed.num_rows != canonical.num_rows:
+        raise ValueError(
+            f"updates holds {changed.num_rows} rows where table "
+            f"'{schema.name}' holds {canonical.num_rows}; a row written back "
+            "has to be the row read, so a filtered frame makes every column "
+            "yours: write it through a result of its own"
+        )
+    for name in changed.column_names:
+        column = changed.column(name).cast(schema.column(name).dtype)
+        if name in canonical.column_names:
+            index = canonical.column_names.index(name)
+            canonical = canonical.set_column(index, name, column)
+        else:
+            canonical = canonical.append_column(name, column)
+    return canonical
+
+
+def _as_arrow(frame: pa.Table | pd.DataFrame | pl.DataFrame) -> pa.Table:
+    if isinstance(frame, pa.Table):
+        return frame
+    to_arrow = getattr(frame, "to_arrow", None)
+    if to_arrow is not None:
+        return cast("pa.Table", to_arrow())
+    return pa.Table.from_pandas(
+        cast("pd.DataFrame", frame), preserve_index=False
+    )
+
+
+def _replace(path: str, write: Callable[[str], None]) -> None:
+    """Write through a file beside `path`, moved over it once written."""
+    destination = Path(path)
+    descriptor, temporary = tempfile.mkstemp(
+        dir=destination.parent, suffix=destination.suffix
+    )
+    os.close(descriptor)
+    try:
+        write(temporary)
+        Path(temporary).replace(destination)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise

@@ -448,8 +448,8 @@ file handle once the call that created it has returned: handles exist only
 for the duration of actual I/O. A reader that keeps one open breaks every
 caller that reads more files than the platform has descriptors.
 
-When `columns=` lands it will read what it says and nothing else — `read`
-takes no keyword arguments today. Reading two columns of
+`columns=` shows what it says and nothing else, and a result that was
+given it keeps none of the rest once a call returns. Reading two columns of
 forty, changing one and writing the file back still has to leave the other
 thirty-eight exactly as they were, and the way that works is that the write
 re-reads the source and substitutes as it goes, a chunk at a time. Holding
@@ -465,11 +465,16 @@ the destination directory, renamed at the end. The destination directory
 rather than the system temp one: a rename is atomic only within a
 filesystem.
 
+A view never narrows what is written — decided on 2026-10-28.
+`result["particles"]` and `columns=` decide what a read shows and which
+table `updates` lands in; `write` writes every canonical table the source
+fills, every column of each, whatever the view.
+
 ## The intended public API
 
-Written out as it is meant to end up. What exists today is the plain `read`,
-`to_pandas()`, `to_polars()` and `result[name]`; `columns=`, `convention=`,
-`backend=`, `chunks()` and `write()` do not.
+Written out as it is meant to end up. What exists today is `read` with
+`columns=` and `bundle=`, `to_pandas()`, `to_polars()`, `result[name]` and
+`write()` with `updates=`; `convention=`, `backend=` and `chunks()` do not.
 
 ```python
 import rexlib_metadata as rxm
