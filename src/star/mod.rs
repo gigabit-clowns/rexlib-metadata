@@ -5,9 +5,15 @@ pub(crate) mod writer;
 
 use arrow::record_batch::RecordBatch;
 
+use std::collections::HashSet;
+use std::num::NonZeroUsize;
+
 use crate::error::Error;
+use crate::text::Token;
 use crate::text::builder::ArrowSink;
-use crate::text::parser::parse_blocks;
+use crate::text::parser::{Parser, parse_blocks};
+
+type Tokenize = fn(&str, &str, usize) -> Result<Vec<Token>, Error>;
 
 pub(crate) fn read_tables(path: &str) -> Result<Vec<(String, RecordBatch)>, Error> {
     let mut sink = ArrowSink::default();
@@ -15,13 +21,57 @@ pub(crate) fn read_tables(path: &str) -> Result<Vec<(String, RecordBatch)>, Erro
     Ok(sink.into_tables())
 }
 
+/// The blocks of a STAR file, `chunk_size` rows at a time, read as they
+/// are asked for.
+pub(crate) struct Chunks {
+    parser: Parser<Tokenize>,
+    sink: ArrowSink,
+    done: bool,
+}
+
+impl Chunks {
+    pub(crate) fn open(
+        path: &str,
+        chunk_size: NonZeroUsize,
+        columns: Option<HashSet<String>>,
+    ) -> Result<Self, Error> {
+        Ok(Self {
+            parser: Parser::open(path, lexer::tokenize_line as Tokenize)?,
+            sink: ArrowSink::new(Some(chunk_size), columns),
+            done: false,
+        })
+    }
+}
+
+impl Iterator for Chunks {
+    type Item = Result<(String, RecordBatch), Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while !self.done {
+            if let Some(chunk) = self.sink.pop() {
+                return Some(Ok(chunk));
+            }
+            match self.parser.step(&mut self.sink) {
+                Ok(more) => self.done = !more,
+                Err(error) => {
+                    self.done = true;
+                    return Some(Err(error));
+                }
+            }
+        }
+        self.sink.pop().map(Ok)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write as _;
     use std::io::Write;
 
     use tempfile::NamedTempFile;
 
     use super::*;
+    use crate::text::builder::rows_of_record_batch;
 
     fn written(bytes: &[u8]) -> NamedTempFile {
         let mut file = NamedTempFile::new().unwrap();
@@ -37,6 +87,119 @@ mod tests {
     fn error(content: &str) -> Error {
         let file = written(content.as_bytes());
         read_tables(file.path().to_str().unwrap()).unwrap_err()
+    }
+
+    fn chunks(content: &str, size: usize, columns: Option<&[&str]>) -> Vec<(String, RecordBatch)> {
+        let file = written(content.as_bytes());
+        let keep = columns.map(|names| names.iter().map(ToString::to_string).collect());
+        Chunks::open(
+            file.path().to_str().unwrap(),
+            NonZeroUsize::new(size).unwrap(),
+            keep,
+        )
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+    }
+
+    fn shape(chunks: &[(String, RecordBatch)]) -> Vec<(&str, usize)> {
+        chunks
+            .iter()
+            .map(|(name, batch)| (name.as_str(), batch.num_rows()))
+            .collect()
+    }
+
+    fn numbered(rows: usize) -> String {
+        let mut content =
+            String::from("data_optics\n_rlnVoltage 300\n\ndata_particles\nloop_\n_x\n_y\n");
+        for row in 1..=rows {
+            writeln!(content, "{row} a{row}").unwrap();
+        }
+        content
+    }
+
+    #[test]
+    fn a_block_is_cut_every_chunk_size_rows() {
+        let read = chunks(&numbered(25), 10, None);
+
+        assert_eq!(
+            shape(&read),
+            [
+                ("optics", 1),
+                ("particles", 10),
+                ("particles", 10),
+                ("particles", 5)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_block_of_an_exact_multiple_leaves_no_empty_chunk() {
+        let read = chunks(&numbered(20), 10, None);
+
+        assert_eq!(
+            shape(&read),
+            [("optics", 1), ("particles", 10), ("particles", 10)]
+        );
+    }
+
+    #[test]
+    fn a_block_with_no_rows_is_one_empty_chunk() {
+        let read = chunks("data_optics\n\ndata_p\nloop_\n_x\n", 10, None);
+
+        assert_eq!(shape(&read), [("optics", 0), ("p", 0)]);
+        assert_eq!(read[1].1.num_columns(), 1);
+    }
+
+    #[test]
+    fn chunks_put_back_together_are_the_whole_read() {
+        let content = numbered(25);
+        let whole = tables(&content);
+        let read = chunks(&content, 7, None);
+
+        let rows: Vec<Vec<String>> = read
+            .iter()
+            .filter(|(name, _)| name == "particles")
+            .flat_map(|(_, batch)| rows_of_record_batch(batch).unwrap().1)
+            .collect();
+
+        assert_eq!(rows, rows_of_record_batch(&whole[1].1).unwrap().1);
+    }
+
+    #[test]
+    fn only_the_columns_asked_for_are_built() {
+        let read = chunks(&numbered(3), 10, Some(&["_y", "_rlnMissing"]));
+
+        let names = |batch: &RecordBatch| -> Vec<String> {
+            batch
+                .schema()
+                .fields()
+                .iter()
+                .map(|field| field.name().clone())
+                .collect()
+        };
+        assert_eq!(names(&read[0].1), Vec::<String>::new());
+        assert_eq!(read[0].1.num_rows(), 1);
+        assert_eq!(names(&read[1].1), ["_y"]);
+        assert_eq!(rows_of_record_batch(&read[1].1).unwrap().1[2], ["a3"]);
+    }
+
+    #[test]
+    fn a_chunk_read_before_a_broken_line_comes_back_and_then_the_error() {
+        let file = written(b"data_p\nloop_\n_x\n1\n2\n3 4\n");
+        let mut read = Chunks::open(
+            file.path().to_str().unwrap(),
+            NonZeroUsize::new(2).unwrap(),
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(read.next().unwrap().unwrap().1.num_rows(), 2);
+        assert!(matches!(
+            read.next(),
+            Some(Err(Error::Parse { line: 6, .. }))
+        ));
+        assert!(read.next().is_none());
     }
 
     #[test]

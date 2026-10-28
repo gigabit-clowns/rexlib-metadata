@@ -141,8 +141,16 @@ the new one has to agree with on every real file, and goes when it does.
 a file is unsafe for a reason that matters here: another process truncating
 the file while it is mapped is a `SIGBUS`, a file taking the process down,
 where the rule is that nothing that comes out of a file reaches a panic.
-A chunk is read by seeking to the offset the index recorded, which gives
-the same random access and the same bounded memory without it.
+A file is read through a buffered reader instead, which gives the same
+bounded memory without it.
+
+**No chunk index until something reads out of order** (2026-10-29). A
+progressive index of chunk offsets was planned for random access, and
+nothing asks for random access: `chunks()` walks a file from the top, and so
+does a write that forwards a chunk at a time. An index nothing reads is code
+no test or caller exercises, so the parser steps one line at a time and
+cuts a chunk every so many rows, and the index comes with the first API that
+asks for chunk *k* without reading the ones before it.
 
 **A reader may narrow a read, and never has to** (2026-10-28). The columns
 a caller asks for are canonical, and a reader knows only its own names, so
@@ -563,12 +571,13 @@ also the last moment it is free.
 
 ## Pagination
 
-Text formats get a progressive lazy index of chunk-level byte offsets into
-the file, each chunk read by seeking to its offset. The index is built as chunks are read rather than by a
-mandatory first scan, so sequential access pays nothing and random access
-pays only for what it has already passed. SQLite and HDF5 use what they
-have — `LIMIT`/`OFFSET`, dataset slicing. The API the user sees is the same
-either way.
+Text formats are read by a parser that steps one line at a time and hands
+a chunk over every so many rows, so a chunk costs its own rows and nothing
+more, and the columns not asked for are dropped as each row is read. Random
+access waits for an API that asks for it; when it comes, it is a progressive
+index of chunk offsets built as chunks are read, never a mandatory first
+scan. SQLite and HDF5 use what they have — `LIMIT`/`OFFSET`, dataset
+slicing. The API the user sees is the same either way.
 
 ## Open questions
 

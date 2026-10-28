@@ -61,11 +61,11 @@ invariants at the end of this file already bind what gets written.
 | `src/lib.rs` | The PyO3 module `_rexlib`: thin wrappers, error conversion, nothing else |
 | `src/error.rs` | `Error`, one for the crate, carrying the path and the line |
 | `src/text/mod.rs` | `Token`, what every lexer of a text table produces |
-| `src/text/parser.rs` | `parse_blocks`, the state machine handing tokens to a `Sink` row by row, over any lexer |
-| `src/text/builder.rs` | `ArrowSink`, rows into an Arrow `RecordBatch` of `Utf8` per block, and a batch back to rows |
+| `src/text/parser.rs` | `Parser`, the state machine stepping a line at a time and handing rows to a `Sink`, over any lexer |
+| `src/text/builder.rs` | `ArrowSink`, rows into Arrow `RecordBatch`es of `Utf8`, a chunk or a block each, and a batch back to rows |
 | `src/star/lexer.rs` | `tokenize_line`, one line of STAR to tokens, quoting and comments |
 | `src/star/writer.rs` | `write_tables`, rows to STAR blocks, deciding what to quote |
-| `src/star/mod.rs` | `read_tables`, the crate-facing STAR entry point |
+| `src/star/mod.rs` | `read_tables` and `Chunks`, the crate-facing STAR entry points |
 | `python/rexlib_metadata/` | The public Python package |
 | `python/rexlib_metadata/schema.py` | The canonical columns and the tables they compose |
 | `python/rexlib_metadata/convention.py` | The convention interfaces and the bundles that group them |

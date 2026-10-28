@@ -6,7 +6,9 @@ mod error;
 mod star;
 mod text;
 
+use std::collections::HashSet;
 use std::io::ErrorKind;
+use std::num::NonZeroUsize;
 
 use arrow::record_batch::RecordBatch;
 use pyo3::exceptions::{
@@ -31,6 +33,50 @@ fn _star_read_tables(py: Python<'_>, path: &str) -> PyResult<Vec<(String, PyReco
         .into_iter()
         .map(|(name, batch)| (name, PyRecordBatch::new(batch)))
         .collect())
+}
+
+#[pyfunction]
+#[pyo3(signature = (path, chunk_size, columns=None))]
+fn _star_read_chunks(
+    path: &str,
+    chunk_size: usize,
+    columns: Option<HashSet<String>>,
+) -> PyResult<StarChunks> {
+    let chunk_size = NonZeroUsize::new(chunk_size)
+        .ok_or_else(|| PyValueError::new_err("chunk_size has to be at least one row"))?;
+    let chunks = star::Chunks::open(path, chunk_size, columns).map_err(to_python_error)?;
+    Ok(StarChunks {
+        chunks: Some(chunks),
+    })
+}
+
+#[pyclass(module = "rexlib_metadata._rexlib")]
+struct StarChunks {
+    chunks: Option<star::Chunks>,
+}
+
+#[pymethods]
+impl StarChunks {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<(String, PyRecordBatch)>> {
+        let Some(chunks) = self.chunks.as_mut() else {
+            return Ok(None);
+        };
+        match py.detach(|| chunks.next()) {
+            Some(Ok((name, batch))) => Ok(Some((name, PyRecordBatch::new(batch)))),
+            Some(Err(error)) => {
+                self.chunks = None;
+                Err(to_python_error(error))
+            }
+            None => {
+                self.chunks = None;
+                Ok(None)
+            }
+        }
+    }
 }
 
 #[pyfunction]
@@ -60,6 +106,8 @@ fn to_python_error(error: Error) -> PyErr {
 fn _rexlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(version, m)?)?;
     m.add_function(wrap_pyfunction!(_star_read_tables, m)?)?;
+    m.add_function(wrap_pyfunction!(_star_read_chunks, m)?)?;
     m.add_function(wrap_pyfunction!(_star_write, m)?)?;
+    m.add_class::<StarChunks>()?;
     Ok(())
 }

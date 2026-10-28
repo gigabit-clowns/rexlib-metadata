@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 use std::fs::File;
-use std::io::{BufRead, BufReader, ErrorKind};
+use std::io::{BufRead, BufReader, ErrorKind, Lines};
+use std::iter::Enumerate;
 
 use super::Token;
 use crate::error::{Error, parse_error};
 
 pub(crate) trait Sink {
-    fn open(&mut self, columns: &[String]);
-    fn row(&mut self, values: &[String]);
+    fn open(&mut self, name: &str, columns: &[String]);
+    fn row(&mut self, values: &[String]) -> Result<(), Error>;
     fn close(&mut self, name: String, columns: Vec<String>) -> Result<(), Error>;
 }
 
@@ -45,8 +46,8 @@ impl State {
                 columns,
                 values,
             } => {
-                sink.open(&columns);
-                sink.row(&values);
+                sink.open(&name, &columns);
+                sink.row(&values)?;
                 sink.close(name, columns)
             }
         }
@@ -58,15 +59,54 @@ where
     T: Fn(&str, &str, usize) -> Result<Vec<Token>, Error>,
     S: Sink,
 {
-    let file = File::open(path).map_err(|source| Error::Io {
-        path: path.to_string(),
-        source,
-    })?;
-    let reader = BufReader::new(file);
-    let mut state = State::Preamble;
+    let mut parser = Parser::open(path, tokenize)?;
+    while parser.step(sink)? {}
+    Ok(())
+}
 
-    for (index, line) in reader.lines().enumerate() {
-        let line_num = index + 1;
+pub(crate) struct Parser<T> {
+    path: String,
+    lines: Enumerate<Lines<BufReader<File>>>,
+    tokenize: T,
+    state: State,
+}
+
+impl<T> Parser<T>
+where
+    T: Fn(&str, &str, usize) -> Result<Vec<Token>, Error>,
+{
+    pub(crate) fn open(path: &str, tokenize: T) -> Result<Self, Error> {
+        let file = File::open(path).map_err(|source| Error::Io {
+            path: path.to_string(),
+            source,
+        })?;
+        Ok(Self {
+            path: path.to_string(),
+            lines: BufReader::new(file).lines().enumerate(),
+            tokenize,
+            state: State::Preamble,
+        })
+    }
+
+    /// Hands one line to `sink`, and says whether there are more.
+    pub(crate) fn step<S: Sink>(&mut self, sink: &mut S) -> Result<bool, Error> {
+        let state = std::mem::replace(&mut self.state, State::Preamble);
+        let Some((index, line)) = self.lines.next() else {
+            state.close(sink)?;
+            return Ok(false);
+        };
+        self.state = self.next_state(state, index + 1, line, sink)?;
+        Ok(true)
+    }
+
+    fn next_state<S: Sink>(
+        &self,
+        state: State,
+        line_num: usize,
+        line: std::io::Result<String>,
+        sink: &mut S,
+    ) -> Result<State, Error> {
+        let path = self.path.as_str();
         let line = line.map_err(|source| match source.kind() {
             ErrorKind::InvalidData => parse_error(path, line_num, "not valid UTF-8"),
             _ => Error::Io {
@@ -74,23 +114,21 @@ where
                 source,
             },
         })?;
-        let tokens = tokenize(&line, path, line_num)?;
+        let tokens = (self.tokenize)(&line, path, line_num)?;
         let Some(first) = tokens.first() else {
-            continue;
+            return Ok(state);
         };
-        state = match first {
+        match first {
             Token::DataBlock(name) => {
                 let name = name.clone();
                 state.close(sink)?;
-                State::InBlock { name }
+                Ok(State::InBlock { name })
             }
-            Token::Loop => open_loop(state, path, line_num)?,
-            Token::Column(_) => read_names(state, &tokens, path, line_num)?,
-            Token::Value(_) => read_row(state, &row_values_of(&tokens), sink, path, line_num)?,
-        };
+            Token::Loop => open_loop(state, path, line_num),
+            Token::Column(_) => read_names(state, &tokens, path, line_num),
+            Token::Value(_) => read_row(state, &row_values_of(&tokens), sink, path, line_num),
+        }
     }
-
-    state.close(sink)
 }
 
 fn open_loop(state: State, path: &str, line: usize) -> Result<State, Error> {
@@ -226,13 +264,13 @@ fn read_row<S: Sink>(
     match state {
         State::ReadingColumns { name, columns } => {
             check_row_width(&columns, values, path, line)?;
-            sink.open(&columns);
-            sink.row(values);
+            sink.open(&name, &columns);
+            sink.row(values)?;
             Ok(State::ReadingData { name, columns })
         }
         State::ReadingData { ref columns, .. } => {
             check_row_width(columns, values, path, line)?;
-            sink.row(values);
+            sink.row(values)?;
             Ok(state)
         }
         State::Preamble => Err(parse_error(path, line, "data row outside a data block")),
@@ -305,12 +343,13 @@ mod tests {
     }
 
     impl Sink for Blocks {
-        fn open(&mut self, _: &[String]) {
+        fn open(&mut self, _: &str, _: &[String]) {
             self.rows.clear();
         }
 
-        fn row(&mut self, values: &[String]) {
+        fn row(&mut self, values: &[String]) -> Result<(), Error> {
             self.rows.push(values.to_vec());
+            Ok(())
         }
 
         fn close(&mut self, name: String, columns: Vec<String>) -> Result<(), Error> {

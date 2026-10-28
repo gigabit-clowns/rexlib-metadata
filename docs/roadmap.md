@@ -126,10 +126,11 @@ of several tables asks which one rather than handing back the last.
       read is every chunk collected
 - [x] The parser it replaces kept as an oracle, the new one agreeing with it
       on every file under `tests/files/star/`, and removed once it does
-- [ ] Progressive chunk index in the STAR parser, offsets recorded as chunks
-      are read, each chunk read by seeking to its offset
-- [ ] `_rexlib._star_read_chunks(path, chunk_size, columns)`, dropping the
-      columns not asked for inside the parser
+- [x] The parser steps one line at a time, and the sink cuts a chunk every
+      `chunk_size` rows
+- [x] `_rexlib._star_read_chunks(path, chunk_size, columns)`, `columns` a
+      set of raw names that every block keeps what it holds of, dropping the
+      rest as each row is read
 - [ ] `Reader.read_tables_keeping(path, keep)`, not abstract, falling back
       to `read_tables`; `StarReader` overrides it over the Rust path, and
       `columns=` reaches it through the engine
