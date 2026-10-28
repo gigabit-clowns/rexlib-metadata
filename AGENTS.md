@@ -47,6 +47,7 @@ knowing which of the two it is talking about:
 | The read engine | Built, `python/rexlib_metadata/engine.py`, and driving every read |
 | The Relion 4 bundle, and a read that comes back canonical | Built, `python/rexlib_metadata/conventions/relion.py` |
 | Relion's write conventions, and a canonical `write` | Built, and carrying over what no convention covers |
+| `columns=`, and a write that forwards every column of the source | Built, a whole file at a time |
 | Chunking, XMD, SQLite, HDF5 | Designed, not written |
 
 `docs/roadmap.md` is the authority on what comes next and in which order.

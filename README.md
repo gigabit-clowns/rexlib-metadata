@@ -32,7 +32,7 @@ Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 - **Extensible** — plug in custom readers and conventions by subclassing Python ABCs; no Rust required
 - **Fast core** — parsing and Arrow serialization in Rust via PyO3 + Maturin
 
-Reading and writing STAR files through Relion's conventions is what works today. Chunked reads, write-forwarding a chunk at a time, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
+Reading and writing STAR files through Relion's conventions is what works today, columns read on their own and forwarded on write included. Chunked reads, forwarding a chunk at a time, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
 
 ## Installation
 
@@ -175,6 +175,20 @@ A column no convention writes — `_rlnCtfImage` and its kind — is carried ove
 untouched when the destination is the format the result was read from, so
 filtering rows and writing them back loses nothing. Numbers are written as
 short as they can be while reading back exactly: `587.0` goes out as `587`.
+
+Read only the columns you need, change them, and the write carries the rest:
+
+```python
+result = rxm.read("particles.star", columns=["angle_rot"])
+df = result.to_pandas()
+df["angle_rot"] += 10
+result.write("rotated.star", updates=df)   # every other column, untouched
+```
+
+A write reads the source again rather than keeping it, so the source has to
+be where it was. It writes every table of the file whatever the result
+shows, and goes through a temporary file beside the destination, so writing
+over the source is safe and a failed write leaves the old file as it was.
 
 ## Development
 

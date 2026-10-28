@@ -15,6 +15,11 @@ Nothing has been released yet. This is what the first release will say.
   block, through the write conventions of the destination's extension — so
   `read("a.star").write("b.star")` round-trips and nothing has to be said
   about the format. `bundle=` writes through one of your own.
+- `read(path, columns=[...])` shows only those canonical columns, and
+  `result.write(path, updates=df)` writes them back with every other column
+  of the source, untouched.
+- A write goes through a temporary file beside the destination, so writing
+  over the source is safe and a failed write leaves the old file in place.
 - A column the conventions do not cover is carried over untouched when the
   destination is the format the result was read from, so filtering rows and
   writing them back does not quietly drop `_rlnCtfImage` and its neighbours.

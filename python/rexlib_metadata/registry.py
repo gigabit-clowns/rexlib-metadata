@@ -86,16 +86,21 @@ class MetadataRegistry:
         return tuple(self._bundles.get(_extension(path), ()))
 
     def read(
-        self, path: str, *, bundle: ConventionBundle | None = None
+        self,
+        path: str,
+        *,
+        columns: Iterable[str] | None = None,
+        bundle: ConventionBundle | None = None,
     ) -> ReadResult:
         """Return a lazy canonical result over `path`, through its reader.
 
         The bundles registered for the extension apply, in their order,
-        unless `bundle` names the one to use instead.
+        unless `bundle` names the one to use instead. `columns` narrows the
+        result to those canonical columns.
         """
         bundles = (bundle,) if bundle is not None else self.bundles_for(path)
         raw = RawResult(path, self.reader_for(path), self)
-        return ReadResult(raw, bundles, self._schema)
+        return ReadResult(raw, bundles, self._schema, columns=columns)
 
 
 def _as_extensions(extensions: str | Iterable[str]) -> tuple[str, ...]:
