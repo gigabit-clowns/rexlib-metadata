@@ -92,12 +92,17 @@ of several tables asks which one rather than handing back the last.
 
 ## Phase 3 — Writing and roundtrip
 
-- [ ] `Writer` ABC
-- [ ] `StarSerializer` in Rust: `write(path, record_batch)`
-- [ ] `_rexlib._star_write(path, batch)`
-- [ ] `StarWriter`, registered for `.star`
-- [ ] `ReadResult.write(path)`, no forwarding yet
-- [ ] Tests: read → write → read, compared as DataFrames
+- [x] `Writer` ABC, `write_tables` and nothing else
+- [x] `write_tables` in Rust, `src/star/writer.rs`, a data block per table
+- [x] `_rexlib._star_write(path, tables)`
+- [x] `StarWriter`, registered for `.star`
+- [x] `RawResult.write(path)`, the writer chosen by the destination's
+      extension, no forwarding yet
+- [x] Tests: read → write → read on five real files, compared as DataFrames
+- [ ] Relion's `WriteConvention`s, one per column group, the mirror of the
+      read conventions in `conventions/relion.py`
+- [ ] `ReadResult.write(path)`: the canonical columns through the write
+      conventions of the destination's extension, or of `bundle=` when given
 
 ## Phase 4 — Write-forwarding
 

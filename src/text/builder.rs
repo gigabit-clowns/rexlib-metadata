@@ -2,11 +2,11 @@
 
 use std::sync::Arc;
 
-use arrow::array::{ArrayRef, StringBuilder};
+use arrow::array::{Array, ArrayRef, StringArray, StringBuilder};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::{RecordBatch, RecordBatchOptions};
 
-use crate::error::Error;
+use crate::error::{Error, unwritable};
 
 pub(crate) fn build_record_batch(
     column_names: &[String],
@@ -34,6 +34,50 @@ pub(crate) fn build_record_batch(
 
     let options = RecordBatchOptions::new().with_row_count(Some(rows.len()));
     Ok(RecordBatch::try_new_with_options(schema, arrays, &options)?)
+}
+
+pub(crate) fn rows_of_record_batch(
+    batch: &RecordBatch,
+) -> Result<(Vec<String>, Vec<Vec<String>>), Error> {
+    let names: Vec<String> = batch
+        .schema()
+        .fields()
+        .iter()
+        .map(|field| field.name().clone())
+        .collect();
+    let columns = string_columns(batch)?;
+    let rows = (0..batch.num_rows())
+        .map(|row| columns.iter().map(|column| value_at(column, row)).collect())
+        .collect();
+    Ok((names, rows))
+}
+
+fn string_columns(batch: &RecordBatch) -> Result<Vec<&StringArray>, Error> {
+    batch
+        .columns()
+        .iter()
+        .zip(batch.schema().fields())
+        .map(|(column, field)| {
+            column
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| {
+                    unwritable(format!(
+                        "column '{}' is {}, and a text format writes Utf8 only",
+                        field.name(),
+                        field.data_type()
+                    ))
+                })
+        })
+        .collect()
+}
+
+fn value_at(column: &StringArray, row: usize) -> String {
+    if column.is_null(row) {
+        String::new()
+    } else {
+        column.value(row).to_string()
+    }
 }
 
 #[cfg(test)]
