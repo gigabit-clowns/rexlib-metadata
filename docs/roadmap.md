@@ -121,12 +121,18 @@ of several tables asks which one rather than handing back the last.
 
 ## Phase 5 — Chunked reading
 
-- [ ] `columns=` handed to the reader, so that a column not asked for is
-      never built, rather than built and dropped
+- [ ] The state machine hands each row to a sink, and the sink appends it
+      to the Arrow builders of its block: no `Vec<Vec<String>>`, and a whole
+      read is every chunk collected
+- [ ] The parser it replaces kept as an oracle, the new one agreeing with it
+      on every file under `tests/files/star/`, and removed once it does
 - [ ] Progressive chunk index in the STAR parser, offsets recorded as chunks
-      are read
-- [ ] Memory-mapped file access
-- [ ] `_rexlib._star_read_chunks(path, chunk_size, columns)`
+      are read, each chunk read by seeking to its offset
+- [ ] `_rexlib._star_read_chunks(path, chunk_size, columns)`, dropping the
+      columns not asked for inside the parser
+- [ ] `Reader.read_tables_keeping(path, keep)`, not abstract, falling back
+      to `read_tables`; `StarReader` overrides it over the Rust path, and
+      `columns=` reaches it through the engine
 - [ ] `StarReader.read_chunks()` over the Rust streaming path
 - [ ] `ReadResult.chunks(size) -> Iterator[ReadResult]`, opening at the start
       of iteration and closing at its end
