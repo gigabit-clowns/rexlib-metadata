@@ -6,34 +6,85 @@ use arrow::array::{Array, ArrayRef, StringArray, StringBuilder};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::{RecordBatch, RecordBatchOptions};
 
+use super::parser::Sink;
 use crate::error::{Error, unwritable};
 
-pub(crate) fn build_record_batch(
+#[derive(Default)]
+pub(crate) struct ArrowSink {
+    builders: Option<Vec<StringBuilder>>,
+    rows: usize,
+    tables: Vec<(String, RecordBatch)>,
+}
+
+impl ArrowSink {
+    pub(crate) fn into_tables(self) -> Vec<(String, RecordBatch)> {
+        self.tables
+    }
+}
+
+impl Sink for ArrowSink {
+    fn open(&mut self, columns: &[String]) {
+        self.builders = Some(builders_for(columns));
+        self.rows = 0;
+    }
+
+    fn row(&mut self, values: &[String]) {
+        let builders = self
+            .builders
+            .as_mut()
+            .expect("the parser opens a block before its first row");
+        for (builder, value) in builders.iter_mut().zip(values) {
+            builder.append_value(value);
+        }
+        self.rows += 1;
+    }
+
+    fn close(&mut self, name: String, columns: Vec<String>) -> Result<(), Error> {
+        let builders = self
+            .builders
+            .take()
+            .unwrap_or_else(|| builders_for(&columns));
+        let batch = record_batch(&columns, builders, std::mem::take(&mut self.rows))?;
+        self.tables.push((name, batch));
+        Ok(())
+    }
+}
+
+fn builders_for(columns: &[String]) -> Vec<StringBuilder> {
+    columns.iter().map(|_| StringBuilder::new()).collect()
+}
+
+fn record_batch(
     column_names: &[String],
-    rows: &[Vec<String>],
+    mut builders: Vec<StringBuilder>,
+    rows: usize,
 ) -> Result<RecordBatch, Error> {
     let fields: Vec<Field> = column_names
         .iter()
         .map(|name| Field::new(name, DataType::Utf8, false))
         .collect();
     let schema = Arc::new(Schema::new(fields));
-
-    let mut builders: Vec<StringBuilder> = column_names
-        .iter()
-        .map(|_| StringBuilder::with_capacity(rows.len(), 0))
-        .collect();
-    for row in rows {
-        for (builder, value) in builders.iter_mut().zip(row) {
-            builder.append_value(value);
-        }
-    }
     let arrays: Vec<ArrayRef> = builders
         .iter_mut()
         .map(|builder| Arc::new(builder.finish()) as ArrayRef)
         .collect();
 
-    let options = RecordBatchOptions::new().with_row_count(Some(rows.len()));
+    let options = RecordBatchOptions::new().with_row_count(Some(rows));
     Ok(RecordBatch::try_new_with_options(schema, arrays, &options)?)
+}
+
+#[cfg(test)]
+pub(crate) fn build_record_batch(
+    column_names: &[String],
+    rows: &[Vec<String>],
+) -> Result<RecordBatch, Error> {
+    let mut sink = ArrowSink::default();
+    sink.open(column_names);
+    for row in rows {
+        sink.row(row);
+    }
+    sink.close(String::new(), column_names.to_vec())?;
+    Ok(sink.tables.remove(0).1)
 }
 
 pub(crate) fn rows_of_record_batch(
