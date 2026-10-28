@@ -6,11 +6,10 @@ use std::io::{BufRead, BufReader, ErrorKind};
 use super::Token;
 use crate::error::{Error, parse_error};
 
-#[derive(Debug)]
-pub(crate) struct Block {
-    pub name: String,
-    pub columns: Vec<String>,
-    pub rows: Vec<Vec<String>>,
+pub(crate) trait Sink {
+    fn open(&mut self, columns: &[String]);
+    fn row(&mut self, values: &[String]);
+    fn close(&mut self, name: String, columns: Vec<String>) -> Result<(), Error>;
 }
 
 enum State {
@@ -25,7 +24,6 @@ enum State {
     ReadingData {
         name: String,
         columns: Vec<String>,
-        rows: Vec<Vec<String>>,
     },
     ReadingTags {
         name: String,
@@ -35,52 +33,36 @@ enum State {
 }
 
 impl State {
-    fn into_block(self) -> Option<Block> {
+    fn close<S: Sink>(self, sink: &mut S) -> Result<(), Error> {
         match self {
-            Self::Preamble => None,
-            Self::InBlock { name } => Some(Block {
-                name,
-                columns: Vec::new(),
-                rows: Vec::new(),
-            }),
-            Self::ReadingColumns { name, columns } => Some(Block {
-                name,
-                columns,
-                rows: Vec::new(),
-            }),
-            Self::ReadingData {
-                name,
-                columns,
-                rows,
-            } => Some(Block {
-                name,
-                columns,
-                rows,
-            }),
+            Self::Preamble => Ok(()),
+            Self::InBlock { name } => sink.close(name, Vec::new()),
+            Self::ReadingColumns { name, columns } | Self::ReadingData { name, columns } => {
+                sink.close(name, columns)
+            }
             Self::ReadingTags {
                 name,
                 columns,
                 values,
-            } => Some(Block {
-                name,
-                columns,
-                rows: vec![values],
-            }),
+            } => {
+                sink.open(&columns);
+                sink.row(&values);
+                sink.close(name, columns)
+            }
         }
     }
 }
 
-pub(crate) fn parse_blocks<T>(path: &str, tokenize: T) -> Result<Vec<Block>, Error>
+pub(crate) fn parse_blocks<T, S>(path: &str, tokenize: T, sink: &mut S) -> Result<(), Error>
 where
     T: Fn(&str, &str, usize) -> Result<Vec<Token>, Error>,
+    S: Sink,
 {
     let file = File::open(path).map_err(|source| Error::Io {
         path: path.to_string(),
         source,
     })?;
     let reader = BufReader::new(file);
-
-    let mut blocks = Vec::new();
     let mut state = State::Preamble;
 
     for (index, line) in reader.lines().enumerate() {
@@ -92,26 +74,23 @@ where
                 source,
             },
         })?;
-
         let tokens = tokenize(&line, path, line_num)?;
         let Some(first) = tokens.first() else {
             continue;
         };
-
         state = match first {
             Token::DataBlock(name) => {
                 let name = name.clone();
-                blocks.extend(state.into_block());
+                state.close(sink)?;
                 State::InBlock { name }
             }
             Token::Loop => open_loop(state, path, line_num)?,
             Token::Column(_) => read_names(state, &tokens, path, line_num)?,
-            Token::Value(_) => read_row(state, row_values_of(&tokens), path, line_num)?,
+            Token::Value(_) => read_row(state, &row_values_of(&tokens), sink, path, line_num)?,
         };
     }
 
-    blocks.extend(state.into_block());
-    Ok(blocks)
+    state.close(sink)
 }
 
 fn open_loop(state: State, path: &str, line: usize) -> Result<State, Error> {
@@ -237,28 +216,24 @@ fn declare_column(state: State, column: String, path: &str, line: usize) -> Resu
     }
 }
 
-fn read_row(state: State, values: Vec<String>, path: &str, line: usize) -> Result<State, Error> {
+fn read_row<S: Sink>(
+    state: State,
+    values: &[String],
+    sink: &mut S,
+    path: &str,
+    line: usize,
+) -> Result<State, Error> {
     match state {
         State::ReadingColumns { name, columns } => {
-            check_row_width(&columns, &values, path, line)?;
-            Ok(State::ReadingData {
-                name,
-                columns,
-                rows: vec![values],
-            })
+            check_row_width(&columns, values, path, line)?;
+            sink.open(&columns);
+            sink.row(values);
+            Ok(State::ReadingData { name, columns })
         }
-        State::ReadingData {
-            name,
-            columns,
-            mut rows,
-        } => {
-            check_row_width(&columns, &values, path, line)?;
-            rows.push(values);
-            Ok(State::ReadingData {
-                name,
-                columns,
-                rows,
-            })
+        State::ReadingData { ref columns, .. } => {
+            check_row_width(columns, values, path, line)?;
+            sink.row(values);
+            Ok(state)
         }
         State::Preamble => Err(parse_error(path, line, "data row outside a data block")),
         State::InBlock { .. } => Err(parse_error(path, line, "data row before loop_")),
@@ -316,24 +291,56 @@ mod tests {
     use std::io::Write;
     use tempfile::NamedTempFile;
 
-    fn parse(content: &str) -> Vec<Block> {
+    #[derive(Debug)]
+    struct Block {
+        name: String,
+        columns: Vec<String>,
+        rows: Vec<Vec<String>>,
+    }
+
+    #[derive(Default)]
+    struct Blocks {
+        rows: Vec<Vec<String>>,
+        blocks: Vec<Block>,
+    }
+
+    impl Sink for Blocks {
+        fn open(&mut self, _: &[String]) {
+            self.rows.clear();
+        }
+
+        fn row(&mut self, values: &[String]) {
+            self.rows.push(values.to_vec());
+        }
+
+        fn close(&mut self, name: String, columns: Vec<String>) -> Result<(), Error> {
+            let rows = std::mem::take(&mut self.rows);
+            self.blocks.push(Block {
+                name,
+                columns,
+                rows,
+            });
+            Ok(())
+        }
+    }
+
+    fn blocks_of<T>(content: &str, tokenize: T) -> Result<Vec<Block>, Error>
+    where
+        T: Fn(&str, &str, usize) -> Result<Vec<Token>, Error>,
+    {
         let mut f = NamedTempFile::new().unwrap();
         write!(f, "{content}").unwrap();
-        parse_blocks(
-            f.path().to_str().unwrap(),
-            crate::star::lexer::tokenize_line,
-        )
-        .unwrap()
+        let mut sink = Blocks::default();
+        parse_blocks(f.path().to_str().unwrap(), tokenize, &mut sink)?;
+        Ok(sink.blocks)
+    }
+
+    fn parse(content: &str) -> Vec<Block> {
+        blocks_of(content, crate::star::lexer::tokenize_line).unwrap()
     }
 
     fn parse_err(content: &str) -> Error {
-        let mut f = NamedTempFile::new().unwrap();
-        write!(f, "{content}").unwrap();
-        parse_blocks(
-            f.path().to_str().unwrap(),
-            crate::star::lexer::tokenize_line,
-        )
-        .unwrap_err()
+        blocks_of(content, crate::star::lexer::tokenize_line).unwrap_err()
     }
 
     fn comma_lexer(line: &str, path: &str, line_num: usize) -> Result<Vec<Token>, Error> {
@@ -367,9 +374,7 @@ mod tests {
     }
 
     fn parse_commas(content: &str) -> Vec<Block> {
-        let mut f = NamedTempFile::new().unwrap();
-        write!(f, "{content}").unwrap();
-        parse_blocks(f.path().to_str().unwrap(), comma_lexer).unwrap()
+        blocks_of(content, comma_lexer).unwrap()
     }
 
     #[test]
@@ -390,17 +395,15 @@ _columns,uid,angle
 
     #[test]
     fn another_lexer_inherits_the_same_errors() {
-        let mut f = NamedTempFile::new().unwrap();
-        write!(
-            f,
+        let err = blocks_of(
             "_table,images
 _header
 _columns,uid,angle
 1
-"
+",
+            comma_lexer,
         )
-        .unwrap();
-        let err = parse_blocks(f.path().to_str().unwrap(), comma_lexer).unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, Error::Parse { .. }));
     }
 
