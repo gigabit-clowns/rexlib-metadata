@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence, Set
 
 from rexlib_metadata._arrow import ArrowArrayExportable
 
@@ -8,6 +8,13 @@ def version() -> str: ...
 def _star_read_tables(
     path: str,
 ) -> Sequence[tuple[str, ArrowArrayExportable]]: ...
+def _star_read_chunks(
+    path: str, chunk_size: int, columns: Set[str] | None = None
+) -> StarChunks: ...
+
+class StarChunks(Iterator[tuple[str, ArrowArrayExportable]]):
+    def __next__(self) -> tuple[str, ArrowArrayExportable]: ...
+
 def _star_write(
     path: str, tables: Sequence[tuple[str, ArrowArrayExportable]]
 ) -> None: ...
