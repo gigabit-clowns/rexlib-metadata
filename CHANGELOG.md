@@ -17,7 +17,9 @@ Nothing has been released yet. This is what the first release will say.
   about the format. `bundle=` writes through one of your own.
 - `read(path, columns=[...])` shows only those canonical columns, and
   `result.write(path, updates=df)` writes them back with every other column
-  of the source, untouched.
+  of the source, untouched. A STAR file read that way parses only the
+  columns it needs, and a reader of your own can do the same by overriding
+  `Reader.read_tables_keeping`.
 - A write goes through a temporary file beside the destination, so writing
   over the source is safe and a failed write leaves the old file in place.
 - A column the conventions do not cover is carried over untouched when the

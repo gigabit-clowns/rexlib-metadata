@@ -8,9 +8,11 @@ import polars as pl
 import pytest
 
 import rexlib_metadata as rxm
-from rexlib_metadata.abc import Writer
+from rexlib_metadata.abc import Reader, Writer
+from rexlib_metadata.canonical import SCHEMA
 from rexlib_metadata.conventions.relion import relion4_bundle
 from rexlib_metadata.conventions.star import StarReader
+from rexlib_metadata.engine import source_columns
 from rexlib_metadata.registry import MetadataRegistry
 
 FILES = Path(__file__).parent.parent / "files" / "star"
@@ -20,6 +22,30 @@ class _Failing(Writer):
     def write_tables(self, path, tables):
         Path(path).write_text("half a file")
         raise RuntimeError("the disk filled up")
+
+
+class _Plain(Reader):
+    def read_tables(self, path):
+        return StarReader().read_tables(path)
+
+
+class _Spy(StarReader):
+    def __init__(self):
+        self.kept = []
+
+    def read_tables(self, path):
+        raise AssertionError("a projected read parsed every column")
+
+    def read_tables_keeping(self, path, columns):
+        self.kept.append(columns)
+        return super().read_tables_keeping(path, columns)
+
+
+def _registry(reader):
+    registry = MetadataRegistry()
+    registry.register_reader([".star"], reader)
+    registry.register_bundle([".star"], relion4_bundle())
+    return registry
 
 
 def _copy(name, tmp_path):
@@ -151,3 +177,56 @@ def test_a_failed_write_leaves_the_destination_as_it_was(tmp_path):
 
     assert Path(path).read_bytes() == before
     assert sorted(p.name for p in tmp_path.iterdir()) == ["one_loop.star"]
+
+
+def test_the_raw_columns_kept_are_those_read_into_what_was_asked():
+    kept = source_columns(["coord_x"], [relion4_bundle()], SCHEMA)
+
+    assert {"_rlnCoordinateX", "_rlnCoordinateY", "_rlnImageName"} <= kept
+    assert "_rlnAngleRot" not in kept
+    assert "_rlnVoltage" not in kept
+
+
+def test_a_projected_read_parses_only_the_columns_it_keeps():
+    reader = _Spy()
+    path = str(FILES / "rln3.1_data_style.star")
+
+    frame = _registry(reader).read(path, columns=["coord_x"]).to_pandas()
+
+    assert reader.kept == [
+        source_columns(["coord_x"], [relion4_bundle()], SCHEMA)
+    ]
+    assert frame["coord_x"].tolist() == (
+        rxm.read(path)["particles"].to_pandas()["coord_x"].tolist()
+    )
+
+
+def test_a_reader_that_cannot_narrow_a_read_is_narrowed_after_it():
+    path = str(FILES / "rln3.1_data_style.star")
+    whole = _Plain().read_tables(path)
+
+    kept = _Plain().read_tables_keeping(
+        path, {"_rlnCoordinateX", "_rlnNoSuchColumn"}
+    )
+
+    assert [t.schema.table_name for t in kept] == [
+        t.schema.table_name for t in whole
+    ]
+    assert [t.table.num_rows for t in kept] == [
+        t.table.num_rows for t in whole
+    ]
+    assert {n for t in kept for n in t.schema.column_names} == {
+        "_rlnCoordinateX"
+    }
+
+
+@pytest.mark.parametrize(
+    "name", sorted(p.name for p in FILES.glob("*.star")), ids=str
+)
+def test_the_parser_keeps_what_a_read_and_a_select_would(name):
+    path = str(FILES / name)
+    columns = {"_rlnImageName", "_rlnAngleRot", "_rlnVoltage"}
+
+    assert StarReader().read_tables_keeping(path, columns) == (
+        _Plain().read_tables_keeping(path, columns)
+    )

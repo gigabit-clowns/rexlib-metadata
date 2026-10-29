@@ -7,10 +7,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from collections.abc import Iterable
+from rexlib_metadata.convention import RawTable
 
-    from rexlib_metadata.convention import RawTable
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Set
 
 
 class Reader(ABC):
@@ -19,6 +19,27 @@ class Reader(ABC):
     @abstractmethod
     def read_tables(self, path: str) -> list[RawTable]:
         """Read the file at `path` into one raw table per table it holds."""
+
+    def read_tables_keeping(
+        self, path: str, columns: Set[str]
+    ) -> list[RawTable]:
+        """Read the file at `path`, keeping only the columns `columns` names.
+
+        `columns` is raw names, as the file spells them, and may name
+        columns the file does not hold. Every table still comes back, with
+        its rows, holding what it has of `columns`. This reads the whole
+        file and drops the rest; a reader that can skip a column while
+        parsing overrides it.
+        """
+        return [
+            RawTable.of(
+                table.schema.table_name,
+                table.table.select(
+                    [n for n in table.schema.column_names if n in columns]
+                ),
+            )
+            for table in self.read_tables(path)
+        ]
 
 
 class Writer(ABC):

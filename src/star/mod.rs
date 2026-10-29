@@ -15,8 +15,13 @@ use crate::text::parser::{Parser, parse_blocks};
 
 type Tokenize = fn(&str, &str, usize) -> Result<Vec<Token>, Error>;
 
-pub(crate) fn read_tables(path: &str) -> Result<Vec<(String, RecordBatch)>, Error> {
-    let mut sink = ArrowSink::default();
+/// Every block of a STAR file, keeping only the columns `columns` names
+/// when it names any.
+pub(crate) fn read_tables(
+    path: &str,
+    columns: Option<HashSet<String>>,
+) -> Result<Vec<(String, RecordBatch)>, Error> {
+    let mut sink = ArrowSink::new(None, columns);
     parse_blocks(path, lexer::tokenize_line, &mut sink)?;
     Ok(sink.into_tables())
 }
@@ -81,12 +86,12 @@ mod tests {
 
     fn tables(content: &str) -> Vec<(String, RecordBatch)> {
         let file = written(content.as_bytes());
-        read_tables(file.path().to_str().unwrap()).unwrap()
+        read_tables(file.path().to_str().unwrap(), None).unwrap()
     }
 
     fn error(content: &str) -> Error {
         let file = written(content.as_bytes());
-        read_tables(file.path().to_str().unwrap()).unwrap_err()
+        read_tables(file.path().to_str().unwrap(), None).unwrap_err()
     }
 
     fn chunks(content: &str, size: usize, columns: Option<&[&str]>) -> Vec<(String, RecordBatch)> {
@@ -203,6 +208,17 @@ mod tests {
     }
 
     #[test]
+    fn a_whole_read_keeps_only_the_columns_asked_for() {
+        let file = written(numbered(3).as_bytes());
+        let keep = HashSet::from(["_x".to_string()]);
+        let read = read_tables(file.path().to_str().unwrap(), Some(keep)).unwrap();
+
+        assert_eq!(read[0].1.num_columns(), 0);
+        assert_eq!(read[1].1.num_columns(), 1);
+        assert_eq!(read[1].1.num_rows(), 3);
+    }
+
+    #[test]
     fn every_block_comes_back_in_order() {
         let read = tables(
             "data_optics\n\nloop_\n_rlnVoltage\n300.0\n\n\
@@ -251,7 +267,7 @@ mod tests {
 
     #[test]
     fn a_missing_file_says_which_one() {
-        let err = read_tables("no/such/file.star").unwrap_err();
+        let err = read_tables("no/such/file.star", None).unwrap_err();
 
         assert!(matches!(err, Error::Io { .. }));
         assert!(err.to_string().contains("no/such/file.star"));
@@ -264,7 +280,7 @@ mod tests {
         bytes.extend_from_slice(b".mrc\n");
         let file = written(&bytes);
 
-        match read_tables(file.path().to_str().unwrap()).unwrap_err() {
+        match read_tables(file.path().to_str().unwrap(), None).unwrap_err() {
             Error::Parse { line, message, .. } => {
                 assert_eq!(line, 5);
                 assert!(message.contains("UTF-8"));

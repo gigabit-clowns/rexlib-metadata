@@ -154,14 +154,27 @@ asks for chunk *k* without reading the ones before it.
 
 **A reader may narrow a read, and never has to** (2026-10-28). The columns
 a caller asks for are canonical, and a reader knows only its own names, so
-what reaches it is a function from a table's `RawSchema` to the columns of
-it to keep, which the engine answers through `matches()` and each
-convention's `source_columns`. It reaches it through
-`Reader.read_tables_keeping(path, keep)`, which is not abstract: by default
-it calls `read_tables` and drops the rest, so a reader a user wrote is
-correct without it and faster with it, and `read_tables` stays the one
-method a reader has to write. `StarReader` overrides it to drop the columns
-inside the parser, before a value is ever built.
+the engine turns them into raw ones before the reader is called. It reaches
+the reader through `Reader.read_tables_keeping(path, columns)`, which is not
+abstract: by default it calls `read_tables` and drops the rest, so a reader
+a user wrote is correct without it and faster with it, and `read_tables`
+stays the one method a reader has to write. `StarReader` overrides it to
+drop the columns inside the parser, before a value is ever built.
+
+**What a narrowed read keeps is a set of raw names, known before the file is
+opened** (2026-10-29). This replaces the shape the entry above first had, a
+function from each table's `RawSchema` to the columns of it to keep, which
+the Rust parser could only answer by calling back into Python at every
+header, or by reading the file twice: in STAR the header of the second block
+sits behind every row of the first. The engine computes the set instead,
+from the conventions alone: for each canonical table that declares a column
+asked for, the `source_columns` of every convention producing one of those
+columns or a column the table requires, so the table can still be filled.
+The set may name more than a file holds and never less than a read needs.
+It costs a rule conventions did not state until now: `matches()` decides
+from `source_columns`, as every convention shipped here does. One that
+looks at a column it does not declare stops recognising its table under
+`columns=`, and is read correctly without it.
 
 ## The canonical representation
 

@@ -15,12 +15,13 @@ from rexlib_metadata.convention import RawTable
 from rexlib_metadata.engine import (
     produced_tables,
     read_canonical,
+    source_columns,
     source_table,
     write_canonical,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Callable, Iterable, Set
 
     import pandas as pd
     import polars as pl
@@ -87,6 +88,10 @@ class RawResult:
     def reread(self) -> tuple[RawTable, ...]:
         """Read the file again and return every table, keeping none of them."""
         return tuple(self._reader.read_tables(self._path))
+
+    def read_keeping(self, columns: Set[str]) -> tuple[RawTable, ...]:
+        """Read the file again, keeping only the raw `columns` of it."""
+        return tuple(self._reader.read_tables_keeping(self._path, columns))
 
     def write(self, path: str) -> None:
         """Write the tables this result holds to `path`, as they are.
@@ -245,7 +250,9 @@ class ReadResult:
     def _raw_tables(self) -> tuple[RawTable, ...]:
         if self._columns is None:
             return self._raw.tables()
-        return self._raw.reread()
+        return self._raw.read_keeping(
+            source_columns(self._columns, self._bundles, self._schema)
+        )
 
     def _names(self, raw_tables: tuple[RawTable, ...]) -> tuple[str, ...]:
         if self._table is not None:

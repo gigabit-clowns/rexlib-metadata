@@ -12,7 +12,7 @@ from rexlib_metadata.abc import Reader, Writer
 from rexlib_metadata.convention import RawTable
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Set
 
 
 class StarReader(Reader):
@@ -23,6 +23,15 @@ class StarReader(Reader):
         return [
             RawTable.of(name, to_pyarrow_table(batch))
             for name, batch in _star_read_tables(path)
+        ]
+
+    def read_tables_keeping(
+        self, path: str, columns: Set[str]
+    ) -> list[RawTable]:
+        """Read every data block, the parser dropping what `columns` leaves."""
+        return [
+            RawTable.of(name, to_pyarrow_table(batch))
+            for name, batch in _star_read_tables(path, set(columns))
         ]
 
 

@@ -47,7 +47,7 @@ knowing which of the two it is talking about:
 | The read engine | Built, `python/rexlib_metadata/engine.py`, and driving every read |
 | The Relion 4 bundle, and a read that comes back canonical | Built, `python/rexlib_metadata/conventions/relion.py` |
 | Relion's write conventions, and a canonical `write` | Built, and carrying over what no convention covers |
-| `columns=`, and a write that forwards every column of the source | Built, a whole file at a time |
+| `columns=`, and a write that forwards every column of the source | Built; a read parses only the columns asked for, a write a whole file at a time |
 | Chunking, XMD, SQLite, HDF5 | Designed, not written |
 
 `docs/roadmap.md` is the authority on what comes next and in which order.
@@ -117,7 +117,8 @@ and what ships in the box; `registry.py` names no format.
 
 A reader implements `read_tables` and nothing else, returning one `RawTable`
 per table the file holds, because a file holding several is the ordinary case
-and not the exception. A writer implements `write_tables` and nothing else,
+and not the exception. It may also override `read_tables_keeping`, which
+`columns=` calls with the raw names to keep, to skip the rest while parsing. A writer implements `write_tables` and nothing else,
 taking them back. Neither ABC knows the registry: composing a reader, a
 writer and the bundles of an extension is `MetadataRegistry`'s whole job, and
 it is what builds the lazy result so that nothing else can build one that
@@ -409,7 +410,9 @@ it and empties it, and the versions before it live in their own releases.
 - Read and write are separate pipelines with separate conventions. Neither
   may be written as the inverse of the other.
 - A raw table is matched to a canonical table by column presence, through
-  `matches()`. Never by the raw table's name.
+  `matches()`. Never by the raw table's name. `matches()` decides from the
+  convention's `source_columns`, which is what lets `columns=` know before
+  reading which raw columns to keep.
 - No two `ReadConvention`s of one bundle may produce the same canonical
   column; it raises when the bundle is built.
 - Priority lives at the bundle level, not the column level. The first bundle

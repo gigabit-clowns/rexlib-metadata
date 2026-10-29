@@ -205,6 +205,38 @@ def produced_tables(
     )
 
 
+def source_columns(
+    columns: Iterable[str],
+    bundles: Iterable[ConventionBundle],
+    schema: Schema,
+) -> frozenset[str]:
+    """Name the raw columns a read of canonical `columns` has to keep.
+
+    A table declaring one of `columns` keeps what its conventions read
+    to produce those and every column the table requires, so that it can
+    still be filled. A convention decides `matches()` from its
+    `source_columns`, which is what makes the set knowable before a header
+    is read. It may name more than a file holds, and never less than a
+    read of `columns` needs.
+    """
+    columns = frozenset(columns)
+    bundles = tuple(bundles)
+    return frozenset(
+        name
+        for table in schema
+        if any(column in table for column in columns)
+        for _, convention in _candidates(bundles, table)
+        if _wanted(table, columns).intersection(convention.target_columns)
+        for name in convention.source_columns
+    )
+
+
+def _wanted(table: TableSchema, columns: frozenset[str]) -> set[str]:
+    return {name for name in columns if name in table} | {
+        column.name for column in table.required_columns
+    }
+
+
 def _can_fill(table: TableSchema, declared: set[str]) -> bool:
     return all(column.name in declared for column in table.required_columns)
 

@@ -25,9 +25,14 @@ fn version() -> &'static str {
 }
 
 #[pyfunction]
-fn _star_read_tables(py: Python<'_>, path: &str) -> PyResult<Vec<(String, PyRecordBatch)>> {
+#[pyo3(signature = (path, columns=None))]
+fn _star_read_tables(
+    py: Python<'_>,
+    path: &str,
+    columns: Option<HashSet<String>>,
+) -> PyResult<Vec<(String, PyRecordBatch)>> {
     let tables = py
-        .detach(|| star::read_tables(path))
+        .detach(|| star::read_tables(path, columns))
         .map_err(to_python_error)?;
     Ok(tables
         .into_iter()

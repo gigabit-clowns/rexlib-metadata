@@ -131,9 +131,9 @@ of several tables asks which one rather than handing back the last.
 - [x] `_rexlib._star_read_chunks(path, chunk_size, columns)`, `columns` a
       set of raw names that every block keeps what it holds of, dropping the
       rest as each row is read
-- [ ] `Reader.read_tables_keeping(path, keep)`, not abstract, falling back
-      to `read_tables`; `StarReader` overrides it over the Rust path, and
-      `columns=` reaches it through the engine
+- [x] `Reader.read_tables_keeping(path, columns)`, not abstract, falling
+      back to `read_tables`; `StarReader` overrides it over the Rust path,
+      and `columns=` reaches it as the raw names the engine computes
 - [ ] `StarReader.read_chunks()` over the Rust streaming path
 - [ ] `ReadResult.chunks(size) -> Iterator[ReadResult]`, opening at the start
       of iteration and closing at its end
