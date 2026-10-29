@@ -150,7 +150,9 @@ result = rxm.read("data.myext")
 ```
 
 `read_tables` is all a reader has to write, and `write_tables` all a writer
-has to. The registry composes them and builds the lazy result, which is what
+has to. A reader that can skip columns while parsing may also override
+`read_tables_keeping(path, columns)`, which `columns=` calls with the raw
+names it needs; by default that reads everything and drops the rest. The registry composes them and builds the lazy result, which is what
 keeps the file closed until somebody asks for rows.
 
 ### Writing

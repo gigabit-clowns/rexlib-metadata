@@ -114,7 +114,7 @@ mod tests {
         let path = path.to_str().unwrap();
 
         write_tables(path, tables).unwrap();
-        read_tables(path).unwrap()
+        read_tables(path, None).unwrap()
     }
 
     fn one(name: &str, columns: &[&str], rows: &[&[&str]]) -> Vec<(String, RecordBatch)> {
