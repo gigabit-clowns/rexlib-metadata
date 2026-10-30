@@ -9,7 +9,19 @@ Nothing has been released yet. This is what the first release will say.
 - A missing file raises `FileNotFoundError` and a malformed one `ValueError`,
   where everything used to be a `RuntimeError`.
 
+### Changed
+- Naming a canonical table, as `result["particles"]`, no longer reads the
+  file. The name is checked against the canonical schema; a table the schema
+  declares and the file does not fill is an error when the rows are asked
+  for. Without this, reading a large file a chunk at a time read it whole
+  first and held it.
+
 ### New
+- Reads a canonical table a chunk at a time:
+  `for chunk in result["particles"].chunks(10_000)`. The file opens when
+  iteration starts and closes when it ends, so a file larger than memory
+  reads in bounded memory. A chunk carries `name`, `len()`, `to_arrow()`,
+  `to_pandas()` and `to_polars()`.
 - Writes a canonical table back out as the format spells it:
   `result.write(path)` turns every canonical table the file fills into a data
   block, through the write conventions of the destination's extension — so

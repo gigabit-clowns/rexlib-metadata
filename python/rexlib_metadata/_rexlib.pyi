@@ -12,8 +12,8 @@ def _star_read_chunks(
     path: str, chunk_size: int, columns: Set[str] | None = None
 ) -> StarChunks: ...
 
-class StarChunks(Iterator[tuple[str, ArrowArrayExportable]]):
-    def __next__(self) -> tuple[str, ArrowArrayExportable]: ...
+class StarChunks(Iterator[tuple[str, int, ArrowArrayExportable]]):
+    def __next__(self) -> tuple[str, int, ArrowArrayExportable]: ...
 
 def _star_write(
     path: str, tables: Sequence[tuple[str, ArrowArrayExportable]]

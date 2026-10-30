@@ -11,7 +11,7 @@ from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.conventions.relion import relion4_bundle
 from rexlib_metadata.conventions.star import StarReader, StarWriter
 from rexlib_metadata.registry import global_registry
-from rexlib_metadata.result import RawResult, ReadResult
+from rexlib_metadata.result import Chunk, RawResult, ReadResult
 
 __version__: str = _version()
 
@@ -41,4 +41,4 @@ def read(
     return global_registry.read(path, columns=columns, bundle=bundle)
 
 
-__all__ = ["RawResult", "ReadResult", "__version__", "read"]
+__all__ = ["Chunk", "RawResult", "ReadResult", "__version__", "read"]

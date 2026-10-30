@@ -71,7 +71,7 @@ invariants at the end of this file already bind what gets written.
 | `python/rexlib_metadata/convention.py` | The convention interfaces and the bundles that group them |
 | `python/rexlib_metadata/canonical.py` | The canonical columns as traits and tables, from `docs/canonical.md` |
 | `python/rexlib_metadata/conventions/` | One module per format: its reader, and what its names mean |
-| `python/rexlib_metadata/result.py` | `ReadResult`, a file in canonical terms, and `RawResult`, the same file in its own |
+| `python/rexlib_metadata/result.py` | `ReadResult`, a file in canonical terms, `RawResult`, the same file in its own, and `Chunk`, rows of one table already read |
 | `python/rexlib_metadata/_rexlib.pyi` | Stubs for the compiled module |
 | `tests/python/` | pytest suites, with their sample files in `fixtures/` |
 | `docs/` | Design notes and roadmap: everything too specific for this file |

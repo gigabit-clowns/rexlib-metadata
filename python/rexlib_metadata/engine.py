@@ -48,6 +48,15 @@ def read_canonical(
     return _assemble(covered, schema, rows)
 
 
+def fills(
+    raw: RawTable,
+    bundles: Iterable[ConventionBundle],
+    schema: TableSchema,
+) -> bool:
+    """Say whether this one raw table can fill every required column."""
+    return _can_fill(schema, _declared_by(schema, raw, tuple(bundles)))
+
+
 def source_table(
     raw_tables: Iterable[RawTable],
     bundles: Iterable[ConventionBundle],
@@ -150,11 +159,7 @@ def _source_of(
     bundles: tuple[ConventionBundle, ...],
 ) -> RawTable | None:
     return next(
-        (
-            raw
-            for raw in raw_tables
-            if _can_fill(schema, _declared_by(schema, raw, bundles))
-        ),
+        (raw for raw in raw_tables if fills(raw, bundles, schema)),
         None,
     )
 

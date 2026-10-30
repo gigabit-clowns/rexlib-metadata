@@ -7,12 +7,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from rexlib_metadata._arrow import to_pyarrow_table, to_record_batch
-from rexlib_metadata._rexlib import _star_read_tables, _star_write
+from rexlib_metadata._rexlib import (
+    _star_read_chunks,
+    _star_read_tables,
+    _star_write,
+)
 from rexlib_metadata.abc import Reader, Writer
 from rexlib_metadata.convention import RawTable
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Set
+    from collections.abc import Iterable, Iterator, Set
 
 
 class StarReader(Reader):
@@ -33,6 +37,18 @@ class StarReader(Reader):
             RawTable.of(name, to_pyarrow_table(batch))
             for name, batch in _star_read_tables(path, set(columns))
         ]
+
+
+    def read_chunks(
+        self, path: str, size: int, columns: Set[str] | None = None
+    ) -> Iterator[tuple[int, RawTable]]:
+        """Read the blocks of `path` `size` rows at a time, as asked for."""
+        chunks = _star_read_chunks(path, size, columns)
+        try:
+            for name, ordinal, batch in chunks:
+                yield ordinal, RawTable.of(name, to_pyarrow_table(batch))
+        finally:
+            del chunks
 
 
 class StarWriter(Writer):

@@ -30,13 +30,19 @@ def test_a_batch_crosses_over_as_a_pyarrow_table():
 def test_chunks_cross_over_a_few_rows_at_a_time():
     chunks = list(_star_read_chunks(str(MINI), 2))
 
-    assert [name for name, _ in chunks] == ["particles", "particles"]
-    assert [to_pyarrow_table(c).num_rows for _, c in chunks] == [2, 1]
-    assert all(isinstance(c, ArrowArrayExportable) for _, c in chunks)
+    assert [name for name, _, _ in chunks] == ["particles", "particles"]
+    assert [to_pyarrow_table(c).num_rows for _, _, c in chunks] == [2, 1]
+    assert all(isinstance(c, ArrowArrayExportable) for _, _, c in chunks)
+
+
+def test_every_chunk_says_which_block_it_came_from():
+    chunks = list(_star_read_chunks(str(MINI), 2))
+
+    assert [ordinal for _, ordinal, _ in chunks] == [0, 0]
 
 
 def test_chunks_carry_only_the_columns_asked_for():
-    (_, chunk), = _star_read_chunks(str(MINI), 10, {"_rlnAngleTilt"})
+    ((_, _, chunk),) = _star_read_chunks(str(MINI), 10, {"_rlnAngleTilt"})
 
     assert to_pyarrow_table(chunk).column_names == ["_rlnAngleTilt"]
 

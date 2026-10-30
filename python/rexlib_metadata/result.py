@@ -13,6 +13,7 @@ import pyarrow as pa
 
 from rexlib_metadata.convention import RawTable
 from rexlib_metadata.engine import (
+    fills,
     produced_tables,
     read_canonical,
     source_columns,
@@ -21,7 +22,7 @@ from rexlib_metadata.engine import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Set
+    from collections.abc import Callable, Iterable, Iterator, Set
 
     import pandas as pd
     import polars as pl
@@ -75,9 +76,7 @@ class RawResult:
 
     def to_polars(self) -> pl.DataFrame:
         """Read the file, if it has not been read, and return it as polars."""
-        import polars as pl  # noqa: PLC0415
-
-        return cast("pl.DataFrame", pl.from_arrow(self._one()))
+        return _as_polars(self._one())
 
     def tables(self) -> tuple[RawTable, ...]:
         """Read the file, if it has not been read, and return every table."""
@@ -88,6 +87,12 @@ class RawResult:
     def reread(self) -> tuple[RawTable, ...]:
         """Read the file again and return every table, keeping none of them."""
         return tuple(self._reader.read_tables(self._path))
+
+    def chunks(
+        self, size: int, columns: Set[str] | None = None
+    ) -> Iterator[tuple[int, RawTable]]:
+        """Read the file `size` rows at a time, as its reader streams it."""
+        return self._reader.read_chunks(self._path, size, columns)
 
     def read_keeping(self, columns: Set[str]) -> tuple[RawTable, ...]:
         """Read the file again, keeping only the raw `columns` of it."""
@@ -117,6 +122,36 @@ class RawResult:
         result = RawResult(self._path, self._reader, self._registry)
         result._tables = tables
         return result
+
+
+class Chunk:
+    """Rows of one canonical table, already read."""
+
+    def __init__(self, name: str, table: pa.Table) -> None:
+        """Hold the rows under the canonical table name they belong to."""
+        self._name = name
+        self._table = table
+
+    @property
+    def name(self) -> str:
+        """The canonical table these rows belong to."""
+        return self._name
+
+    def __len__(self) -> int:
+        """How many rows this chunk holds."""
+        return self._table.num_rows
+
+    def to_arrow(self) -> pa.Table:
+        """Return the rows as the Arrow table they already are."""
+        return self._table
+
+    def to_pandas(self) -> pd.DataFrame:
+        """Return the rows as pandas."""
+        return self._table.to_pandas()
+
+    def to_polars(self) -> pl.DataFrame:
+        """Return the rows as polars."""
+        return _as_polars(self._table)
 
 
 class ReadResult:
@@ -153,12 +188,17 @@ class ReadResult:
         return self._names(self._raw_tables())
 
     def __getitem__(self, name: str) -> ReadResult:
-        """Return a result over the one canonical table called `name`."""
-        names = self.names
-        if name not in names:
+        """Return a result over the one canonical table called `name`.
+
+        The name is checked against the schema and nothing is read: a
+        table the schema declares and this file does not fill is an error
+        when the rows are asked for, which is the moment that knows.
+        """
+        if name not in self._schema:
+            declared = ", ".join(repr(table.name) for table in self._schema)
             raise KeyError(
-                f"{self._raw.path} fills no canonical table '{name}'; it "
-                f"fills {', '.join(repr(n) for n in names)}"
+                f"No canonical table is called '{name}'; the ones there are "
+                f"are {declared}"
             )
         return ReadResult(
             self._raw, self._bundles, self._schema, name, self._columns
@@ -170,9 +210,64 @@ class ReadResult:
 
     def to_polars(self) -> pl.DataFrame:
         """Read the file, if it has not been read, and return it as polars."""
-        import polars as pl  # noqa: PLC0415
+        return _as_polars(self._one())
 
-        return cast("pl.DataFrame", pl.from_arrow(self._one()))
+    def chunks(self, size: int) -> Iterator[Chunk]:
+        """Read this result's canonical table `size` rows at a time.
+
+        The file opens when iteration starts and closes when it ends, so a
+        file larger than memory reads in bounded memory. A result that has
+        not been narrowed to one canonical table raises: name the one you
+        mean, as `result[name]`.
+        """
+        if self._table is None:
+            raise ValueError(
+                f"{self._raw.path} would be read a chunk at a time without "
+                "saying which canonical table to read; name it, as "
+                "result[name]"
+            )
+        return self._chunks_of(self._schema[self._table], size)
+
+    def _chunks_of(
+        self, schema: TableSchema, size: int
+    ) -> Iterator[Chunk]:
+        stream = self._raw.chunks(size, self._raw_columns())
+        ordinal, first = self._first_filling(stream, schema)
+        yield self._chunk(schema, first)
+        for at, raw in stream:
+            if at != ordinal:
+                return
+            yield self._chunk(schema, raw)
+
+    def _first_filling(
+        self,
+        stream: Iterator[tuple[int, RawTable]],
+        schema: TableSchema,
+    ) -> tuple[int, RawTable]:
+        wanted = (
+            (at, raw)
+            for at, raw in stream
+            if fills(raw, self._bundles, schema)
+        )
+        found = next(wanted, None)
+        if found is None:
+            raise ValueError(
+                f"No convention fills canonical table '{schema.name}' from "
+                f"{self._raw.path}; read the file's own columns through "
+                ".raw, or pass a bundle of your own as bundle="
+            )
+        return found
+
+    def _chunk(self, schema: TableSchema, raw: RawTable) -> Chunk:
+        table = read_canonical([raw], self._bundles, schema)
+        if self._columns is None:
+            return Chunk(schema.name, table)
+        return Chunk(schema.name, _projected(table, self._columns, schema))
+
+    def _raw_columns(self) -> frozenset[str] | None:
+        if self._columns is None:
+            return None
+        return source_columns(self._columns, self._bundles, self._schema)
 
     def write(
         self,
@@ -248,22 +343,22 @@ class ReadResult:
         }
 
     def _raw_tables(self) -> tuple[RawTable, ...]:
-        if self._columns is None:
+        columns = self._raw_columns()
+        if columns is None:
             return self._raw.tables()
-        return self._raw.read_keeping(
-            source_columns(self._columns, self._bundles, self._schema)
-        )
+        return self._raw.read_keeping(columns)
 
     def _names(self, raw_tables: tuple[RawTable, ...]) -> tuple[str, ...]:
-        if self._table is not None:
-            return (self._table,)
         filled = produced_tables(raw_tables, self._bundles, self._schema)
+        if self._table is not None:
+            return (self._table,) if self._table in filled else ()
         if self._columns is None:
             return filled
-        return tuple(
-            name
-            for name in filled
-            if any(column in self._schema[name] for column in self._columns)
+        return tuple(name for name in filled if self._shows(name))
+
+    def _shows(self, name: str) -> bool:
+        return any(
+            column in self._schema[name] for column in self._columns or ()
         )
 
     def _canonical(
@@ -294,6 +389,12 @@ class ReadResult:
             f"{', '.join(repr(n) for n in names)}; name the one you mean, "
             "as result[name]"
         )
+
+
+def _as_polars(table: pa.Table) -> pl.DataFrame:
+    import polars as pl  # noqa: PLC0415
+
+    return cast("pl.DataFrame", pl.from_arrow(table))
 
 
 def _check_declared(columns: tuple[str, ...] | None, schema: Schema) -> None:
