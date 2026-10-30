@@ -143,10 +143,10 @@ def test_only_the_columns_asked_for_cross_over(tmp_path):
 
 
 def test_a_result_of_more_than_one_table_asks_which_one(tmp_path):
-    path = file_of(tmp_path, block("particles", 3))
+    result = rxm.read(file_of(tmp_path, block("particles", 3)))
 
     with pytest.raises(ValueError, match=r"result\[name\]"):
-        rxm.read(path).chunks(2)
+        result.chunks(2)
 
 
 def test_only_the_block_that_fills_the_table_is_read(tmp_path):
@@ -169,8 +169,10 @@ def test_a_table_no_convention_fills_says_so(tmp_path):
         raw, [ConventionBundle("none")], SCHEMA, "particles"
     )
 
+    stream = narrowed.chunks(2)
+
     with pytest.raises(ValueError, match="No convention fills"):
-        next(narrowed.chunks(2))
+        next(stream)
 
 
 def test_the_stream_is_closed_when_it_runs_out():

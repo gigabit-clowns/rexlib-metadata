@@ -76,9 +76,7 @@ class RawResult:
 
     def to_polars(self) -> pl.DataFrame:
         """Read the file, if it has not been read, and return it as polars."""
-        import polars as pl  # noqa: PLC0415
-
-        return cast("pl.DataFrame", pl.from_arrow(self._one()))
+        return _as_polars(self._one())
 
     def tables(self) -> tuple[RawTable, ...]:
         """Read the file, if it has not been read, and return every table."""
@@ -153,9 +151,7 @@ class Chunk:
 
     def to_polars(self) -> pl.DataFrame:
         """Return the rows as polars."""
-        import polars as pl  # noqa: PLC0415
-
-        return cast("pl.DataFrame", pl.from_arrow(self._table))
+        return _as_polars(self._table)
 
 
 class ReadResult:
@@ -214,9 +210,7 @@ class ReadResult:
 
     def to_polars(self) -> pl.DataFrame:
         """Read the file, if it has not been read, and return it as polars."""
-        import polars as pl  # noqa: PLC0415
-
-        return cast("pl.DataFrame", pl.from_arrow(self._one()))
+        return _as_polars(self._one())
 
     def chunks(self, size: int) -> Iterator[Chunk]:
         """Read this result's canonical table `size` rows at a time.
@@ -395,6 +389,12 @@ class ReadResult:
             f"{', '.join(repr(n) for n in names)}; name the one you mean, "
             "as result[name]"
         )
+
+
+def _as_polars(table: pa.Table) -> pl.DataFrame:
+    import polars as pl  # noqa: PLC0415
+
+    return cast("pl.DataFrame", pl.from_arrow(table))
 
 
 def _check_declared(columns: tuple[str, ...] | None, schema: Schema) -> None:
