@@ -16,11 +16,17 @@ pub(crate) struct ArrowSink {
     chunk_size: Option<NonZeroUsize>,
     keep: Option<HashSet<String>>,
     block: Option<OpenBlock>,
-    chunks: VecDeque<(String, RecordBatch)>,
+    blocks: usize,
+    chunks: VecDeque<Chunk>,
 }
+
+/// A batch, the name of the block it came from, and which block that was:
+/// two blocks of one name are told apart by nothing else.
+pub(crate) type Chunk = (String, usize, RecordBatch);
 
 struct OpenBlock {
     name: String,
+    ordinal: usize,
     kept: Vec<bool>,
     columns: Vec<String>,
     builders: Vec<StringBuilder>,
@@ -39,12 +45,15 @@ impl ArrowSink {
         }
     }
 
-    pub(crate) fn pop(&mut self) -> Option<(String, RecordBatch)> {
+    pub(crate) fn pop(&mut self) -> Option<Chunk> {
         self.chunks.pop_front()
     }
 
     pub(crate) fn into_tables(self) -> Vec<(String, RecordBatch)> {
-        self.chunks.into()
+        self.chunks
+            .into_iter()
+            .map(|(name, _, batch)| (name, batch))
+            .collect()
     }
 
     fn opened(&self, name: &str, columns: &[String]) -> OpenBlock {
@@ -60,6 +69,7 @@ impl ArrowSink {
             .collect();
         OpenBlock {
             name: name.to_string(),
+            ordinal: self.blocks,
             kept,
             builders: builders_for(&columns),
             columns,
@@ -75,7 +85,8 @@ impl ArrowSink {
         let builders = std::mem::replace(&mut block.builders, builders_for(&block.columns));
         let batch = record_batch(&block.columns, builders, std::mem::take(&mut block.rows))?;
         block.cut = true;
-        self.chunks.push_back((block.name.clone(), batch));
+        self.chunks
+            .push_back((block.name.clone(), block.ordinal, batch));
         Ok(())
     }
 
@@ -90,6 +101,7 @@ impl ArrowSink {
 impl Sink for ArrowSink {
     fn open(&mut self, name: &str, columns: &[String]) {
         self.block = Some(self.opened(name, columns));
+        self.blocks += 1;
     }
 
     fn row(&mut self, values: &[String]) -> Result<(), Error> {
@@ -115,6 +127,7 @@ impl Sink for ArrowSink {
     fn close(&mut self, name: String, columns: Vec<String>) -> Result<(), Error> {
         if self.block.is_none() {
             self.block = Some(self.opened(&name, &columns));
+            self.blocks += 1;
         }
         if self
             .block
@@ -162,7 +175,7 @@ pub(crate) fn build_record_batch(
         sink.row(row)?;
     }
     sink.close(String::new(), column_names.to_vec())?;
-    Ok(sink.pop().expect("a closed block is a batch").1)
+    Ok(sink.pop().expect("a closed block is a batch").2)
 }
 
 pub(crate) fn rows_of_record_batch(

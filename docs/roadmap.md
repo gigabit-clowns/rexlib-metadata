@@ -134,10 +134,19 @@ of several tables asks which one rather than handing back the last.
 - [x] `Reader.read_tables_keeping(path, columns)`, not abstract, falling
       back to `read_tables`; `StarReader` overrides it over the Rust path,
       and `columns=` reaches it as the raw names the engine computes
-- [ ] `StarReader.read_chunks()` over the Rust streaming path
-- [ ] `ReadResult.chunks(size) -> Iterator[ReadResult]`, opening at the start
-      of iteration and closing at its end
-- [ ] Tests: a ≥100k row file, row count preserved, handle closed afterwards
+- [x] `Reader.read_chunks(path, size, columns)`, not abstract, falling back
+      to slicing a whole read; `StarReader` overrides it over the Rust
+      streaming path. Each chunk carries the ordinal of its block, which is
+      what tells two blocks of one name apart
+- [x] `ReadResult.chunks(size) -> Iterator[Chunk]`, opening at the start of
+      iteration and closing at its end. `Chunk` is rows already read, with
+      `name`, `len()`, `to_arrow()`, `to_pandas()` and `to_polars()` and
+      nothing a chunk cannot do
+- [x] Naming a canonical table reads nothing, so chunking a file reads it
+      once and holds no table of it
+- [x] Tests: a 100k row file, row count preserved, the chunks reassembling
+      into the whole read, and the stream closed when it runs out and when
+      it is abandoned
 
 ## Phase 6 — Multi-table and CD
 

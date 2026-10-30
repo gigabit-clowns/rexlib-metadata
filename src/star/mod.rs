@@ -10,7 +10,7 @@ use std::num::NonZeroUsize;
 
 use crate::error::Error;
 use crate::text::Token;
-use crate::text::builder::ArrowSink;
+use crate::text::builder::{ArrowSink, Chunk};
 use crate::text::parser::{Parser, parse_blocks};
 
 type Tokenize = fn(&str, &str, usize) -> Result<Vec<Token>, Error>;
@@ -49,7 +49,7 @@ impl Chunks {
 }
 
 impl Iterator for Chunks {
-    type Item = Result<(String, RecordBatch), Error>;
+    type Item = Result<Chunk, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while !self.done {
@@ -94,7 +94,7 @@ mod tests {
         read_tables(file.path().to_str().unwrap(), None).unwrap_err()
     }
 
-    fn chunks(content: &str, size: usize, columns: Option<&[&str]>) -> Vec<(String, RecordBatch)> {
+    fn chunks(content: &str, size: usize, columns: Option<&[&str]>) -> Vec<Chunk> {
         let file = written(content.as_bytes());
         let keep = columns.map(|names| names.iter().map(ToString::to_string).collect());
         Chunks::open(
@@ -107,10 +107,10 @@ mod tests {
         .unwrap()
     }
 
-    fn shape(chunks: &[(String, RecordBatch)]) -> Vec<(&str, usize)> {
+    fn shape(chunks: &[Chunk]) -> Vec<(&str, usize)> {
         chunks
             .iter()
-            .map(|(name, batch)| (name.as_str(), batch.num_rows()))
+            .map(|(name, _, batch)| (name.as_str(), batch.num_rows()))
             .collect()
     }
 
@@ -139,6 +139,37 @@ mod tests {
     }
 
     #[test]
+    fn every_chunk_of_one_block_carries_its_ordinal() {
+        let read = chunks(&numbered(25), 10, None);
+
+        let ordinals: Vec<usize> = read.iter().map(|(_, at, _)| *at).collect();
+
+        assert_eq!(ordinals, [0, 1, 1, 1]);
+    }
+
+    #[test]
+    fn two_blocks_of_one_name_are_told_apart_by_their_ordinal() {
+        let read = chunks(
+            "data_p
+loop_
+_x
+1
+
+data_p
+loop_
+_x
+2
+",
+            10,
+            None,
+        );
+
+        assert_eq!(shape(&read), [("p", 1), ("p", 1)]);
+        assert_eq!(read[0].1, 0);
+        assert_eq!(read[1].1, 1);
+    }
+
+    #[test]
     fn a_block_of_an_exact_multiple_leaves_no_empty_chunk() {
         let read = chunks(&numbered(20), 10, None);
 
@@ -153,7 +184,7 @@ mod tests {
         let read = chunks("data_optics\n\ndata_p\nloop_\n_x\n", 10, None);
 
         assert_eq!(shape(&read), [("optics", 0), ("p", 0)]);
-        assert_eq!(read[1].1.num_columns(), 1);
+        assert_eq!(read[1].2.num_columns(), 1);
     }
 
     #[test]
@@ -164,8 +195,8 @@ mod tests {
 
         let rows: Vec<Vec<String>> = read
             .iter()
-            .filter(|(name, _)| name == "particles")
-            .flat_map(|(_, batch)| rows_of_record_batch(batch).unwrap().1)
+            .filter(|(name, _, _)| name == "particles")
+            .flat_map(|(_, _, batch)| rows_of_record_batch(batch).unwrap().1)
             .collect();
 
         assert_eq!(rows, rows_of_record_batch(&whole[1].1).unwrap().1);
@@ -183,10 +214,10 @@ mod tests {
                 .map(|field| field.name().clone())
                 .collect()
         };
-        assert_eq!(names(&read[0].1), Vec::<String>::new());
-        assert_eq!(read[0].1.num_rows(), 1);
-        assert_eq!(names(&read[1].1), ["_y"]);
-        assert_eq!(rows_of_record_batch(&read[1].1).unwrap().1[2], ["a3"]);
+        assert_eq!(names(&read[0].2), Vec::<String>::new());
+        assert_eq!(read[0].2.num_rows(), 1);
+        assert_eq!(names(&read[1].2), ["_y"]);
+        assert_eq!(rows_of_record_batch(&read[1].2).unwrap().1[2], ["a3"]);
     }
 
     #[test]
@@ -199,7 +230,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(read.next().unwrap().unwrap().1.num_rows(), 2);
+        assert_eq!(read.next().unwrap().unwrap().2.num_rows(), 2);
         assert!(matches!(
             read.next(),
             Some(Err(Error::Parse { line: 6, .. }))

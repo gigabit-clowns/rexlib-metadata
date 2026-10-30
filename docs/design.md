@@ -302,6 +302,29 @@ yet covered applies.
 Required canonical columns that no convention produced are an error at the
 end of the read, not a column of nulls.
 
+**A chunk is its own type** — decided on 2026-10-30. `ReadResult.chunks()`
+yields a `Chunk`: rows already read, with `name`, `len()`, `to_arrow()`,
+`to_pandas()` and `to_polars()`. Not a `ReadResult`, which the roadmap had
+proposed and which would have had to lie twice — its contract is that no row
+is read until something materialises, and that `write()` writes the whole
+file, and a chunk is rows in hand that cannot write a whole file. Not a
+DataFrame either: every result in this API offers pandas and polars without
+privileging one, and a `chunks()` that returned pandas would need a second
+method or a parameter that changes its own return type.
+
+**Naming a canonical table reads nothing** — decided on 2026-10-30, because
+otherwise chunking is a lie. `result[name]` used to ask which tables the file
+filled, which read the file whole and held it; a 500k-row file then took
+three and a half seconds and stayed in memory before the first chunk arrived.
+The name is now checked against the schema, and a table the schema declares
+and the file does not fill is an error when the rows are asked for — the
+moment that knows.
+
+**A chunk carries the ordinal of its block** — decided on 2026-10-30. Two
+blocks of one name are told apart by nothing else, and a canonical table is
+filled from one of them, so the stream has to say when the source block ended
+rather than running on into the next one of the same name.
+
 **The destination chooses the write convention** — decided on 2026-10-28.
 Reading picks the bundle from the source's extension; writing picks it from
 the destination's, so `read("a.star").write("b.xmd")` converts and nothing

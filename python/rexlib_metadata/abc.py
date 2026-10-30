@@ -10,7 +10,9 @@ from typing import TYPE_CHECKING
 from rexlib_metadata.convention import RawTable
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Set
+    from collections.abc import Iterable, Iterator, Set
+
+    import pyarrow as pa
 
 
 class Reader(ABC):
@@ -40,6 +42,34 @@ class Reader(ABC):
             )
             for table in self.read_tables(path)
         ]
+
+    def read_chunks(
+        self, path: str, size: int, columns: Set[str] | None = None
+    ) -> Iterator[tuple[int, RawTable]]:
+        """Read the file at `path` `size` rows at a time.
+
+        Each chunk comes with the ordinal of the table it belongs to, which
+        is what tells two tables of one name apart. A table of no rows is
+        one empty chunk. `columns` is raw names, as the file spells them, or
+        None for all of them. This reads the whole file and slices it; a
+        reader that can stream overrides it.
+        """
+        tables = (
+            self.read_tables(path)
+            if columns is None
+            else self.read_tables_keeping(path, columns)
+        )
+        for ordinal, table in enumerate(tables):
+            for piece in _sliced(table.table, size):
+                yield ordinal, RawTable.of(table.schema.table_name, piece)
+
+
+def _sliced(table: pa.Table, size: int) -> Iterator[pa.Table]:
+    if not table.num_rows:
+        yield table
+        return
+    for start in range(0, table.num_rows, size):
+        yield table.slice(start, size)
 
 
 class Writer(ABC):

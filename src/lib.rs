@@ -66,12 +66,14 @@ impl StarChunks {
         slf
     }
 
-    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<(String, PyRecordBatch)>> {
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<(String, usize, PyRecordBatch)>> {
         let Some(chunks) = self.chunks.as_mut() else {
             return Ok(None);
         };
         match py.detach(|| chunks.next()) {
-            Some(Ok((name, batch))) => Ok(Some((name, PyRecordBatch::new(batch)))),
+            Some(Ok((name, ordinal, batch))) => {
+                Ok(Some((name, ordinal, PyRecordBatch::new(batch))))
+            }
             Some(Err(error)) => {
                 self.chunks = None;
                 Err(to_python_error(error))

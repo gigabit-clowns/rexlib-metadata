@@ -28,7 +28,8 @@ Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 - **Read STAR files** to Pandas or Polars DataFrames with a single call
 - **Write them back** — `result.write(path)` spells the canonical columns the way the destination format does, carrying over whatever no convention covers; `result.raw.write(path)` writes the file's own names untouched
 - **The file's own names too** — `result.raw` is the same read as the format wrote it, every value a string, for when the format is what you are working on
-- **Lazy I/O** — `rxm.read()` returns immediately with no file I/O; data is only loaded when you call `to_pandas()` or `to_polars()`
+- **Lazy I/O** — `rxm.read()` returns immediately with no file I/O, and so does naming a table; data is only loaded when you call `to_pandas()`, `to_polars()` or `chunks()`
+- **Bounded memory** — `result["particles"].chunks(10_000)` streams a file larger than memory, parsing only the columns asked for
 - **Extensible** — plug in custom readers and conventions by subclassing Python ABCs; no Rust required
 - **Fast core** — parsing and Arrow serialization in Rust via PyO3 + Maturin
 
@@ -85,6 +86,25 @@ result["particles"].to_pandas()
 
 A file of one table needs no name. A file of several asks for one rather
 than picking.
+
+### A file larger than memory
+
+```python
+result = rxm.read("run_data.star")
+
+for chunk in result["particles"].chunks(10_000):
+    df = chunk.to_pandas()     # ten thousand rows at a time
+    ...
+```
+
+The file opens when the iteration starts and closes when it ends. Naming the
+table reads nothing, so the file is read once and no table of it is kept.
+A chunk carries `name`, `len()`, `to_arrow()`, `to_pandas()` and
+`to_polars()` — and nothing a chunk cannot do, so there is no `write()` on
+it.
+
+`columns=` and chunking compose: a projected chunked read parses only the
+columns the projection needs.
 
 ### The file's own names
 
