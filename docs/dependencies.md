@@ -20,6 +20,11 @@ stay off, two crates that move as one, and the pins that are split in half.
 drops fifteen crates from the lockfile, which is wheel size and build time
 for one line.
 
+`pyo3-arrow` is taken with `default-features = false` too. Its one default,
+`buffer_protocol`, exports Arrow buffers through Python's buffer protocol,
+which this crate never does, and which is outside the stable ABI before 3.11.
+Without it the wheel is abi3 from 3.10, one per platform.
+
 Do not enable arrow's `pyarrow` feature. It pulls in `arrow-pyarrow`, which
 pins an older pyo3 and conflicts with `pyo3-arrow`; `pyo3-arrow` is the only
 bridge needed, and the two together do not build.

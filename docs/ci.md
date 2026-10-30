@@ -9,6 +9,7 @@ that touches something other than documentation, and on demand. A second push
 to the same ref cancels the run in flight.
 
 `keep-caches-warm.yml` runs every morning, and on a change to itself.
+`release.yml` is described under [Release](#release).
 
 | Job | Does |
 |---|---|
@@ -159,11 +160,30 @@ run instead of being quietly rewritten inside it; the gate script uses `[[`;
 and fourteen `pytest.raises` blocks hold one call each, which is what they
 meant to assert.
 
+## Release
+
+`release.yml` builds the source distribution, and from it a wheel per
+platform with cibuildwheel: Linux and macOS on x86_64 and arm64, Windows on
+x86_64. Building from the source distribution rather than the checkout proves
+the distribution builds. Each wheel is abi3 from 3.10, so one serves every
+interpreter, and cibuildwheel runs `pytest` against it on 3.10 to 3.14.
+
+It runs on a pull request that changes packaging, on a push to `main` that
+changes what is packaged, on a `v*` tag, and on demand. A push to `main`
+replaces the `development` prerelease with what it built. The PyPI job,
+through trusted publishing and so without a token, stays off until the
+package name is settled in
+[#40](https://github.com/gigabit-clowns/rexlib-metadata/issues/40).
+
+None of the organisation's composites fits: they cache C++ builds and set up
+MSVC. Its `release.yml` tags from a `VERSION` file, and the version here
+lives in `Cargo.toml`; tagging waits on the name as well.
+
 ## What is not here
 
 Coverage, CodeQL, and the scanner-based Sonar analysis that would carry
 coverage and the clippy report are
 [#39](https://github.com/gigabit-clowns/rexlib-metadata/issues/39), scheduled
-for after Phase 2. Publishing is
+for after Phase 2. Publishing to PyPI is
 [#40](https://github.com/gigabit-clowns/rexlib-metadata/issues/40). Neither
 is an absence to reproduce elsewhere.
