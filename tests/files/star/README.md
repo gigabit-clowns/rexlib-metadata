@@ -5,9 +5,12 @@ Files no hand of ours wrote, which is the only kind that can contradict us.
 rule and that cover cases the format allows but no file here happens to
 contain.
 
-All eight come from [teamtomo/starfile](https://github.com/teamtomo/starfile),
-`tests/data/`, under the BSD 3-Clause licence kept beside them in `LICENSE`,
-copyright 2020 Alister Burt. Two carry a Relion banner and were written by it; the rest were written by
+Eight come from [teamtomo/starfile](https://github.com/teamtomo/starfile),
+`tests/data/`, and `relion3.1_subtomo.star` from
+[alisterburt/dynamo2m](https://github.com/alisterburt/dynamo2m),
+`test_data/relion_star_downgrade/relion3.1.star` at `b5669b5`. Both are under
+the same BSD 3-Clause licence, kept beside them in `LICENSE`, copyright 2020
+Alister Burt. Two carry a Relion banner and were written by it; the rest were written by
 that project to pin its own behaviour — which is still not us agreeing with
 ourselves.
 
@@ -21,6 +24,7 @@ ourselves.
 | `loop_single_quote.star` | starfile | Values in single quotes |
 | `single_line_middle_of_multiblock.star` | starfile | Two one-row loops, the second behind a comment |
 | `empty_loop.star` | starfile | `data_` with no name, a column, and no rows |
+| `relion3.1_subtomo.star` | Relion 3.1 | 57 subtomograms of the HIV tutorial, with shifts in Ångström on three axes |
 
 ## What they found
 
@@ -34,5 +38,4 @@ They also settled two things no amount of reading the standard would have:
 no tag in any of these files carries more than one value, and no block mixes
 tags with a loop. Both are now errors rather than guesses.
 
-`tests/python/test_real_star_files.py` asserts what each of the eight
-produces.
+`tests/python/test_real_star_files.py` asserts what each of them produces.

@@ -49,6 +49,20 @@ def test_every_canonical_table_becomes_its_own_block(tmp_path):
         )
 
 
+def test_a_shift_is_written_as_relion_spells_it(tmp_path):
+    source = rxm.read(str(FILES / "relion3.1_subtomo.star"))
+    particles = source["particles"]
+    moved = particles.to_pandas()
+    moved["shift_x"] += 1.5
+    out = tmp_path / "out.star"
+
+    particles.write(str(out), updates=moved[["shift_x"]])
+    raw = rxm.read(str(out)).raw["particles"].to_pandas()
+
+    assert float(raw["_rlnOriginXAngst"][0]) == pytest.approx(3.947427 + 1.5)
+    assert raw["_rlnOriginZAngst"][1] == "1.947427"
+
+
 def test_a_column_no_convention_writes_is_carried_over(tmp_path):
     source, again = written("one_loop.star", tmp_path)
 

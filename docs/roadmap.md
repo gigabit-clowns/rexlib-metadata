@@ -181,6 +181,8 @@ each argued from a real file in `docs/formats.md`.
 
 ## Phase 7 — XMD
 
+- [x] Canonical shifts, in Ångström, read and written through Relion's
+      `_rlnOrigin{X,Y,Z}Angst`; Relion 3.0's pixels wait on the optics join
 - [ ] An Xmipp `ConventionBundle`
 - [ ] `.xmd` registered to `StarReader` with that bundle
 - [ ] Tests over real `.xmd` files
