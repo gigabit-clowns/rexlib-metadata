@@ -101,5 +101,5 @@ jobs:
       - name: Install the package
         run: 'pip install --only-binary :all: --no-deps dist/*.whl'
 
-      - name: Read a million rows through each
-        run: python -m scripts.compare --rows 1000000 >> "$GITHUB_STEP_SUMMARY"
+      - name: Read ten million rows through each
+        run: python -m scripts.compare --rows 10000000 >> "$GITHUB_STEP_SUMMARY"

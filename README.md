@@ -22,16 +22,17 @@ Reading and writing STAR files through Relion's conventions is what works today,
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/performance-dark.svg">
-  <img alt="Reading a million-row Relion STAR file to pandas, best of three: rexlib-metadata raw 1.42 s, canonical 1.94 s, starfile-rs 2.87 s, starfile 6.83 s" src="docs/assets/performance-light.svg">
+  <img alt="Reading 10 million Relion particles to pandas, best of three: rexlib-metadata raw 13.79 s, canonical 18.67 s, starfile-rs 28.89 s, starfile 68.52 s" src="docs/assets/performance-light.svg">
 </picture>
 
 The canonical read is the fair comparison: like starfile and
 [starfile-rs](https://github.com/hanjinliu/starfile-rs), it hands back
-numbers, and it does so 3.5× and 1.5× faster than they do. The raw read
-does less — every value stays text, as the file wrote it — so part of its
-lead is work it does not do.
+numbers, and it does so 3.7× and 1.5× faster than they do: on ten million
+particles, the size a few days of collection pick, that is 50 s and 10 s
+less per read. The raw read does less — every value stays text, as the file
+wrote it — so part of its lead is work it does not do.
 
-The chart is one run of `python -m scripts.compare --rows 1000000 --svg`,
+The chart is one run of `python -m scripts.compare --rows 10000000 --svg`,
 which generates the file, times each read and draws it again.
 Every pull request is also benchmarked through
 [CodSpeed](https://codspeed.io/gigabit-clowns/rexlib-metadata), which counts

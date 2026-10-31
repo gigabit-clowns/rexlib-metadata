@@ -2,7 +2,7 @@
 
 """Time one read of a large STAR file here and in starfile and starfile-rs.
 
-    python -m scripts.compare --rows 1000000 --svg
+    python -m scripts.compare --rows 10000000 --svg
 
 Prints a Markdown table of the best of `--repeat` runs of each and, with
 `--svg`, draws it into `docs/assets` as a light and a dark bar chart for
@@ -55,7 +55,6 @@ READS: dict[str, Callable[[Path], object]] = {
     "starfile-rs": _starfile_rs,
 }
 
-TITLE = "Reading a million-row Relion STAR file to pandas"
 ASSETS = Path(__file__).resolve().parent.parent / "docs" / "assets"
 
 
@@ -72,7 +71,7 @@ def best_of(read: Callable[[Path], object], path: Path, repeat: int) -> float:
 def main() -> None:
     """Generate the file, time each read, print the table."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--rows", type=int, default=1_000_000)
+    parser.add_argument("--rows", type=int, default=10_000_000)
     parser.add_argument("--repeat", type=int, default=3)
     parser.add_argument(
         "--svg", action="store_true", help="draw the charts into docs/assets"
@@ -94,13 +93,21 @@ def main() -> None:
             f"python -m scripts.compare · {datetime.date.today()} · "
             f"{platform.system()}, Python {platform.python_version()}"
         )
-        _draw(bars, caption)
+        title = f"Reading {_count(args.rows)} Relion particles to pandas"
+        _draw(bars, title, caption)
 
 
-def _draw(bars: list[Bar], caption: str) -> None:
+def _count(rows: int) -> str:
+    """Say a row count as a reader would: 10 million, not 10,000,000."""
+    if rows % 1_000_000 == 0:
+        return f"{rows // 1_000_000} million"
+    return f"{rows:,}"
+
+
+def _draw(bars: list[Bar], title: str, caption: str) -> None:
     ASSETS.mkdir(parents=True, exist_ok=True)
     for name, theme in (("light", LIGHT), ("dark", DARK)):
-        chart = svg(bars, TITLE, caption, theme)
+        chart = svg(bars, title, caption, theme)
         (ASSETS / f"performance-{name}.svg").write_text(
             chart, encoding="utf-8", newline="\n"
         )

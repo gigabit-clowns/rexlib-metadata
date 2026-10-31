@@ -22,6 +22,7 @@ TOP = 92
 PITCH = 44
 BAR = 24
 RADIUS = 4
+MOST_TICKS = 8
 FONT = "-apple-system, Segoe UI, Helvetica, Arial, sans-serif"
 
 
@@ -80,7 +81,8 @@ class _Ink:
 def svg(bars: list[Bar], title: str, caption: str, theme: Theme) -> str:
     """Return the whole chart as an SVG document."""
     bars = sorted(bars, key=lambda bar: bar.seconds)
-    scale = math.ceil(max(bar.seconds for bar in bars))
+    step = _step(max(bar.seconds for bar in bars))
+    scale = step * math.ceil(max(bar.seconds for bar in bars) / step)
     height = TOP + PITCH * len(bars) + 56
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" '
@@ -90,7 +92,7 @@ def svg(bars: list[Bar], title: str, caption: str, theme: Theme) -> str:
         f'fill="{theme.surface}"/>',
         _text(24, 36, title, _Ink(theme.primary, 17, weight=600)),
         _text(24, 60, "Seconds, lower is better", _Ink(theme.secondary, 13)),
-        *_grid(scale, len(bars), theme),
+        *_grid(scale, step, len(bars), theme),
         *(_bar(row, bar, scale, theme) for row, bar in enumerate(bars)),
         _text(24, height - 20, caption, _Ink(theme.muted, 12)),
         "</svg>",
@@ -102,11 +104,21 @@ def _x(seconds: float, scale: int) -> float:
     return PLOT_LEFT + (PLOT_RIGHT - PLOT_LEFT) * seconds / scale
 
 
-def _grid(scale: int, rows: int, theme: Theme) -> list[str]:
+def _step(longest: float) -> int:
+    """Return the tick spacing, 1, 2 or 5 times a power of ten, that fits."""
+    for power in range(6):
+        for base in (1, 2, 5):
+            step = base * 10**power
+            if math.ceil(longest / step) <= MOST_TICKS:
+                return step
+    return 10**6
+
+
+def _grid(scale: int, step: int, rows: int, theme: Theme) -> list[str]:
     bottom = TOP + PITCH * rows - (PITCH - BAR) / 2
     tick = _Ink(theme.muted, 12, anchor="middle")
     lines = []
-    for second in range(scale + 1):
+    for second in range(0, scale + 1, step):
         x = _x(second, scale)
         lines.append(
             f'<line x1="{x:.1f}" y1="{TOP - 6}" x2="{x:.1f}" '
