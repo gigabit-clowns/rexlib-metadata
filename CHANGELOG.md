@@ -1,6 +1,17 @@
 Nothing has been released yet. This is what the first release will say.
 
 ### Fixed
+- Writing a file in its own format keeps the blocks no canonical table
+  covers; it dropped them, and wrote an empty file over a source such as
+  `postprocess.star`. A write that would hold nothing now raises.
+- A change in `updates=` that no convention writes raises; it was dropped
+  and the value read was written in its place.
+- `.sqlite` and `.db`, one writer, count as one format, so a write between
+  them keeps every column.
+- A missing number is written empty and read back as missing; the read
+  failed on it.
+- Relion's and Xmipp's angles are read one by one, so a 2D classification's
+  in-plane angle alone comes back as `angle_psi`.
 - A file with a data block that is announced and left empty reads, instead of
   failing the whole file.
 - A `#` inside a value is part of the value, as the format says; only one

@@ -128,4 +128,4 @@ def test_a_format_with_an_optics_table_keeps_it_apart(tmp_path):
 
     rxm.read(str(STAR / "relion3.1_subtomo.star")).write(str(out))
 
-    assert rxm.read(str(out)).raw.names == ("particles", "optics")
+    assert rxm.read(str(out)).raw.names == ("optics", "particles")

@@ -78,7 +78,9 @@ caller has to hear about it. Sentinels — Xmipp's `-999` and its kin — are
 knowledge about a format, so they are translated by the read convention that
 knows them and written back by the write convention, and the core never
 learns they exist. `ColumnDescriptor.default` is a different thing: it covers
-a column the file does not carry at all.
+a column the file does not carry at all. An empty value of a typed column
+is not such a token: it is the null itself, as a text format that has no
+other spelling for one writes it, and it reads back as null.
 
 **Forwarding re-reads the source** (2026-10-18). A projection reads only the
 columns asked for. `write(path, updates=df)` streams the source again and
@@ -376,6 +378,16 @@ meant to filter rows. Towards another format nothing is carried: a Relion
 label inside an Xmipp file would be noise. This is the column half of the
 forwarding of Phase 4; the other half, doing it a chunk at a time rather than
 a file at a time, is still that phase's.
+
+Revised on 2026-10-31, after a review found the write losing data. The
+same format is the same writer, its class and its configuration, rather
+than the same suffix: `.sqlite` and `.db` are one format, `.star` and the
+`.xmd` that StarWriter writes with Xmipp's header two. A block no canonical
+table covers is carried over the same way, whole and in the file's order,
+since dropping it emptied `postprocess.star` written over itself, and a write
+that would hold nothing raises rather than replace a file with nothing. A
+column of `updates` that no write convention consumes raises too, rather
+than leave the value read in its place.
 
 One raw table fills one canonical table — decided on 2026-10-27. The engine
 takes the first raw table, in the order the file holds them, whose matching

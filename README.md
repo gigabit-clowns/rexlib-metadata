@@ -251,10 +251,14 @@ rxm.read("particles.star").write("particles.xmd")
 XMD has no optics table, so the optics are joined into each particle's row
 on the way, and written as far as Xmipp's conventions spell them.
 
-A column no convention writes — `_rlnCtfImage` and its kind — is carried over
-untouched when the destination is the format the result was read from, so
-filtering rows and writing them back loses nothing. Numbers are written as
-short as they can be while reading back exactly: `587.0` goes out as `587`.
+A column no convention writes — `_rlnCtfImage` and its kind — and a block no
+canonical table covers are carried over untouched when the destination is
+the format the result was read from, so filtering rows and writing them back
+loses nothing. The same format is the same writer: `.sqlite` and `.db` are
+one, `.star` and `.xmd` two. A write that would hold nothing raises rather
+than leave an empty file. Numbers are written as short as they can be while
+reading back exactly: `587.0` goes out as `587`, and a missing one is
+written empty and read back as missing.
 
 Read only the columns you need, change them, and the write carries the rest:
 

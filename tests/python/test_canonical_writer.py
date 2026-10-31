@@ -42,7 +42,7 @@ def test_every_canonical_table_becomes_its_own_block(tmp_path):
     source, again = written("rln3.1_data_style.star", tmp_path)
 
     assert again.names == ("particles", "optics")
-    assert again.raw.names == ("particles", "optics")
+    assert again.raw.names == ("optics", "particles", "block_3")
     for name in source.names:
         pd.testing.assert_frame_equal(
             source[name].to_pandas(), again[name].to_pandas()
