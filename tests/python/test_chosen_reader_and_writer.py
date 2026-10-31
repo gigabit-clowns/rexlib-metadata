@@ -53,8 +53,10 @@ def test_a_named_reader_without_conventions_fills_nothing(tmp_path):
 
 
 def test_an_unregistered_extension_without_a_reader_still_raises(tmp_path):
+    path = unregistered(tmp_path)
+
     with pytest.raises(ValueError, match="No reader registered"):
-        rxm.read(unregistered(tmp_path))
+        rxm.read(path)
 
 
 def test_a_named_writer_writes_the_raw_tables(tmp_path):
