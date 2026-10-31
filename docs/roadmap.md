@@ -183,9 +183,15 @@ each argued from a real file in `docs/formats.md`.
 
 - [x] Canonical shifts, in Ångström, read and written through Relion's
       `_rlnOrigin{X,Y,Z}Angst`; Relion 3.0's pixels wait on the optics join
-- [ ] An Xmipp `ConventionBundle`
-- [ ] `.xmd` registered to `StarReader` with that bundle
-- [ ] Tests over real `.xmd` files
+- [x] An Xmipp `ConventionBundle`: the image reference and the angles, which
+      is what the real files hold
+- [x] `.xmd` registered to `StarReader` with that bundle, and to a
+      `StarWriter` that writes the `# XMIPP_STAR_1 *` line first
+- [x] Tests over real `.xmd` files, from `I2PC/testDataSym`
+- [ ] The micrograph, the coordinates, the CTF and the shifts, once a real
+      `.xmd` holding them is under `tests/files/xmd/`
+- [ ] Optics joined per row, so that a Relion file with `data_optics`
+      converts to `.xmd`, which has no optics table; today that write raises
 
 ## Phase 8 — SQLite
 

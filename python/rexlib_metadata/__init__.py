@@ -11,16 +11,21 @@ from rexlib_metadata.abc import Reader
 from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.conventions.relion import relion4_bundle
 from rexlib_metadata.conventions.star import StarReader, StarWriter
+from rexlib_metadata.conventions.xmipp import HEADER, xmipp_bundle
 from rexlib_metadata.registry import global_registry
 from rexlib_metadata.result import Chunk, RawResult, ReadResult
 
 __version__: str = _version()
 
 _STAR = (".star",)
+_XMD = (".xmd",)
 
 global_registry.register_reader(_STAR, StarReader())
 global_registry.register_writer(_STAR, StarWriter())
 global_registry.register_bundle(_STAR, relion4_bundle())
+global_registry.register_reader(_XMD, StarReader())
+global_registry.register_writer(_XMD, StarWriter(header=HEADER))
+global_registry.register_bundle(_XMD, xmipp_bundle())
 
 
 def read(

@@ -51,7 +51,7 @@ class ImageReference(_Renaming):
     def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
         """Split the reference, counting from zero where Relion counts one."""
         parts = pc.extract_regex(
-            table.column("_rlnImageName"), _IMAGE_REFERENCE
+            table.column(self.source_columns[0]), _IMAGE_REFERENCE
         )
         written = pc.struct_field(parts, "index")
         one_based = pc.cast(
@@ -198,7 +198,7 @@ class WriteImageReference(_Spelling):
         """Count from one where the canonical form counts from zero."""
         one_based = pc.add(canonical["image_index"], pa.scalar(1, pa.int64()))
         return {
-            "_rlnImageName": pc.binary_join_element_wise(  # type: ignore[call-overload]
+            self.target_columns[0]: pc.binary_join_element_wise(  # type: ignore[call-overload]
                 _padded(one_based), canonical["image_path"], pa.scalar("@")
             )
         }

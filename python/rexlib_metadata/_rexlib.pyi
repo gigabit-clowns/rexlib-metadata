@@ -16,5 +16,7 @@ class StarChunks(Iterator[tuple[str, int, ArrowArrayExportable]]):
     def __next__(self) -> tuple[str, int, ArrowArrayExportable]: ...
 
 def _star_write(
-    path: str, tables: Sequence[tuple[str, ArrowArrayExportable]]
+    path: str,
+    tables: Sequence[tuple[str, ArrowArrayExportable]],
+    header: str | None = None,
 ) -> None: ...
