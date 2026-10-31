@@ -125,7 +125,7 @@ def test_updates_of_another_length_raise(tmp_path):
     result = rxm.read(str(FILES / "one_loop.star"), columns=["angle_rot"])
     df = result.to_pandas().head(1)
 
-    with pytest.raises(ValueError, match="filtered frame"):
+    with pytest.raises(ValueError, match="one per row rows= keeps"):
         result.write(str(tmp_path / "out.star"), updates=df)
 
 
