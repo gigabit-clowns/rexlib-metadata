@@ -3,20 +3,25 @@
 """Time reading and writing a large STAR file here, in starfile and starfile-rs.
 
     python -m scripts.compare --rows 10000000 --svg
+    python -m scripts.compare --svg --measure memory
 
-Prints a Markdown table of the best of `--repeat` runs of each and, with
-`--svg`, draws both into `docs/assets` as light and dark bar charts for the
-README. A write starts from what a read left in memory, and is timed alone,
-except where saying so in its name. This is a comparison to write down, not
-a gate: their releases move it, and CI's benchmarks watch only our own
-numbers.
+Prints a Markdown table of the best of `--repeat` runs of each, or with
+`--measure memory` the peak memory of each in a process of its own, and
+with `--svg` draws them into `docs/assets` as light and dark bar charts for
+the README. A write starts from what a read left in memory: it is timed
+alone, but its peak is the read's and the write's together. This is a
+comparison to write down, not a gate: their releases move it, and CI's
+benchmarks watch only our own numbers.
 """
 
 from __future__ import annotations
 
 import argparse
 import datetime
+import importlib
 import platform
+import subprocess
+import sys
 import tempfile
 import time
 from functools import partial
@@ -28,7 +33,8 @@ import starfile_rs
 
 import rexlib_metadata as rxm
 from benchmarks.generate import write
-from scripts.chart import DARK, LIGHT, Bar, svg
+from scripts.chart import DARK, GIB, LIGHT, SECONDS, Bar, Measure, svg
+from scripts.memory import peak_bytes
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -42,6 +48,12 @@ def _read_ours_raw(path: Path) -> object:
 
 def _read_ours_canonical(path: Path) -> object:
     return rxm.read(str(path))["particles"].to_pandas()
+
+
+def _read_ours_chunks(path: Path) -> object:
+    for chunk in rxm.read(str(path))["particles"].chunks(100_000):
+        chunk.to_pandas()
+    return None
 
 
 def _read_starfile(path: Path) -> object:
@@ -86,6 +98,7 @@ def _write_starfile_rs(path: Path, out: Path) -> Action:
 READS: dict[str, Callable[[Path, Path], Action]] = {
     "rexlib-metadata, raw (all text)": _reading(_read_ours_raw),
     "rexlib-metadata, canonical": _reading(_read_ours_canonical),
+    "rexlib-metadata, chunks of 100k": _reading(_read_ours_chunks),
     "starfile": _reading(_read_starfile),
     "starfile-rs": _reading(_read_starfile_rs),
 }
@@ -98,7 +111,10 @@ WRITES: dict[str, Callable[[Path, Path], Action]] = {
     "starfile, from pandas": _write_starfile,
 }
 
-ASSETS = Path(__file__).resolve().parent.parent / "docs" / "assets"
+OPERATIONS = {"read": READS, "write": WRITES}
+HEADINGS = {"read": "Read to pandas", "write": "Write a STAR file"}
+ROOT = Path(__file__).resolve().parent.parent
+ASSETS = ROOT / "docs" / "assets"
 
 
 def best_of(action: Action, repeat: int) -> float:
@@ -111,47 +127,94 @@ def best_of(action: Action, repeat: int) -> float:
     return min(times)
 
 
-def measure(
-    heading: str,
-    operations: dict[str, Callable[[Path, Path], Action]],
-    path: Path,
-    repeat: int,
-) -> list[Bar]:
-    """Time each operation over `path`, print the table, return the bars."""
-    print(f"\n| {heading} | Seconds |\n|---|---|")
+def time_each(kind: str, path: Path, repeat: int) -> list[Bar]:
+    """Time each operation of `kind` over `path`, print the table."""
+    print(f"\n| {HEADINGS[kind]} | Seconds |\n|---|---|")
     bars = []
-    for name, prepare in operations.items():
+    for name, prepare in OPERATIONS[kind].items():
         seconds = best_of(prepare(path, path.with_name("out.star")), repeat)
         bars.append(Bar(name, seconds, name.startswith("rexlib")))
         print(f"| {name} | {seconds:.2f} |")
     return bars
 
 
+def peak_of_each(kind: str, path: Path, _: int) -> list[Bar]:
+    """Measure each operation's peak memory in a process of its own."""
+    print(f"\n| {HEADINGS[kind]} | Peak GiB |\n|---|---|")
+    bars = []
+    for name in OPERATIONS[kind]:
+        command = [sys.executable, "-m", "scripts.compare", "--child", kind]
+        child = subprocess.run(
+            [*command, name, str(path)],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=ROOT,
+        )
+        gib = int(child.stdout) / 2**30
+        bars.append(Bar(name, gib, name.startswith("rexlib")))
+        print(f"| {name} | {gib:.2f} |")
+    return bars
+
+
+def child(kind: str, name: str, path: Path) -> None:
+    """Run one operation and print how far it raised this process's peak."""
+    importlib.import_module("pandas")
+    before = peak_bytes()
+    OPERATIONS[kind][name](path, path.with_name(f"out-{kind}.star"))()
+    print(peak_bytes() - before)
+
+
+MEASURES = {
+    "time": (time_each, SECONDS, "", "best of {repeat}"),
+    "memory": (peak_of_each, GIB, "-memory", "peak memory, a process each"),
+}
+
+
 def main() -> None:
-    """Generate the file, time each read and write, print the tables."""
+    """Generate the file, measure each read and write, print the tables."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--rows", type=int, default=10_000_000)
     parser.add_argument("--repeat", type=int, default=3)
+    parser.add_argument("--measure", choices=MEASURES, default="time")
     parser.add_argument(
         "--svg", action="store_true", help="draw the charts into docs/assets"
     )
+    parser.add_argument("--child", nargs=3, help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.child:
+        kind, name, path = args.child
+        child(kind, name, Path(path))
+        return
+    run, unit, suffix, how = MEASURES[args.measure]
     with tempfile.TemporaryDirectory() as directory:
         path = write(Path(directory) / "particles.star", args.rows)
         size = path.stat().st_size / 2**20
-        print(f"{args.rows} rows, {size:.0f} MiB, best of {args.repeat}")
-        reads = measure("Read to pandas", READS, path, args.repeat)
-        writes = measure("Write a STAR file", WRITES, path, args.repeat)
+        how = how.format(repeat=args.repeat)
+        print(f"{args.rows} rows, {size:.0f} MiB, {how}")
+        bars = {kind: run(kind, path, args.repeat) for kind in OPERATIONS}
     if args.svg:
         caption = (
-            f"{args.rows:,} rows, {size:.0f} MiB, best of {args.repeat} · "
+            f"{args.rows:,} rows, {size:.0f} MiB, {how} · "
             f"python -m scripts.compare · {datetime.date.today()} · "
             f"{platform.system()}, Python {platform.python_version()}"
         )
-        count = _count(args.rows)
-        reading = f"Reading {count} Relion particles to pandas"
-        _draw("read", reads, reading, caption)
-        _draw("write", writes, f"Writing {count} Relion particles", caption)
+        _draw_both(bars, _count(args.rows), caption, unit, suffix)
+
+
+def _draw_both(
+    bars: dict[str, list[Bar]],
+    count: str,
+    caption: str,
+    unit: Measure,
+    suffix: str,
+) -> None:
+    titles = {
+        "read": f"Reading {count} Relion particles to pandas",
+        "write": f"Writing {count} Relion particles",
+    }
+    for kind, title in titles.items():
+        _draw(f"{kind}{suffix}", bars[kind], title, caption, unit)
 
 
 def _count(rows: int) -> str:
@@ -161,10 +224,12 @@ def _count(rows: int) -> str:
     return f"{rows:,}"
 
 
-def _draw(kind: str, bars: list[Bar], title: str, caption: str) -> None:
+def _draw(
+    kind: str, bars: list[Bar], title: str, caption: str, unit: Measure
+) -> None:
     ASSETS.mkdir(parents=True, exist_ok=True)
     for name, theme in (("light", LIGHT), ("dark", DARK)):
-        chart = svg(bars, title, caption, theme)
+        chart = svg(bars, title, caption, theme, unit)
         (ASSETS / f"performance-{kind}-{name}.svg").write_text(
             chart, encoding="utf-8", newline="\n"
         )

@@ -43,9 +43,28 @@ columns, the canonical write is 6× faster than starfile-rs and 8× faster
 than starfile writing from pandas — and it reads the source again on the
 way, so that every column of the file reaches the destination.
 
-Both charts are one run of `python -m scripts.compare --rows 10000000
---svg`, which generates the file, times each read and write and draws them
-again. Every pull request is also benchmarked through
+Memory, which ten million particles make as pressing as time:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/performance-read-memory-dark.svg">
+  <img alt="Peak memory reading 10 million Relion particles to pandas: rexlib-metadata in chunks of 100k 0.19 GiB, raw 4.53 GiB, canonical 4.93 GiB, starfile-rs 8.60 GiB, starfile 18.74 GiB" src="docs/assets/performance-read-memory-light.svg">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/performance-write-memory-dark.svg">
+  <img alt="Peak memory writing 10 million Relion particles: rexlib-metadata raw as read 2.97 GiB, canonical rereading the source 5.87 GiB, starfile-rs as read 9.60 GiB, starfile-rs from pandas 11.33 GiB, starfile from pandas 18.61 GiB" src="docs/assets/performance-write-memory-light.svg">
+</picture>
+
+A whole canonical read holds 3.8× less than starfile and 1.7× less than
+starfile-rs. Read a chunk at a time, the same ten million particles take
+0.19 GiB, in about the time of a whole read: a file larger than the
+machine's memory reads as easily as a small one. A write's peak counts the
+read it starts from.
+
+The charts are runs of `python -m scripts.compare --rows 10000000 --svg`,
+for time, and of the same with `--measure memory`, each operation in a
+process of its own; they generate the file, measure each read and write and
+draw them again. Every pull request is also benchmarked through
 [CodSpeed](https://codspeed.io/gigabit-clowns/rexlib-metadata), which counts
 instructions rather than seconds, against `main`.
 
