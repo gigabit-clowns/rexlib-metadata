@@ -8,6 +8,7 @@ import pyarrow as pa
 
 from rexlib_metadata.schema import (
     ColumnDescriptor,
+    Relation,
     Schema,
     SchemaTrait,
     TableSchema,
@@ -99,4 +100,8 @@ OPTICS = TableSchema(
     SAMPLING,
 )
 
-SCHEMA = Schema(PARTICLES, OPTICS)
+SCHEMA = Schema(
+    PARTICLES,
+    OPTICS,
+    relations=(Relation("particles", "optics", "optics_group"),),
+)

@@ -89,13 +89,12 @@ What a microscope and a detector were doing. Relion 3.1 and later keep it in
 `data_optics`; cryoSPARC and Xmipp repeat it per particle, and the read puts
 it back into a table of its own.
 
-Resolving it per row, which the principles above promise, is not done. A read
-of a Relion file gives `particles` and `optics` as two tables, joined by
-`optics_group` and nothing more: one raw table fills one canonical table, so
-the engine will not reach into the optics block while filling the particles,
-and the convention that would do it has no way to ask for a second table yet.
-That is the join this file has always said was open, now pinned to the rule
-that keeps it honest in the meantime.
+The canonical form keeps it apart: a read of a Relion file gives `particles`
+and `optics`, and the schema declares the relation between them,
+`Relation("particles", "optics", "optics_group")`. `result.joined("particles")`
+resolves it per row, each particle gaining the columns of its group, which is
+the flat table the principles above promise. A write to a format with no
+optics table, as XMD, joins them the same way before its conventions run.
 
 | Column | Type | Unit | Required |
 |---|---|---|---|

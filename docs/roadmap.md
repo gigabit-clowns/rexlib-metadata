@@ -190,8 +190,11 @@ each argued from a real file in `docs/formats.md`.
 - [x] Tests over real `.xmd` files, from `I2PC/testDataSym`
 - [ ] The micrograph, the coordinates, the CTF and the shifts, once a real
       `.xmd` holding them is under `tests/files/xmd/`
-- [ ] Optics joined per row, so that a Relion file with `data_optics`
-      converts to `.xmd`, which has no optics table; today that write raises
+- [x] Optics joined per row: a `Relation` on the schema, `result.joined()`,
+      and a write to a format with no optics table, as `.xmd`, joining them
+      into the particles
+- [ ] A read convention that needs a joined column, as Relion 3.0's
+      `_rlnOriginX` in pixels needs the optics' pixel size
 
 ## Phase 8 — SQLite
 

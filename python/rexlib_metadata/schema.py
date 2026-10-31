@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -105,16 +105,60 @@ class TableSchema:
         return f"TableSchema({self.name!r}, {len(self)} columns)"
 
 
+@dataclass(frozen=True)
+class Relation:
+    """Each row of `table` points, by `key`, at one row of `related`."""
+
+    table: str
+    related: str
+    key: str
+
+
 class Schema:
     """One or more canonical tables, as a multi-table file produces."""
 
-    def __init__(self, *tables: TableSchema) -> None:
-        """Hold the tables given, which may not repeat a name."""
+    def __init__(
+        self, *tables: TableSchema, relations: Iterable[Relation] = ()
+    ) -> None:
+        """Hold the tables given, which may not repeat a name.
+
+        Each relation names two of them, both declaring its key and no
+        other column in common, so joining one into the other loses
+        nothing.
+        """
         self._tables: dict[str, TableSchema] = {}
         for table in tables:
             if table.name in self._tables:
                 raise ValueError(f"Table '{table.name}' is declared twice")
             self._tables[table.name] = table
+        self._relations = tuple(relations)
+        for relation in self._relations:
+            self._check(relation)
+
+    def relations_of(self, name: str) -> tuple[Relation, ...]:
+        """Return the relations by which table `name` points at another."""
+        return tuple(r for r in self._relations if r.table == name)
+
+    def related_to(self, name: str) -> tuple[Relation, ...]:
+        """Return the relations by which another table points at `name`."""
+        return tuple(r for r in self._relations if r.related == name)
+
+    def _check(self, relation: Relation) -> None:
+        table = self[relation.table]
+        related = self[relation.related]
+        if relation.key not in table or relation.key not in related:
+            raise ValueError(
+                f"{relation} joins on '{relation.key}', which both tables "
+                "have to declare"
+            )
+        shared = {c.name for c in table.columns} & {
+            c.name for c in related.columns
+        }
+        if shared != {relation.key}:
+            raise ValueError(
+                f"{relation} would join two tables that also share "
+                f"{', '.join(repr(n) for n in sorted(shared - {relation.key}))}"
+            )
 
     def __getitem__(self, name: str) -> TableSchema:
         """Return the table called `name`, or raise if there is none."""
