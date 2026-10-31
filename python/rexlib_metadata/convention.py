@@ -16,7 +16,10 @@ ArrowColumn = pa.Array | pa.ChunkedArray
 
 @dataclass(frozen=True)
 class RawSchema:
-    """One table's shape, as the file declares it."""
+    """One table's shape, as the file declares it.
+
+    `table_name` is `""` for a table the file does not name.
+    """
 
     table_name: str
     column_names: tuple[str, ...]

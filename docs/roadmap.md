@@ -171,8 +171,8 @@ each argued from a real file in `docs/formats.md`.
 - [x] `read` grows named arguments for the reader and the bundle, since a
       generic container — `.csv`, `.db`, `.h5` — cannot have its dialect
       guessed from its extension. `write` grew `writer=` with it
-- [ ] A decision on `RawSchema.table_name` for a format that names no table,
-      which `.par` is the first of
+- [x] A decision on `RawSchema.table_name` for a format that names no table,
+      which `.par` is the first of: `""`, as STAR's bare `data_` already was
 - [x] Real STAR files under `tests/files/star/`, with their provenance and
       licence. All eight read: the three that did not were #41, which they
       are what settled

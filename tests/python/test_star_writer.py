@@ -93,3 +93,15 @@ def test_a_destination_that_cannot_be_opened_raises(tmp_path):
 
     with pytest.raises(OSError, match="no_such_directory"):
         source.write(str(tmp_path / "no_such_directory" / "out.star"))
+
+
+def test_a_table_with_no_name_is_an_anonymous_block(tmp_path):
+    out = tmp_path / "out.star"
+    table = RawTable.of("", pa.table({"_rlnCoordinateX": ["1.0"]}))
+
+    StarWriter().write_tables(str(out), [table])
+    again = rxm.read(str(out)).raw
+
+    assert out.read_text().splitlines()[0] == "data_"
+    assert again.names == ("",)
+    assert len(again[""].to_pandas()) == 1
