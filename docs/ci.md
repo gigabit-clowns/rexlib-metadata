@@ -193,7 +193,10 @@ builds this package's wheel, and pip installs that wheel with `--no-deps`.
 The comparison with starfile and starfile-rs is not a benchmark: their
 releases would move it. `python -m scripts.compare` times one read of ten
 million rows through each — the size of a few days' picking — and the same
-workflow runs it on demand, writing the table to the job summary.
+workflow runs it on demand, writing the table to the job summary. With
+`--measure memory` it reports each operation's peak memory instead, every
+one in a process of its own, from the operating system's count, since
+Arrow and Rust allocate where `tracemalloc` does not look.
 
 ## Release
 
