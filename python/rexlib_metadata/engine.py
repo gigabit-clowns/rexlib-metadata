@@ -93,6 +93,21 @@ def write_canonical(
     return produced
 
 
+def written_from(
+    columns: Iterable[str],
+    bundles: Iterable[ConventionBundle],
+    schema: TableSchema,
+) -> set[str]:
+    """Return the canonical columns a write of `columns` would consume."""
+    present = set(columns)
+    return {
+        name
+        for _, convention in _stores(tuple(bundles), schema)
+        if all(column in present for column in convention.source_columns)
+        for name in convention.source_columns
+    }
+
+
 def _stores(
     bundles: tuple[ConventionBundle, ...], schema: TableSchema
 ) -> Iterator[tuple[ConventionBundle, WriteConvention]]:

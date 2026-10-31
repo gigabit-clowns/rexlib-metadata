@@ -92,10 +92,10 @@ And it settles two arguments that were theoretical until the file arrived:
   canonical angles. The read convention that owns it declares one source and
   three targets, which is exactly the shape `ReadConvention` already has.
 - **A null has no spelling.** STAR separates values by whitespace, so an
-  absent value is written as `""` and reads back as an empty string, not as a
-  null. The canonical form's "missing is null" survives a read and does not
-  survive a write to a text format, which is the format's limit rather than
-  a decision.
+  absent value is written as `""`. A typed column reads `""` back as null,
+  so a missing number survives the round trip; a text column cannot tell an
+  empty string from a null, which is the format's limit rather than a
+  decision.
 - **Units are not decoration.** Radians where we chose degrees, pixels where
   we chose Ångström, and in the CSV both `angast_deg` *and* `angast_rad` as
   separate columns. The unit belongs on the column, as `ColumnDescriptor`

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -20,6 +21,7 @@ from rexlib_metadata.engine import (
     source_columns,
     source_table,
     write_canonical,
+    written_from,
 )
 from rexlib_metadata.join import joined
 
@@ -164,6 +166,15 @@ class Chunk:
     def to_polars(self) -> pl.DataFrame:
         """Return the rows as polars."""
         return _as_polars(self._table)
+
+
+@dataclass(frozen=True)
+class _Plan:
+    source: tuple[RawTable, ...]
+    bundles: tuple[ConventionBundle, ...]
+    changed: dict[str, pa.Table | pd.DataFrame | pl.DataFrame]
+    same_format: bool
+    folds: dict[str, tuple[Relation, ...]]
 
 
 class ReadResult:
@@ -370,10 +381,12 @@ class ReadResult:
         extension, the way a read takes them from the source's, unless
         `writer` or `bundle` names the one to write through. The source is
         read again by the reader it was read with. A column of the file
-        that no convention writes is carried over untouched when the
-        destination is the format the result was read from, and left out
-        when it is not. The file is written beside the destination and
-        moved over it at the end.
+        that no convention writes, and a block no canonical table covers,
+        are carried over untouched when the destination's writer is the
+        source's, and left out when it is not. A column of `updates` that
+        no write convention consumes raises, and so does a write that
+        would hold nothing. The file is written beside the destination
+        and moved over it at the end.
         """
         registry = self._raw.registry
         if writer is None:
@@ -381,25 +394,52 @@ class ReadResult:
         bundles = (
             (bundle,) if bundle is not None else registry.bundles_for(path)
         )
+        same_format = _same_writer(writer, _writer_of(registry, self._raw.path))
         source, changed = self._source(updates, rows)
+        tables = self._written(source, bundles, changed, same_format)
+        if not tables:
+            raise ValueError(
+                f"Nothing of {self._raw.path} would reach {path}: no "
+                "convention of the destination writes any of its tables"
+            )
+        _replace(path, lambda temporary: writer.write_tables(temporary, tables))
+
+    def _written(
+        self,
+        source: tuple[RawTable, ...],
+        bundles: tuple[ConventionBundle, ...],
+        changed: dict[str, pa.Table | pd.DataFrame | pl.DataFrame],
+        same_format: bool,
+    ) -> list[RawTable]:
         names = produced_tables(source, self._bundles, self._schema)
         folds = self._folds(names, bundles)
-        folded = {r.related for relations in folds.values() for r in relations}
-        tables = [
-            RawTable.of(
-                name,
-                self._file_table(
-                    name,
-                    source,
-                    bundles,
-                    path,
-                    self._to_write(name, source, changed.get(name), folds),
-                ),
-            )
+        plan = _Plan(source, bundles, changed, same_format, folds)
+        filling = self._filling(source, names)
+        folded = _folded(folds)
+        blocks = (
+            self._block(raw, filling.get(id(raw)), plan)
+            for raw in source
+            if filling.get(id(raw)) not in folded
+        )
+        return [block for block in blocks if block is not None]
+
+    def _filling(
+        self, source: tuple[RawTable, ...], names: tuple[str, ...]
+    ) -> dict[int, str]:
+        return {
+            id(source_table(source, self._bundles, self._schema[name])): name
             for name in names
-            if name not in folded
-        ]
-        _replace(path, lambda temporary: writer.write_tables(temporary, tables))
+        }
+
+    def _block(
+        self, raw: RawTable, name: str | None, plan: _Plan
+    ) -> RawTable | None:
+        if name is None:
+            return raw if plan.same_format else None
+        updates = plan.changed.get(name)
+        canonical = self._to_write(name, plan.source, updates, plan.folds)
+        _check_written(canonical, updates, plan.bundles, self._schema[name])
+        return RawTable.of(name, self._file_table(name, plan, canonical))
 
     def _source(
         self,
@@ -427,16 +467,12 @@ class ReadResult:
         return tuple(kept if raw is filling else raw for raw in source)
 
     def _file_table(
-        self,
-        name: str,
-        source: tuple[RawTable, ...],
-        bundles: tuple[ConventionBundle, ...],
-        path: str,
-        canonical: pa.Table,
+        self, name: str, plan: _Plan, canonical: pa.Table
     ) -> pa.Table:
         table = self._schema[name]
-        columns = write_canonical(canonical, bundles, table)
-        columns.update(self._carried_over(source, table, columns, path))
+        columns = write_canonical(canonical, plan.bundles, table)
+        if plan.same_format:
+            columns.update(self._carried_over(plan.source, table, columns))
         return pa.table(list(columns.values()), names=list(columns))
 
     def _to_write(
@@ -479,11 +515,8 @@ class ReadResult:
         raw_tables: tuple[RawTable, ...],
         table: TableSchema,
         written: dict[str, ArrowColumn],
-        path: str,
     ) -> dict[str, ArrowColumn]:
         """Return the columns of the table the read drew on, minus `written`."""
-        if Path(path).suffix.lower() != Path(self._raw.path).suffix.lower():
-            return {}
         source = source_table(raw_tables, self._bundles, table)
         if source is None:
             return {}
@@ -610,6 +643,42 @@ def _merged(
         else:
             canonical = canonical.append_column(name, column)
     return canonical
+
+
+def _folded(folds: dict[str, tuple[Relation, ...]]) -> set[str]:
+    return {r.related for relations in folds.values() for r in relations}
+
+
+def _writer_of(registry: MetadataRegistry, path: str) -> Writer | None:
+    try:
+        return registry.writer_for(path)
+    except ValueError:
+        return None
+
+
+def _same_writer(writer: Writer, other: Writer | None) -> bool:
+    return writer is other or (
+        type(writer) is type(other) and vars(writer) == vars(other)
+    )
+
+
+def _check_written(
+    canonical: pa.Table,
+    updates: pa.Table | pd.DataFrame | pl.DataFrame | None,
+    bundles: tuple[ConventionBundle, ...],
+    schema: TableSchema,
+) -> None:
+    if updates is None:
+        return
+    consumed = written_from(canonical.column_names, bundles, schema)
+    given = _as_arrow(updates).column_names
+    lost = [name for name in given if name not in consumed]
+    if lost:
+        raise ValueError(
+            f"updates holds {', '.join(repr(name) for name in lost)}, which "
+            f"no convention writes from table '{schema.name}' as it stands, "
+            "so the change would not reach the file"
+        )
 
 
 def _positions(rows: Rows, count: int, table: str) -> pa.Array:

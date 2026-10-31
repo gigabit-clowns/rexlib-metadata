@@ -34,7 +34,7 @@ class _Renaming(ReadConvention):
     def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
         """Return each source column under its canonical name, cast."""
         return {
-            canonical: pc.cast(table.column(source), self.dtype)
+            canonical: parsed(table.column(source), self.dtype)
             for source, canonical in zip(
                 self.source_columns, self.target_columns, strict=True
             )
@@ -79,11 +79,25 @@ class CoordinateZ(_Renaming):
     target_columns = ("coord_z",)
 
 
-class EulerAngles(_Renaming):
-    """Relion's three ZYZ angles, already in degrees."""
+class AngleRot(_Renaming):
+    """The first of Relion's ZYZ angles, in degrees."""
 
-    source_columns = ("_rlnAngleRot", "_rlnAngleTilt", "_rlnAnglePsi")
-    target_columns = ("angle_rot", "angle_tilt", "angle_psi")
+    source_columns = ("_rlnAngleRot",)
+    target_columns = ("angle_rot",)
+
+
+class AngleTilt(_Renaming):
+    """The second of Relion's ZYZ angles, in degrees."""
+
+    source_columns = ("_rlnAngleTilt",)
+    target_columns = ("angle_tilt",)
+
+
+class AnglePsi(_Renaming):
+    """The in-plane angle, which a 2D classification carries on its own."""
+
+    source_columns = ("_rlnAnglePsi",)
+    target_columns = ("angle_psi",)
 
 
 class Origin(_Renaming):
@@ -150,8 +164,8 @@ class ImageSize(_Renaming):
     def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
         """Return the box edge as an integer, and the dimensionality."""
         return {
-            "image_size": pc.cast(table.column("_rlnImageSize"), pa.int64()),
-            "image_dimensionality": pc.cast(
+            "image_size": parsed(table.column("_rlnImageSize"), pa.int64()),
+            "image_dimensionality": parsed(
                 table.column("_rlnImageDimensionality"), pa.int32()
             ),
         }
@@ -216,11 +230,25 @@ class WriteCoordinateZ(_Spelling):
     target_columns = ("_rlnCoordinateZ",)
 
 
-class WriteEulerAngles(_Spelling):
-    """Relion's three ZYZ angles, already in degrees."""
+class WriteAngleRot(_Spelling):
+    """The first of Relion's ZYZ angles, in degrees."""
 
-    source_columns = ("angle_rot", "angle_tilt", "angle_psi")
-    target_columns = ("_rlnAngleRot", "_rlnAngleTilt", "_rlnAnglePsi")
+    source_columns = ("angle_rot",)
+    target_columns = ("_rlnAngleRot",)
+
+
+class WriteAngleTilt(_Spelling):
+    """The second of Relion's ZYZ angles, in degrees."""
+
+    source_columns = ("angle_tilt",)
+    target_columns = ("_rlnAngleTilt",)
+
+
+class WriteAnglePsi(_Spelling):
+    """The in-plane angle, which a 2D classification carries on its own."""
+
+    source_columns = ("angle_psi",)
+    target_columns = ("_rlnAnglePsi",)
 
 
 class WriteOrigin(_Spelling):
@@ -287,6 +315,22 @@ class WriteImageSize(_Spelling):
     target_columns = ("_rlnImageSize", "_rlnImageDimensionality")
 
 
+def parsed(column: ArrowColumn, dtype: pa.DataType) -> ArrowColumn:
+    """Cast text to `dtype`, an empty value being a null.
+
+    A text format has no spelling for a null and writes it empty, so an
+    empty number is the null it was, not a value that fails to parse.
+    """
+    if pa.types.is_string(dtype):
+        return pc.cast(column, dtype)
+    return pc.cast(_empty_as_null(column), dtype)
+
+
+def _empty_as_null(column: ArrowColumn) -> ArrowColumn:
+    written = pc.not_equal(column, pa.scalar(""))
+    return pc.if_else(written, column, pa.scalar(None, pa.string()))
+
+
 def split_reference(
     reference: pa.ChunkedArray,
 ) -> tuple[ArrowColumn, ArrowColumn]:
@@ -326,7 +370,9 @@ def relion4_bundle() -> ConventionBundle:
                 MicrographName(),
                 Coordinates(),
                 CoordinateZ(),
-                EulerAngles(),
+                AngleRot(),
+                AngleTilt(),
+                AnglePsi(),
                 Origin(),
                 OriginZ(),
                 CtfMaxResolution(),
@@ -345,7 +391,9 @@ def relion4_bundle() -> ConventionBundle:
                 WriteMicrographName(),
                 WriteCoordinates(),
                 WriteCoordinateZ(),
-                WriteEulerAngles(),
+                WriteAngleRot(),
+                WriteAngleTilt(),
+                WriteAnglePsi(),
                 WriteOrigin(),
                 WriteOriginZ(),
                 WriteCtfMaxResolution(),

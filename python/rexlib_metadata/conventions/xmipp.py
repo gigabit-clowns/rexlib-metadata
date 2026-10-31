@@ -16,10 +16,22 @@ class ImageReference(relion.ImageReference):
     source_columns = ("_image",)
 
 
-class EulerAngles(relion.EulerAngles):
-    """Xmipp's three ZYZ angles, the same as Relion's, in degrees."""
+class AngleRot(relion.AngleRot):
+    """The first of Xmipp's ZYZ angles, the same as Relion's."""
 
-    source_columns = ("_angleRot", "_angleTilt", "_anglePsi")
+    source_columns = ("_angleRot",)
+
+
+class AngleTilt(relion.AngleTilt):
+    """The second of Xmipp's ZYZ angles, the same as Relion's."""
+
+    source_columns = ("_angleTilt",)
+
+
+class AnglePsi(relion.AnglePsi):
+    """Xmipp's in-plane angle, the same as Relion's."""
+
+    source_columns = ("_anglePsi",)
 
 
 class WriteImageReference(relion.WriteImageReference):
@@ -28,16 +40,37 @@ class WriteImageReference(relion.WriteImageReference):
     target_columns = ("_image",)
 
 
-class WriteEulerAngles(relion.WriteEulerAngles):
-    """Xmipp's three ZYZ angles, the same as Relion's, in degrees."""
+class WriteAngleRot(relion.WriteAngleRot):
+    """The first of Xmipp's ZYZ angles, the same as Relion's."""
 
-    target_columns = ("_angleRot", "_angleTilt", "_anglePsi")
+    target_columns = ("_angleRot",)
+
+
+class WriteAngleTilt(relion.WriteAngleTilt):
+    """The second of Xmipp's ZYZ angles, the same as Relion's."""
+
+    target_columns = ("_angleTilt",)
+
+
+class WriteAnglePsi(relion.WriteAnglePsi):
+    """Xmipp's in-plane angle, the same as Relion's."""
+
+    target_columns = ("_anglePsi",)
 
 
 def xmipp_bundle() -> ConventionBundle:
     """Return the conventions that read and write an Xmipp file."""
     return ConventionBundle(
         "xmipp",
-        read={"particles": [ImageReference(), EulerAngles()]},
-        write={"particles": [WriteImageReference(), WriteEulerAngles()]},
+        read={
+            "particles": [ImageReference(), AngleRot(), AngleTilt(), AnglePsi()]
+        },
+        write={
+            "particles": [
+                WriteImageReference(),
+                WriteAngleRot(),
+                WriteAngleTilt(),
+                WriteAnglePsi(),
+            ]
+        },
     )
