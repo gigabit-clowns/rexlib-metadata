@@ -234,7 +234,7 @@ which is why the release profile is cargo's default.
       seconds and compares a pull request against `main`
 - [ ] CodSpeed's check required by the ruleset, with its regression threshold
       stated in `docs/ci.md`
-- [ ] The build profile chosen by the numbers, below
+- [x] The build profile chosen by the numbers, below: cargo's default
 
 A million rows, 243 MiB, read to pandas, best of three, on one Windows
 machine with cargo's default release profile (2026-10-31):
@@ -251,21 +251,23 @@ infers numbers, and pandas builds a numeric column faster than one of text,
 which is what a raw read here hands it — but closing that gap, or showing
 where it comes from, is what this phase is for.
 
-**The build profile is one of the things to measure**, not something to
-restore on taste. The options and what each costs to link, measured on one
-machine by touching a line and rebuilding warm:
+**The build profile was measured, and stays cargo's default** (2026-10-31).
+A million rows, read to pandas, best of five, on one Windows machine; the
+build and relink columns are seconds of a whole build and of one after
+touching a line:
 
-| Profile | Relink | Reading a million rows |
-|---|---|---|
-| `lto = true`, `codegen-units = 1` | 94 s | unmeasured |
-| `lto = "thin"`, `codegen-units = 1` | 66 s | unmeasured |
-| `lto = "thin"`, codegen by default | 29 s | unmeasured |
-| cargo's default, which is what we ship | 2 s | unmeasured |
+| Profile | Build | Relink | Wheel | Raw | Canonical | Two columns | Chunks |
+|---|---|---|---|---|---|---|---|
+| cargo's default, which we ship | 76 | 3 | 3.08 MB | 4.02 | 4.97 | 4.64 | 5.06 |
+| `lto = "thin"` | 66 | 24 | 3.22 MB | 3.83 | 4.75 | 4.21 | 4.81 |
+| `lto = "thin"`, `codegen-units = 1` | 132 | 51 | 3.10 MB | 3.87 | 4.73 | 4.26 | 4.74 |
+| `lto = true`, `codegen-units = 1` | 155 | 78 | 3.09 MB | 3.86 | 4.75 | 4.25 | 4.76 |
 
-The right column is the one that decides, and the benchmark is what fills
-it. Whatever wins comes back with its numbers in the pull request that
-restores it; a build minute per cell is worth paying for a parse that is
-meaningfully faster and worth nothing for one that is not.
+The best gains 4 to 9 %, below the 10 % this was to clear, and thin LTO
+alone already has all of it. Measured again once the reads themselves are
+faster, since the same seconds are then a larger share; when it comes, it
+comes as a `dist` profile for the published wheels and the benchmarks, not
+for the test cells.
 
 ## Phase 11 — Review and clean-up
 

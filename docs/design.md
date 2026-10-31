@@ -125,7 +125,9 @@ the benchmark that would hold us to it is still an open item, so this was a
 cost paid in the dark. The profile is cargo's default now, and LTO comes
 back the day a benchmark on the parse path says what it is worth — with the
 numbers in the pull request that restores it. Nothing is published yet, so
-no wheel anybody has is affected.
+no wheel anybody has is affected. Measured on 2026-10-31, and the benchmark
+said 4 to 9 %, below the bar: the profile stays, and the numbers are in
+`docs/roadmap.md`, Phase 10.
 
 **One parser, and a whole read is every chunk of it** (2026-10-28). The
 state machine hands each row to a sink instead of keeping it, and the sink
