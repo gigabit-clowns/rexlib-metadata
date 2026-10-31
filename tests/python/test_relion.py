@@ -7,7 +7,7 @@ import pytest
 import rexlib_metadata as rxm
 from rexlib_metadata.canonical import PARTICLES
 from rexlib_metadata.convention import ConventionBundle, ReadConvention
-from rexlib_metadata.conventions.relion import relion4_bundle
+from rexlib_metadata.conventions.relion import relion4_bundle, split_reference
 from rexlib_metadata.engine import read_canonical
 
 FILES = Path(__file__).parent.parent / "files" / "star"
@@ -136,3 +136,33 @@ def test_the_canonical_view_and_the_file_view_are_both_there():
 
     assert "image_path" in result["particles"].to_pandas().columns
     assert "_rlnImageName" in result.raw["particles"].to_pandas().columns
+
+
+REFERENCES = [
+    "000012@Extract/a.mrcs",
+    "a.mrcs",
+    "abc@x.mrcs",
+    "@x",
+    "1@2@3",
+    "",
+    "٣@x",
+    "007@",
+    "123",
+    "1a@b",
+    None,
+]
+
+
+@pytest.mark.parametrize("reference", REFERENCES)
+def test_a_reference_splits_as_the_pattern_it_replaced_did(reference):
+    pa = pytest.importorskip("pyarrow")
+    pc = pytest.importorskip("pyarrow.compute")
+    column = pa.chunked_array([[reference]], pa.string())
+    parts = pc.extract_regex(column, r"^(?:(?P<index>[0-9]+)@)?(?P<path>.*)$")
+    written = pc.struct_field(parts, "index")
+    expected_index = pc.if_else(pc.equal(written, ""), "1", written)
+
+    index, path = split_reference(column)
+
+    assert index.to_pylist() == expected_index.to_pylist()
+    assert path.to_pylist() == pc.struct_field(parts, "path").to_pylist()

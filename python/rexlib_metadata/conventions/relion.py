@@ -19,7 +19,6 @@ from rexlib_metadata.convention import (
 if TYPE_CHECKING:
     from rexlib_metadata.convention import RawSchema
 
-_IMAGE_REFERENCE = r"^(?:(?P<index>[0-9]+)@)?(?P<path>.*)$"
 _INDEX_WIDTH = 6
 
 
@@ -50,18 +49,10 @@ class ImageReference(_Renaming):
 
     def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
         """Split the reference, counting from zero where Relion counts one."""
-        parts = pc.extract_regex(
-            table.column(self.source_columns[0]), _IMAGE_REFERENCE
-        )
-        written = pc.struct_field(parts, "index")
-        one_based = pc.cast(
-            pc.if_else(
-                pc.equal(written, pa.scalar("")), pa.scalar("1"), written
-            ),
-            pa.int64(),
-        )
+        written, path = split_reference(table.column(self.source_columns[0]))
+        one_based = pc.cast(written, pa.int64())
         return {
-            "image_path": pc.struct_field(parts, "path"),
+            "image_path": path,
             "image_index": pc.subtract(one_based, pa.scalar(1, pa.int64())),
         }
 
@@ -294,6 +285,31 @@ class WriteImageSize(_Spelling):
 
     source_columns = ("image_size", "image_dimensionality")
     target_columns = ("_rlnImageSize", "_rlnImageDimensionality")
+
+
+def split_reference(
+    reference: pa.ChunkedArray,
+) -> tuple[ArrowColumn, ArrowColumn]:
+    """Split `index@path` into the one-based index as written, and the path.
+
+    The index is the ASCII digits before the first `@`, and only those: a
+    reference whose text before its first `@` is anything else, or that
+    has no `@`, is a path and nothing more, and its index is the first,
+    `"1"`. A null reference stays null in both.
+    """
+    pieces = pc.split_pattern(reference.combine_chunks(), "@", max_splits=1)
+    head = pc.list_element(pieces, 0)
+    rest = pc.binary_join(pc.list_slice(pieces, 1), "@")
+    indexed = pc.and_(
+        pc.and_(
+            pc.equal(pc.list_value_length(pieces), pa.scalar(2)),
+            pc.not_equal(head, pa.scalar("")),
+        ),
+        pc.ascii_is_decimal(head),
+    )
+    index = pc.if_else(indexed, head, pa.scalar("1"))
+    path = pc.if_else(indexed, rest, reference)
+    return index, path
 
 
 def _padded(index: ArrowColumn) -> ArrowColumn:
