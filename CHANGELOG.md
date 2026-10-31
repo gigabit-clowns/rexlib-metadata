@@ -17,6 +17,8 @@ Nothing has been released yet. This is what the first release will say.
   first and held it.
 
 ### New
+- Reads and writes particle shifts, `shift_x`, `shift_y` and `shift_z`, in
+  Ångström.
 - `read(path, reader=...)` and `write(path, writer=...)` name the reader and
   the writer, beside `bundle=`, so a file can be read whatever its extension.
 - One wheel per platform serves every Python from 3.10.

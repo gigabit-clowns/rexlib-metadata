@@ -95,6 +95,20 @@ class EulerAngles(_Renaming):
     target_columns = ("angle_rot", "angle_tilt", "angle_psi")
 
 
+class Origin(_Renaming):
+    """How far a particle sits from the centre of its box, in Ångström."""
+
+    source_columns = ("_rlnOriginXAngst", "_rlnOriginYAngst")
+    target_columns = ("shift_x", "shift_y")
+
+
+class OriginZ(_Renaming):
+    """The third offset, which only a subtomogram has."""
+
+    source_columns = ("_rlnOriginZAngst",)
+    target_columns = ("shift_z",)
+
+
 class CtfMaxResolution(_Renaming):
     """How far the CTF fit was trusted, in Ångström."""
 
@@ -218,6 +232,20 @@ class WriteEulerAngles(_Spelling):
     target_columns = ("_rlnAngleRot", "_rlnAngleTilt", "_rlnAnglePsi")
 
 
+class WriteOrigin(_Spelling):
+    """How far a particle sits from the centre of its box, in Ångström."""
+
+    source_columns = ("shift_x", "shift_y")
+    target_columns = ("_rlnOriginXAngst", "_rlnOriginYAngst")
+
+
+class WriteOriginZ(_Spelling):
+    """The third offset, which only a subtomogram has."""
+
+    source_columns = ("shift_z",)
+    target_columns = ("_rlnOriginZAngst",)
+
+
 class WriteCtfMaxResolution(_Spelling):
     """How far the CTF fit was trusted, in Ångström."""
 
@@ -283,6 +311,8 @@ def relion4_bundle() -> ConventionBundle:
                 Coordinates(),
                 CoordinateZ(),
                 EulerAngles(),
+                Origin(),
+                OriginZ(),
                 CtfMaxResolution(),
                 ParticleOpticsGroup(),
             ],
@@ -300,6 +330,8 @@ def relion4_bundle() -> ConventionBundle:
                 WriteCoordinates(),
                 WriteCoordinateZ(),
                 WriteEulerAngles(),
+                WriteOrigin(),
+                WriteOriginZ(),
                 WriteCtfMaxResolution(),
                 WriteParticleOpticsGroup(),
             ],

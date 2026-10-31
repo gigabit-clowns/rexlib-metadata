@@ -55,6 +55,15 @@ def test_the_angles_and_the_resolution_come_through_as_numbers():
     assert str(df["angle_rot"].dtype) == "float64"
 
 
+def test_the_shifts_come_through_in_angstrom():
+    df = canonical("relion3.1_subtomo.star", "particles")
+
+    assert df["shift_x"][0] == pytest.approx(3.947427)
+    assert df["shift_y"][1] == pytest.approx(5.447427)
+    assert df["shift_z"][1] == pytest.approx(1.947427)
+    assert str(df["shift_z"].dtype) == "float64"
+
+
 def test_a_relion_optics_table_becomes_canonical():
     df = canonical("rln3.1_data_style.star", "optics")
 

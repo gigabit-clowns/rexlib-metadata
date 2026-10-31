@@ -35,6 +35,11 @@ WHOLE_FILES = [
         {"block_0": (1, 3), "block_1": (1, 3)},
         id="starfile_tags",
     ),
+    pytest.param(
+        "relion3.1_subtomo.star",
+        {"optics": (1, 7), "particles": (57, 22)},
+        id="relion_3.1_subtomograms",
+    ),
     pytest.param("loop_single_quote.star", {"": (2, 8)}, id="single_quotes"),
     pytest.param("empty_loop.star", {"": (0, 1)}, id="no_rows"),
 ]

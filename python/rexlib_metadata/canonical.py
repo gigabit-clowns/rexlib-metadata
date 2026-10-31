@@ -44,6 +44,15 @@ EULER_ANGLES = SchemaTrait(
     ),
 )
 
+SHIFT = SchemaTrait(
+    "shift",
+    (
+        ColumnDescriptor("shift_x", pa.float64(), unit="A"),
+        ColumnDescriptor("shift_y", pa.float64(), unit="A"),
+        ColumnDescriptor("shift_z", pa.float64(), unit="A"),
+    ),
+)
+
 CTF_QUALITY = SchemaTrait(
     "ctf_quality",
     (ColumnDescriptor("ctf_max_resolution", pa.float64(), unit="A"),),
@@ -78,6 +87,7 @@ PARTICLES = TableSchema(
     MICROGRAPH,
     CARTESIAN_POSITION,
     EULER_ANGLES,
+    SHIFT,
     CTF_QUALITY,
     OPTICS_KEY,
 )
