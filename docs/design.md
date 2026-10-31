@@ -512,6 +512,11 @@ writers, conventions and columns all have to be injectable from the user's
 side, so that a client can teach the library a format it has never heard of
 without changing a line in here.
 
+At the call site that override is `reader=` and `bundle=` on `read`, and
+`writer=` and `bundle=` on `write`, each an instance. With both named, the
+extension need not be registered. A write reads its source again through
+the reader the result was read with, never through one chosen afresh.
+
 ## Laziness, projection and forwarding
 
 `rxm.read()` returns a `ReadResult` and does no row I/O. Materialisation
@@ -545,8 +550,9 @@ fills, every column of each, whatever the view.
 ## The intended public API
 
 Written out as it is meant to end up. What exists today is `read` with
-`columns=` and `bundle=`, `to_pandas()`, `to_polars()`, `result[name]` and
-`write()` with `updates=`; `convention=`, `backend=` and `chunks()` do not.
+`columns=`, `bundle=` and `reader=`, `to_pandas()`, `to_polars()`,
+`result[name]`, `chunks()` on one canonical table, and `write()` with
+`updates=`, `bundle=` and `writer=`; `convention=` and `backend=` do not.
 
 ```python
 import rexlib_metadata as rxm

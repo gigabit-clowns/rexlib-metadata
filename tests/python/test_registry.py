@@ -77,3 +77,11 @@ def test_one_extension_may_be_given_as_a_string():
 
     assert [b.name for b in registry.bundles_for("x.star")] == ["relion4"]
     assert isinstance(registry.reader_for("x.star"), _Reader)
+
+
+def test_a_named_reader_takes_the_place_of_the_registered_one():
+    registry = MetadataRegistry()
+    registry.register_reader([".star"], _Reader())
+    named = _Reader()
+
+    assert registry.read("x.star", reader=named).raw._reader is named

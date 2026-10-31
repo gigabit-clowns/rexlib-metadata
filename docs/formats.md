@@ -128,7 +128,8 @@ Has to change, in this order:
    every heuristic can be overridden, and this is the format that makes the
    override compulsory rather than polite. It needs named arguments on
    `read`, not the `**kwargs` that were just removed for swallowing mistakes
-   in silence.
+   in silence. Done: `reader=` and `bundle=` on `read`, `writer=` and
+   `bundle=` on `write`.
 2. **A NumPy-dtype-to-Arrow mapping**, wherever the `.cs` reader lives.
 3. **A rule for a format that has no table name**, which `.par` is the first
    of and SQLite will be the opposite of.

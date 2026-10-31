@@ -139,6 +139,18 @@ mylab = ConventionBundle("mylab", read={"particles": [MyEulerAngles()]})
 rxm.read("particles.star", bundle=mylab).to_pandas()
 ```
 
+A reader and a writer are named the same way, which is what a file needs
+when its extension says nothing of its format, or is not registered at all:
+
+```python
+from rexlib_metadata.conventions.relion import relion4_bundle
+from rexlib_metadata.conventions.star import StarReader, StarWriter
+
+relion = relion4_bundle()
+result = rxm.read("particles.txt", reader=StarReader(), bundle=relion)
+result.write("out.txt", writer=StarWriter(), bundle=relion)
+```
+
 Registering it instead makes it apply to every read of that extension, and
 the order is priority — the first bundle to produce a canonical column owns
 it:

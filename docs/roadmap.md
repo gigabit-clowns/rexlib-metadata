@@ -168,9 +168,9 @@ each argued from a real file in `docs/formats.md`.
       machine. It moved to `src/text/` with the builder, and the error to
       `src/error.rs`, since neither was ever STAR's, and a line may now declare several columns —
       which only a second lexer could reveal, and did
-- [ ] `read` grows named arguments for the reader and the bundle, since a
+- [x] `read` grows named arguments for the reader and the bundle, since a
       generic container — `.csv`, `.db`, `.h5` — cannot have its dialect
-      guessed from its extension
+      guessed from its extension. `write` grew `writer=` with it
 - [ ] A decision on `RawSchema.table_name` for a format that names no table,
       which `.par` is the first of
 - [x] Real STAR files under `tests/files/star/`, with their provenance and

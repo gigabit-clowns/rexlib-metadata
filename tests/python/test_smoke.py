@@ -15,3 +15,4 @@ def test_the_public_signature_resolves_at_runtime():
     signature = inspect.signature(rexlib_metadata.read, eval_str=True)
 
     assert signature.parameters["bundle"].annotation is not None
+    assert signature.parameters["reader"].annotation is not None

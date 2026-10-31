@@ -91,15 +91,19 @@ class MetadataRegistry:
         *,
         columns: Iterable[str] | None = None,
         bundle: ConventionBundle | None = None,
+        reader: Reader | None = None,
     ) -> ReadResult:
         """Return a lazy canonical result over `path`, through its reader.
 
-        The bundles registered for the extension apply, in their order,
-        unless `bundle` names the one to use instead. `columns` narrows the
-        result to those canonical columns.
+        The reader and the bundles registered for the extension apply, the
+        bundles in their order, unless `reader` or `bundle` names the one to
+        use instead; the extension need not be registered when both are
+        named. `columns` narrows the result to those canonical columns.
         """
         bundles = (bundle,) if bundle is not None else self.bundles_for(path)
-        raw = RawResult(path, self.reader_for(path), self)
+        if reader is None:
+            reader = self.reader_for(path)
+        raw = RawResult(path, reader, self)
         return ReadResult(raw, bundles, self._schema, columns=columns)
 
 
