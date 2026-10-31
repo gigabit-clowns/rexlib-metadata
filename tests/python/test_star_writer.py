@@ -105,3 +105,14 @@ def test_a_table_with_no_name_is_an_anonymous_block(tmp_path):
     assert out.read_text().splitlines()[0] == "data_"
     assert again.names == ("",)
     assert len(again[""].to_pandas()) == 1
+
+
+def test_a_table_held_in_several_chunks_is_written_whole(tmp_path):
+    out = tmp_path / "out.star"
+    first = pa.table({"_rlnA": ["1", "2"]})
+    table = pa.concat_tables([first, pa.table({"_rlnA": ["3"]})])
+
+    StarWriter().write_tables(str(out), [RawTable.of("p", table)])
+
+    again = rxm.read(str(out)).raw.to_pandas()
+    assert again["_rlnA"].tolist() == ["1", "2", "3"]

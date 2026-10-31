@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Protocol, runtime_checkable
 
 import pyarrow as pa
@@ -18,14 +19,18 @@ class ArrowArrayExportable(Protocol):
     ) -> tuple[object, object]: ...
 
 
-def to_pyarrow_table(obj: ArrowArrayExportable) -> pa.Table:
-    """Return what a Rust entry point handed back as a pyarrow table."""
-    return pa.Table.from_batches([pa.record_batch(obj)])
+def to_pyarrow_table(batches: Iterable[ArrowArrayExportable]) -> pa.Table:
+    """Return the batches a Rust entry point handed back as one table."""
+    return pa.Table.from_batches([pa.record_batch(batch) for batch in batches])
 
 
-def to_record_batch(table: pa.Table) -> pa.RecordBatch:
-    """Return `table` as the single batch a Rust entry point takes."""
-    batches = table.combine_chunks().to_batches()
+def to_record_batches(table: pa.Table) -> list[pa.RecordBatch]:
+    """Return `table` as the batches a Rust entry point takes, at least one.
+
+    The batches are the table's own, never combined: a column past 2 GiB of
+    text is held in several, and one batch could not hold it.
+    """
+    batches = table.to_batches()
     if batches:
-        return batches[0]
-    return pa.RecordBatch.from_pylist([], schema=table.schema)
+        return batches
+    return [pa.RecordBatch.from_pylist([], schema=table.schema)]

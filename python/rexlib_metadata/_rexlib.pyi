@@ -7,7 +7,7 @@ from rexlib_metadata._arrow import ArrowArrayExportable
 def version() -> str: ...
 def _star_read_tables(
     path: str, columns: Set[str] | None = None
-) -> Sequence[tuple[str, ArrowArrayExportable]]: ...
+) -> Sequence[tuple[str, Sequence[ArrowArrayExportable]]]: ...
 def _star_read_chunks(
     path: str, chunk_size: int, columns: Set[str] | None = None
 ) -> StarChunks: ...
@@ -17,6 +17,6 @@ class StarChunks(Iterator[tuple[str, int, ArrowArrayExportable]]):
 
 def _star_write(
     path: str,
-    tables: Sequence[tuple[str, ArrowArrayExportable]],
+    tables: Sequence[tuple[str, Sequence[ArrowArrayExportable]]],
     header: str | None = None,
 ) -> None: ...

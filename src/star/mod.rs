@@ -3,24 +3,23 @@
 pub(crate) mod lexer;
 pub(crate) mod writer;
 
-use arrow::record_batch::RecordBatch;
-
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
 
 use crate::error::Error;
 use crate::text::Token;
-use crate::text::builder::{ArrowSink, Chunk};
+use crate::text::builder::{ArrowSink, Chunk, Table};
 use crate::text::parser::{Parser, parse_blocks};
 
 type Tokenize = for<'a> fn(&'a str, &str, usize) -> Result<Vec<Token<'a>>, Error>;
 
 /// Every block of a STAR file, keeping only the columns `columns` names
-/// when it names any.
+/// when it names any, each as one batch or as several where a column would
+/// outgrow what one can hold.
 pub(crate) fn read_tables(
     path: &str,
     columns: Option<HashSet<String>>,
-) -> Result<Vec<(String, RecordBatch)>, Error> {
+) -> Result<Vec<Table>, Error> {
     let mut sink = ArrowSink::new(None, columns);
     parse_blocks(path, lexer::tokenize_line, &mut sink)?;
     Ok(sink.into_tables())
@@ -76,7 +75,9 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use super::*;
-    use crate::text::builder::rows_of_record_batch;
+    use arrow::record_batch::RecordBatch;
+
+    use crate::text::builder::{rows_of_record_batch, single};
 
     fn written(bytes: &[u8]) -> NamedTempFile {
         let mut file = NamedTempFile::new().unwrap();
@@ -86,7 +87,7 @@ mod tests {
 
     fn tables(content: &str) -> Vec<(String, RecordBatch)> {
         let file = written(content.as_bytes());
-        read_tables(file.path().to_str().unwrap(), None).unwrap()
+        single(read_tables(file.path().to_str().unwrap(), None).unwrap())
     }
 
     fn error(content: &str) -> Error {
@@ -242,7 +243,7 @@ _x
     fn a_whole_read_keeps_only_the_columns_asked_for() {
         let file = written(numbered(3).as_bytes());
         let keep = HashSet::from(["_x".to_string()]);
-        let read = read_tables(file.path().to_str().unwrap(), Some(keep)).unwrap();
+        let read = single(read_tables(file.path().to_str().unwrap(), Some(keep)).unwrap());
 
         assert_eq!(read[0].1.num_columns(), 0);
         assert_eq!(read[1].1.num_columns(), 1);
@@ -302,6 +303,32 @@ _x
 
         assert!(matches!(err, Error::Io { .. }));
         assert!(err.to_string().contains("no/such/file.star"));
+    }
+
+    #[test]
+    fn a_column_outgrowing_its_bytes_cuts_the_block_into_batches() {
+        let file = written(b"data_p\nloop_\n_x\naaaa\nbbbb\ncc\n");
+        let mut sink = ArrowSink::new(None, None).with_byte_limit(4);
+
+        parse_blocks(
+            file.path().to_str().unwrap(),
+            lexer::tokenize_line,
+            &mut sink,
+        )
+        .unwrap();
+        let read = sink.into_tables();
+
+        assert_eq!(read.len(), 1);
+        let rows: Vec<usize> = read[0].1.iter().map(RecordBatch::num_rows).collect();
+        assert_eq!(rows, [1, 1, 1]);
+    }
+
+    #[test]
+    fn a_byte_order_mark_before_the_first_line_is_not_read() {
+        let read = tables("\u{feff}data_p\nloop_\n_rlnA\n1\n");
+
+        assert_eq!(read[0].0, "p");
+        assert_eq!(read[0].1.num_rows(), 1);
     }
 
     #[test]

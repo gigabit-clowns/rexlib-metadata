@@ -72,8 +72,10 @@ one.
 
 **Missing is null, and nothing else** (2026-10-18). Arrow's null is the only
 representation of an absent value in the canonical form. A token that does
-not parse into the declared type is an error naming the file and the line,
-never a silent null: `_rlnDefocusU` holding `abc` is a broken file and the
+not parse into the declared type is an error naming the file, the canonical
+table and the value, never a silent null — not the line, which the rows do
+not keep once the parser has handed them on, and keeping it would cost every
+read a column of numbers: `_rlnDefocusU` holding `abc` is a broken file and the
 caller has to hear about it. Sentinels — Xmipp's `-999` and its kin — are
 knowledge about a format, so they are translated by the read convention that
 knows them and written back by the write convention, and the core never

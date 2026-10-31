@@ -30,13 +30,13 @@ fn _star_read_tables(
     py: Python<'_>,
     path: &str,
     columns: Option<HashSet<String>>,
-) -> PyResult<Vec<(String, PyRecordBatch)>> {
+) -> PyResult<Vec<(String, Vec<PyRecordBatch>)>> {
     let tables = py
         .detach(|| star::read_tables(path, columns))
         .map_err(to_python_error)?;
     Ok(tables
         .into_iter()
-        .map(|(name, batch)| (name, PyRecordBatch::new(batch)))
+        .map(|(name, batches)| (name, batches.into_iter().map(PyRecordBatch::new).collect()))
         .collect())
 }
 
@@ -91,12 +91,15 @@ impl StarChunks {
 fn _star_write(
     py: Python<'_>,
     path: &str,
-    tables: Vec<(String, PyRecordBatch)>,
+    tables: Vec<(String, Vec<PyRecordBatch>)>,
     header: Option<&str>,
 ) -> PyResult<()> {
-    let owned: Vec<(String, RecordBatch)> = tables
+    let owned: Vec<(String, Vec<RecordBatch>)> = tables
         .into_iter()
-        .map(|(name, batch)| (name, batch.into_inner()))
+        .map(|(name, batches)| {
+            let batches = batches.into_iter().map(PyRecordBatch::into_inner).collect();
+            (name, batches)
+        })
         .collect();
     py.detach(|| star::writer::write_tables(path, header, &owned))
         .map_err(to_python_error)

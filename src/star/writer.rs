@@ -7,7 +7,7 @@ use arrow::array::{Array, StringArray};
 use arrow::record_batch::RecordBatch;
 
 use crate::error::{Error, unwritable};
-use crate::text::builder::string_columns;
+use crate::text::builder::{Table, string_columns};
 
 const BUFFER: usize = 1 << 20;
 
@@ -15,14 +15,16 @@ const BUFFER: usize = 1 << 20;
 pub(crate) fn write_tables(
     path: &str,
     header: Option<&str>,
-    tables: &[(String, RecordBatch)],
+    tables: &[Table],
 ) -> Result<(), Error> {
     if let Some(header) = header {
         check_header(header)?;
     }
-    for (_, batch) in tables {
-        check_names(batch)?;
-        string_columns(batch)?;
+    for (name, batches) in tables {
+        check_names(name, first(name, batches)?)?;
+        for batch in batches {
+            string_columns(batch)?;
+        }
     }
     let written = write_file(path, header, tables);
     if written.is_err() {
@@ -31,21 +33,25 @@ pub(crate) fn write_tables(
     written
 }
 
-fn write_file(
-    path: &str,
-    header: Option<&str>,
-    tables: &[(String, RecordBatch)],
-) -> Result<(), Error> {
+fn write_file(path: &str, header: Option<&str>, tables: &[Table]) -> Result<(), Error> {
     let io = |source| io_error(path, source);
     let file = File::create(path).map_err(io)?;
     let mut out = BufWriter::with_capacity(BUFFER, file);
     if let Some(header) = header {
         writeln!(out, "{header}").map_err(io)?;
     }
-    for (name, batch) in tables {
-        write_block(&mut out, path, name, batch)?;
+    for (name, batches) in tables {
+        write_block(&mut out, path, name, batches)?;
     }
     out.flush().map_err(io)
+}
+
+fn first<'a>(name: &str, batches: &'a [RecordBatch]) -> Result<&'a RecordBatch, Error> {
+    batches.first().ok_or_else(|| {
+        unwritable(format!(
+            "table '{name}' came with no batch, and so with no columns to write"
+        ))
+    })
 }
 
 fn io_error(path: &str, source: std::io::Error) -> Error {
@@ -65,36 +71,48 @@ fn check_header(header: &str) -> Result<(), Error> {
     }
 }
 
-fn check_names(batch: &RecordBatch) -> Result<(), Error> {
+fn check_names(name: &str, batch: &RecordBatch) -> Result<(), Error> {
+    if !is_one_word(name) {
+        return Err(unwritable(format!(
+            "the block name {name:?} holds whitespace or '#', and a STAR file \
+             would not read it back as one name"
+        )));
+    }
     let schema = batch.schema();
     match schema
         .fields()
         .iter()
-        .find(|field| !field.name().starts_with('_'))
+        .find(|field| !field.name().starts_with('_') || !is_one_word(field.name()))
     {
         Some(field) => Err(unwritable(format!(
-            "column '{}' does not start with '_', and a STAR file would not \
-             read it back as a column",
+            "column {:?} does not start with '_' or holds whitespace or '#', \
+             and a STAR file would not read it back as that column",
             field.name()
         ))),
         None => Ok(()),
     }
 }
 
+fn is_one_word(name: &str) -> bool {
+    !name.contains(|ch: char| ch == '#' || ch.is_whitespace())
+}
+
 fn write_block<W: Write>(
     out: &mut W,
     path: &str,
     name: &str,
-    batch: &RecordBatch,
+    batches: &[RecordBatch],
 ) -> Result<(), Error> {
     let io = |source| io_error(path, source);
     writeln!(out, "data_{name}\n\nloop_").map_err(io)?;
-    for (index, field) in batch.schema().fields().iter().enumerate() {
+    for (index, field) in first(name, batches)?.schema().fields().iter().enumerate() {
         writeln!(out, "{} #{}", field.name(), index + 1).map_err(io)?;
     }
-    let columns = string_columns(batch)?;
-    for row in 0..batch.num_rows() {
-        write_row(out, path, &columns, row)?;
+    for batch in batches {
+        let columns = string_columns(batch)?;
+        for row in 0..batch.num_rows() {
+            write_row(out, path, &columns, row)?;
+        }
     }
     writeln!(out).map_err(io)
 }
@@ -133,6 +151,12 @@ fn write_value<W: Write>(out: &mut W, path: &str, value: &str) -> Result<(), Err
 }
 
 fn quote_for(value: &str) -> Result<&'static [u8], Error> {
+    if value.contains(['\n', '\r']) {
+        return Err(unwritable(format!(
+            "the value {value:?} holds a line break, which a STAR value, \
+             read one line at a time, cannot"
+        )));
+    }
     match (value.contains('"'), value.contains('\'')) {
         (true, true) => Err(unwritable(format!(
             "the value {value:?} holds both kinds of quote, which STAR has no \
@@ -166,7 +190,7 @@ mod tests {
 
     use super::*;
     use crate::star::read_tables;
-    use crate::text::builder::build_record_batch;
+    use crate::text::builder::{build_record_batch, single};
 
     fn batch(columns: &[&str], rows: &[&[&str]]) -> RecordBatch {
         let names: Vec<String> = columns.iter().map(ToString::to_string).collect();
@@ -177,20 +201,20 @@ mod tests {
         build_record_batch(&names, &values).unwrap()
     }
 
-    fn round_trip(tables: &[(String, RecordBatch)]) -> Vec<(String, RecordBatch)> {
+    fn round_trip(tables: &[Table]) -> Vec<(String, RecordBatch)> {
         let directory = TempDir::new().unwrap();
         let path = directory.path().join("out.star");
         let path = path.to_str().unwrap();
 
         write_tables(path, None, tables).unwrap();
-        read_tables(path, None).unwrap()
+        single(read_tables(path, None).unwrap())
     }
 
-    fn one(name: &str, columns: &[&str], rows: &[&[&str]]) -> Vec<(String, RecordBatch)> {
-        vec![(name.to_string(), batch(columns, rows))]
+    fn one(name: &str, columns: &[&str], rows: &[&[&str]]) -> Vec<Table> {
+        vec![(name.to_string(), vec![batch(columns, rows)])]
     }
 
-    fn written(tables: &[(String, RecordBatch)]) -> Result<(), Error> {
+    fn written(tables: &[Table]) -> Result<(), Error> {
         let directory = TempDir::new().unwrap();
         let path = directory.path().join("out.star");
         write_tables(path.to_str().unwrap(), None, tables)
@@ -225,10 +249,13 @@ mod tests {
     #[test]
     fn every_block_comes_back_in_order() {
         let read = round_trip(&[
-            ("optics".to_string(), batch(&["_rlnVoltage"], &[&["300.0"]])),
+            (
+                "optics".to_string(),
+                vec![batch(&["_rlnVoltage"], &[&["300.0"]])],
+            ),
             (
                 "particles".to_string(),
-                batch(&["_rlnAngleRot"], &[&["10.5"]]),
+                vec![batch(&["_rlnAngleRot"], &[&["10.5"]])],
             ),
         ]);
 
@@ -308,7 +335,7 @@ data_noname
 "
         ));
         assert_eq!(
-            values_of(&read_tables(path, None).unwrap()[0].1, 0),
+            values_of(&single(read_tables(path, None).unwrap())[0].1, 0),
             ["1@a.stk"]
         );
     }
@@ -347,6 +374,39 @@ data_",
     }
 
     #[test]
+    fn a_value_holding_a_line_break_says_so() {
+        for value in ["a\nb", "a\r\nb"] {
+            let error = written(&one("p", &["_rlnA"], &[&[value]])).unwrap_err();
+
+            assert!(error.to_string().contains("line break"), "{value:?}");
+        }
+    }
+
+    #[test]
+    fn a_name_the_reader_would_split_or_cut_says_so() {
+        for column in ["_rln A", "_rlnA#1"] {
+            let error = written(&one("p", &[column], &[&["1"]])).unwrap_err();
+
+            assert!(
+                error.to_string().contains("whitespace or '#'"),
+                "{column:?}"
+            );
+        }
+        for block in ["two words", "a#b"] {
+            let error = written(&one(block, &["_rlnA"], &[&["1"]])).unwrap_err();
+
+            assert!(error.to_string().contains("block name"), "{block:?}");
+        }
+    }
+
+    #[test]
+    fn a_value_with_a_quote_inside_comes_back_as_it_was() {
+        let read = round_trip(&one("p", &["_rlnA"], &[&["John's_data/mic.mrc"]]));
+
+        assert_eq!(values_of(&read[0].1, 0), ["John's_data/mic.mrc"]);
+    }
+
+    #[test]
     fn a_column_name_a_reader_would_not_see_says_so() {
         let error = written(&one("p", &["coord_x"], &[&["1.0"]])).unwrap_err();
 
@@ -364,7 +424,7 @@ data_",
         let column = Arc::new(Int32Array::from(vec![1, 2]));
         let numbers = RecordBatch::try_new(schema, vec![column]).unwrap();
 
-        let error = written(&[("p".to_string(), numbers)]).unwrap_err();
+        let error = written(&[("p".to_string(), vec![numbers])]).unwrap_err();
 
         assert!(error.to_string().contains("_rlnClassNumber"));
         assert!(error.to_string().contains("Utf8"));
