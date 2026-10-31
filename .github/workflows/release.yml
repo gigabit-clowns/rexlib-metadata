@@ -67,17 +67,22 @@ jobs:
   # what is published is known to build. One abi3 wheel per platform serves
   # every Python from 3.10, and cibuildwheel tests it on each of them.
   wheels:
-    name: Wheels / ${{ matrix.os }}
+    name: Build wheels for ${{ matrix.os }} (${{ matrix.architectures }})
     needs: sdist
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - ubuntu-24.04-arm
-          - macos-latest
-          - macos-15-intel
-          - windows-latest
+        include:
+          - os: ubuntu-latest
+            architectures: x86_64
+          - os: ubuntu-24.04-arm
+            architectures: aarch64
+          - os: macos-latest
+            architectures: arm64
+          - os: macos-15-intel
+            architectures: x86_64
+          - os: windows-latest
+            architectures: AMD64
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -103,7 +108,7 @@ jobs:
         env:
           CIBW_BUILD: cp310-* cp311-* cp312-* cp313-* cp314-*
           CIBW_SKIP: '*-musllinux_*'
-          CIBW_ARCHS: auto64
+          CIBW_ARCHS: ${{ matrix.architectures }}
           CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
           CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.cargo/bin:$PATH"
           CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=11.0
