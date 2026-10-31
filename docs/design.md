@@ -176,6 +176,13 @@ from `source_columns`, as every convention shipped here does. One that
 looks at a column it does not declare stops recognising its table under
 `columns=`, and is read correctly without it.
 
+**A table the file does not name is named `""`** (2026-10-31). STAR already
+reads a bare `data_` that way, and FREALIGN's `.par`, which is one table and
+names nothing, will too. The name is not invented: no format-specific word,
+no file stem, which would change from file to file. It stays a `str`, so
+nothing that reads a name has a second case. Conventions match on columns,
+so they never see it. Written to STAR it is `data_` again.
+
 ## The canonical representation
 
 Apache Arrow is the canonical in-memory form: `arrow-rs` on the Rust side,
@@ -552,14 +559,14 @@ fills, every column of each, whatever the view.
 Written out as it is meant to end up. What exists today is `read` with
 `columns=`, `bundle=` and `reader=`, `to_pandas()`, `to_polars()`,
 `result[name]`, `chunks()` on one canonical table, and `write()` with
-`updates=`, `bundle=` and `writer=`; `convention=` and `backend=` do not.
+`updates=`, `bundle=` and `writer=`; `backend=` does not.
 
 ```python
 import rexlib_metadata as rxm
 
 result = rxm.read("particles.star")
 result = rxm.read("particles.star", columns=["angle_rot"],
-                 convention=Relion4(), backend="polars")
+                 bundle=relion4_bundle(), backend="polars")
 
 df = result.to_pandas()     # I/O happens here
 df = result.to_polars()

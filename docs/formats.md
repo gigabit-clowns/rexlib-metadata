@@ -132,7 +132,8 @@ Has to change, in this order:
    `bundle=` on `write`.
 2. **A NumPy-dtype-to-Arrow mapping**, wherever the `.cs` reader lives.
 3. **A rule for a format that has no table name**, which `.par` is the first
-   of and SQLite will be the opposite of.
+   of and SQLite will be the opposite of. Done: the name is `""`, as STAR's
+   bare `data_` already was.
 
 ## Fixtures from these files
 
