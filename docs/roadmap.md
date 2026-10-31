@@ -176,8 +176,8 @@ each argued from a real file in `docs/formats.md`.
 - [x] Real STAR files under `tests/files/star/`, with their provenance and
       licence. All eight read: the three that did not were #41, which they
       are what settled
-- [ ] Real `.cs`, `.par` and block-CSV files, trimmed from the EMPIAR
-      depositions `docs/formats.md` names
+- [x] Real `.cs`, `.par` and block-CSV files, trimmed from the EMPIAR
+      depositions `docs/formats.md` names, under `tests/files/`
 
 ## Phase 7 — XMD
 
