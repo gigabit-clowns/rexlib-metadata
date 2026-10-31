@@ -69,10 +69,10 @@ directory of its own that nothing can cache and nothing can find afterwards.
 Only `main` writes. A pull request restores and saves nothing, so one branch
 cannot evict another's, and the cache a pull request reads is the one its
 base produced. Nothing evicts them either: GitHub starts at 10 GiB and there
-are seven entries.
+are eight entries.
 
 The rule that would drop them is the other one, that an entry goes a week
-after its last read. `keep-caches-warm.yml` reads all seven every morning
+after its last read. `keep-caches-warm.yml` reads all eight every morning
 through the organisation's workflow, which looks each one up by prefix and
 downloads nothing — a lookup is a read, and a read is what resets the week.
 A quiet fortnight therefore costs nothing.
@@ -101,33 +101,41 @@ second time a release costs more than it gave.
 
 ## Static analysis
 
-SonarQube Cloud watches the repository on its own, outside the workflow:
-**automatic analysis**, which the organisation turned on and which scans
-`main` and every pull request without a step of ours and without a token. The
-badges at the head of `README.md` report what it finds, and the project is
-`gigabit-clowns_rexlib-metadata`.
+SonarQube Cloud analyses the repository from the workflow, through the
+organisation's `sonar-scan` composite and the `SONAR_TOKEN` secret, in a job
+of its own, `sonar-scan`, after `coverage`. The badges at the foot of
+`README.md` report what it finds, and the project is
+`gigabit-clowns_rexlib-metadata`. Its automatic analysis is off: the two
+cannot both run, and only the scanner reads Rust and coverage.
 
-It is configured by `.sonarcloud.properties`, at the root and read from the
-default branch. That is the file automatic analysis reads; the
-`sonar-project.properties` the rest of the suite carries is for a scanner
-invoked from a workflow, and automatic analysis ignores it. The properties it
-accepts are a short list — sources, tests, inclusions, exclusions, encoding,
-duplication exclusions, and the Python version — and **no value of any of
-them may contain a wildcard**.
+`coverage` runs on Ubuntu and measures one cell's worth of tests again:
 
-Ours says three things:
+| Report | Made by |
+|---|---|
+| `coverage/rust.lcov` | `cargo llvm-cov` over the Rust tests |
+| `coverage/clippy.json` | `cargo clippy --message-format=json`, which is how SonarQube reads Rust |
+| `coverage/python.xml` | `pytest --cov` against an editable install, so the report names `python/` and not `site-packages` |
+
+The Python tests drive the Rust too, but only an instrumented extension
+could count that, and the Rust tests already cover the parser on their
+own; the Rust number is the Rust tests'.
+
+`sonar-project.properties` says where everything is:
 
 | Property | Why |
 |---|---|
 | `sonar.sources=src,python,scripts,.github` | everything that is shipped or that runs |
 | `sonar.tests=tests` | a statement instead of a heuristic: the Python analyser recognises a test by its `test_*.py` name, and a helper in `tests/` without that name is a test too |
 | `sonar.python.version=3.10` | the floor from `pyproject.toml`: a rule that wants newer syntax is wrong here until the floor moves |
+| the three report paths | the files `coverage` hands over |
+| `sonar.rust.clippy.enable=false` | the scan job has no Rust toolchain, and clippy has already run with the one that builds the crate |
 
-The Rust is not analysed. SonarQube Cloud reads Rust through a clippy report
-rather than a parser of its own, which needs a scanner step and a token, so
-`src/` is listed under sources and no rule reaches it. Clippy in
-`build_with_cargo` is what holds that half of the repository, and importing
-its report is part of [#39](https://github.com/gigabit-clowns/rexlib-metadata/issues/39).
+## CodeQL
+
+`codeql.yml` runs GitHub's analysis beside SonarQube's, on every pull
+request, on `main` and every Monday, so that a new query reaches code nobody
+has touched: the workflows, the Python and the Rust, each without a build.
+Its findings are in the repository's Security tab.
 
 ### What it flags and what stays flagged
 
@@ -207,9 +215,6 @@ lives in `Cargo.toml`; tagging waits on the name as well.
 
 ## What is not here
 
-Coverage, CodeQL, and the scanner-based Sonar analysis that would carry
-coverage and the clippy report are
-[#39](https://github.com/gigabit-clowns/rexlib-metadata/issues/39), scheduled
-for after Phase 2. Publishing to PyPI is
-[#40](https://github.com/gigabit-clowns/rexlib-metadata/issues/40). Neither
-is an absence to reproduce elsewhere.
+Publishing to PyPI is
+[#40](https://github.com/gigabit-clowns/rexlib-metadata/issues/40), and is
+not an absence to reproduce elsewhere.

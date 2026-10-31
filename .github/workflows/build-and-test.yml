@@ -128,3 +128,73 @@ jobs:
 
       - name: Run tests
         run: pytest tests/python/
+
+  # One cell's worth of tests again, measured: the Rust tests through
+  # cargo-llvm-cov, and the Python ones against an editable install, so that
+  # the report names python/ rather than site-packages. Clippy's findings go
+  # along as JSON, which is how SonarQube reads Rust.
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: '3.14'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: clippy, llvm-tools-preview
+
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: coverage-ubuntu-latest
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-llvm-cov@0.9.1
+
+      - name: Measure the Rust tests
+        run: |
+          mkdir -p coverage
+          cargo llvm-cov --locked --lcov --output-path coverage/rust.lcov
+
+      - name: Report clippy's findings
+        run: cargo clippy --locked --all-targets --message-format=json > coverage/clippy.json
+
+      - name: Install the coverage tools
+        run: 'pip install --only-binary :all: --group coverage'
+
+      - name: Install the package, editable, and its test dependencies
+        run: pip install -e .[test,hdf5]
+
+      - name: Measure the Python tests
+        run: pytest tests/python --cov=rexlib_metadata --cov-report=xml:coverage/python.xml
+
+      - name: Keep the reports
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: error
+
+  sonar-scan:
+    name: SonarQube scan
+    needs: coverage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: SonarQube scan
+        uses: gigabit-clowns/.github/.github/composites/sonar-scan@main
+        with:
+          sonar-token: ${{ secrets.SONAR_TOKEN }}
+          coverage-artifact-name: coverage
+          coverage-path: coverage

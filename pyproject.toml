@@ -62,6 +62,7 @@ bench = [
     "pytest-codspeed==5.0.3",
     "pandas==3.1.0",
 ]
+coverage = ["pytest-cov==7.1.0"]
 compare = [
     "maturin==1.15.0",
     "pyarrow==26.0.0",
