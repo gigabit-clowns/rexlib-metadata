@@ -170,6 +170,10 @@ and comments on the pull request how each benchmark moved against `main`.
 It authenticates through OIDC, the repository being public, so no token is
 kept. `REXLIB_BENCH_ROWS` changes the size for a local run.
 
+Nothing in it installs from source or resolves freely: the tools come from
+wheels, pinned in the `bench` group alongside maturin and pyarrow, maturin
+builds this package's wheel, and pip installs that wheel with `--no-deps`.
+
 The comparison with starfile and starfile-rs is not a benchmark: their
 releases would move it. `python -m scripts.compare` times one read of a
 million rows through each, and the same workflow runs it on demand, writing

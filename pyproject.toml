@@ -56,11 +56,15 @@ lint = [
 ]
 sdist = ["build==1.6.1"]
 bench = [
+    "maturin==1.15.0",
+    "pyarrow==26.0.0",
     "pytest==9.2.0",
     "pytest-codspeed==5.0.3",
     "pandas==3.1.0",
 ]
 compare = [
+    "maturin==1.15.0",
+    "pyarrow==26.0.0",
     "pandas==3.1.0",
     "starfile==0.5.13",
     "starfile-rs==0.1.12",

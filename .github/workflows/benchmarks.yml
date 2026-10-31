@@ -66,11 +66,15 @@ jobs:
       - name: Install the benchmarks
         run: 'pip install --only-binary :all: --group bench'
 
-      # Built from the checkout, which is what is being measured.
-      - name: Install the package
+      # Built from the checkout, which is what is being measured, and
+      # installed alone: its one dependency, pyarrow, is pinned in the group.
+      - name: Build the package
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        run: pip install .
+        run: python -m maturin build --release --out dist
+
+      - name: Install the package
+        run: 'pip install --only-binary :all: --no-deps dist/*.whl'
 
       - name: Run the benchmarks
         uses: CodSpeedHQ/action@821a40cd6c80e3cfe387caf55668287addd808da # v5.5.0
@@ -97,8 +101,11 @@ jobs:
       - name: Install the others
         run: 'pip install --only-binary :all: --group compare'
 
+      - name: Build the package
+        run: python -m maturin build --release --out dist
+
       - name: Install the package
-        run: pip install .
+        run: 'pip install --only-binary :all: --no-deps dist/*.whl'
 
       - name: Read a million rows through each
         run: python -m scripts.compare --rows 1000000 >> "$GITHUB_STEP_SUMMARY"
