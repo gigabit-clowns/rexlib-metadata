@@ -25,7 +25,7 @@ Reading and writing STAR files through Relion's conventions is what works today,
   <img alt="Reading 10 million Relion particles to pandas, best of three: rexlib-metadata raw 13.79 s, canonical 18.67 s, starfile-rs 28.89 s, starfile 68.52 s" src="docs/assets/performance-light.svg">
 </picture>
 
-The canonical read is the fair comparison: like starfile and
+The canonical read is the fair comparison: like [starfile](https://github.com/teamtomo/starfile) and
 [starfile-rs](https://github.com/hanjinliu/starfile-rs), it hands back
 numbers, and it does so 3.7× and 1.5× faster than they do: on ten million
 particles, the size a few days of collection pick, that is 50 s and 10 s
