@@ -20,6 +20,7 @@ from rexlib_metadata.engine import (
     source_table,
     write_canonical,
 )
+from rexlib_metadata.join import joined
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Set
@@ -30,7 +31,7 @@ if TYPE_CHECKING:
     from rexlib_metadata.abc import Reader, Writer
     from rexlib_metadata.convention import ArrowColumn, ConventionBundle
     from rexlib_metadata.registry import MetadataRegistry
-    from rexlib_metadata.schema import Schema, TableSchema
+    from rexlib_metadata.schema import Relation, Schema, TableSchema
 
 
 class RawResult:
@@ -177,6 +178,7 @@ class ReadResult:
         self._schema = schema
         self._table = table
         self._columns = None if columns is None else tuple(columns)
+        self._joined = False
         _check_declared(self._columns, schema)
 
     @property
@@ -206,6 +208,18 @@ class ReadResult:
             self._raw, self._bundles, self._schema, name, self._columns
         )
 
+    def joined(self, name: str) -> ReadResult:
+        """Return `result[name]` with the tables its rows point at joined in.
+
+        Each row gains the columns of the row it points at, as
+        `particles` gains the `optics` of its `optics_group`, in the order
+        the file holds the rows. A related table this file does not fill
+        joins nothing, and nothing is read until the rows are asked for.
+        """
+        view = self[name]
+        view._joined = True
+        return view
+
     def to_pandas(self) -> pd.DataFrame:
         """Read the file, if it has not been read, and return it as pandas."""
         return self._one().to_pandas()
@@ -233,13 +247,14 @@ class ReadResult:
     def _chunks_of(
         self, schema: TableSchema, size: int
     ) -> Iterator[Chunk]:
+        related = self._related_whole(schema.name)
         stream = self._raw.chunks(size, self._raw_columns())
         ordinal, first = self._first_filling(stream, schema)
-        yield self._chunk(schema, first)
+        yield self._chunk(schema, first, related)
         for at, raw in stream:
             if at != ordinal:
                 return
-            yield self._chunk(schema, raw)
+            yield self._chunk(schema, raw, related)
 
     def _first_filling(
         self,
@@ -260,16 +275,64 @@ class ReadResult:
             )
         return found
 
-    def _chunk(self, schema: TableSchema, raw: RawTable) -> Chunk:
+    def _chunk(
+        self,
+        schema: TableSchema,
+        raw: RawTable,
+        related: tuple[tuple[Relation, pa.Table], ...],
+    ) -> Chunk:
         table = read_canonical([raw], self._bundles, schema)
+        table = _joined_all(table, related)
+        return Chunk(schema.name, self._shown(table, schema.name))
+
+    def _related_whole(
+        self, name: str
+    ) -> tuple[tuple[Relation, pa.Table], ...]:
+        """Read whole, before a chunked read, the tables `name` points at."""
+        if not self._joined:
+            return ()
+        wanted = {
+            column.name
+            for relation in self._schema.relations_of(name)
+            for column in self._schema[relation.related].columns
+        }
+        raw_tables = self._raw.read_keeping(
+            source_columns(wanted, self._bundles, self._schema)
+        )
+        return self._related(raw_tables, name)
+
+    def _related(
+        self, raw_tables: tuple[RawTable, ...], name: str
+    ) -> tuple[tuple[Relation, pa.Table], ...]:
+        filled = produced_tables(raw_tables, self._bundles, self._schema)
+        return tuple(
+            (relation, self._canonical(raw_tables, relation.related))
+            for relation in self._schema.relations_of(name)
+            if relation.related in filled
+        )
+
+    def _shown(self, table: pa.Table, name: str) -> pa.Table:
         if self._columns is None:
-            return Chunk(schema.name, table)
-        return Chunk(schema.name, _projected(table, self._columns, schema))
+            return table
+        tables = [name]
+        if self._joined:
+            tables += [r.related for r in self._schema.relations_of(name)]
+        declared = {
+            column.name for t in tables for column in self._schema[t].columns
+        }
+        return _projected(table, self._columns, name, declared)
 
     def _raw_columns(self) -> frozenset[str] | None:
         if self._columns is None:
             return None
-        return source_columns(self._columns, self._bundles, self._schema)
+        keys = (
+            tuple(r.key for r in self._schema.relations_of(self._table))
+            if self._joined and self._table is not None
+            else ()
+        )
+        return source_columns(
+            self._columns + keys, self._bundles, self._schema
+        )
 
     def write(
         self,
@@ -304,14 +367,22 @@ class ReadResult:
         )
         source = self._raw.reread()
         changed = {} if updates is None else {self._one_name(source): updates}
+        names = produced_tables(source, self._bundles, self._schema)
+        folds = self._folds(names, bundles)
+        folded = {r.related for relations in folds.values() for r in relations}
         tables = [
             RawTable.of(
                 name,
                 self._file_table(
-                    name, source, bundles, path, changed.get(name)
+                    name,
+                    source,
+                    bundles,
+                    path,
+                    self._to_write(name, source, changed.get(name), folds),
                 ),
             )
-            for name in produced_tables(source, self._bundles, self._schema)
+            for name in names
+            if name not in folded
         ]
         _replace(path, lambda temporary: writer.write_tables(temporary, tables))
 
@@ -321,13 +392,47 @@ class ReadResult:
         source: tuple[RawTable, ...],
         bundles: tuple[ConventionBundle, ...],
         path: str,
-        updates: pa.Table | pd.DataFrame | pl.DataFrame | None,
+        canonical: pa.Table,
     ) -> pa.Table:
         table = self._schema[name]
-        canonical = _merged(self._canonical(source, name), updates, table)
         columns = write_canonical(canonical, bundles, table)
         columns.update(self._carried_over(source, table, columns, path))
         return pa.table(list(columns.values()), names=list(columns))
+
+    def _to_write(
+        self,
+        name: str,
+        source: tuple[RawTable, ...],
+        updates: pa.Table | pd.DataFrame | pl.DataFrame | None,
+        folds: dict[str, tuple[Relation, ...]],
+    ) -> pa.Table:
+        """Return canonical table `name` as written: updated, folds joined."""
+        schema = self._schema[name]
+        table = _merged(self._canonical(source, name), updates, schema)
+        related = tuple(
+            (relation, self._canonical(source, relation.related))
+            for relation in folds[name]
+        )
+        return _joined_all(table, related)
+
+    def _folds(
+        self, names: tuple[str, ...], bundles: tuple[ConventionBundle, ...]
+    ) -> dict[str, tuple[Relation, ...]]:
+        """Say, per table, which tables it points at that go in its rows.
+
+        A related table the destination's conventions do not write is
+        joined into the table that points at it, so that a format with no
+        table for it, as XMD has none for the optics, still gets them.
+        """
+        return {
+            name: tuple(
+                relation
+                for relation in self._schema.relations_of(name)
+                if relation.related in names
+                and not _writes(bundles, relation.related)
+            )
+            for name in names
+        }
 
     def _carried_over(
         self,
@@ -376,9 +481,9 @@ class ReadResult:
         raw_tables = self._raw_tables()
         name = self._one_name(raw_tables)
         table = self._canonical(raw_tables, name)
-        if self._columns is None:
-            return table
-        return _projected(table, self._columns, self._schema[name])
+        if self._joined:
+            table = _joined_all(table, self._related(raw_tables, name))
+        return self._shown(table, name)
 
     def _one_name(self, raw_tables: tuple[RawTable, ...]) -> str:
         names = self._names(raw_tables)
@@ -416,14 +521,26 @@ def _check_declared(columns: tuple[str, ...] | None, schema: Schema) -> None:
         )
 
 
-def _projected(
-    table: pa.Table, columns: tuple[str, ...], schema: TableSchema
+def _writes(bundles: tuple[ConventionBundle, ...], table: str) -> bool:
+    return any(bundle.write_conventions(table) for bundle in bundles)
+
+
+def _joined_all(
+    table: pa.Table, related: tuple[tuple[Relation, pa.Table], ...]
 ) -> pa.Table:
-    wanted = [name for name in columns if name in schema]
-    absent = [name for name in wanted if name not in table.column_names]
+    for relation, other in related:
+        table = joined(table, other, relation.key)
+    return table
+
+
+def _projected(
+    table: pa.Table, columns: tuple[str, ...], name: str, declared: Set[str]
+) -> pa.Table:
+    wanted = [column for column in columns if column in declared]
+    absent = [column for column in wanted if column not in table.column_names]
     if absent:
         raise ValueError(
-            f"Table '{schema.name}' holds no "
+            f"Table '{name}' holds no "
             f"{', '.join(repr(name) for name in absent)} in this file"
         )
     return table.select(wanted)

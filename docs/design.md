@@ -657,11 +657,14 @@ rotation maps are stated there from documentation rather than from a file,
 and a round trip through a real Relion file and a real cryoSPARC one is what
 settles them. The same goes for whether a shift is added or subtracted.
 
-**Table relations.** The optics group is the case that exists today, and
-joining it into a flat view is decided. What is not decided is how a relation
-between two canonical tables is declared, so that the join is data rather
-than a special case written into the Relion bundle. `docs/canonical.md` names
-the four tables; what joins them is still prose.
+**Table relations.** Decided 2026-10-31: a `Relation(table, related, key)`
+on the `Schema`, data rather than a special case in a bundle, and checked
+when the schema is built — both tables declare the key and share no other
+column. The canonical form keeps the two tables; `result.joined(name)` is
+the flat view, and a write whose conventions do not write the related table
+joins it into the rows that point at it. What remains open is a convention
+that needs a joined column to read, as Relion 3.0's shifts in pixels need
+the optics' pixel size.
 
 ## References
 

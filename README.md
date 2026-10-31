@@ -87,6 +87,13 @@ result["particles"].to_pandas()
 A file of one table needs no name. A file of several asks for one rather
 than picking.
 
+Each particle points at its optics group, and `joined` puts the group's
+columns on the particle's row, for whoever wants one flat table:
+
+```python
+result.joined("particles").to_pandas()   # ..., optics_group, voltage, pixel_size, ...
+```
+
 ### A file larger than memory
 
 ```python
@@ -205,9 +212,8 @@ source's. So a conversion is a change of extension:
 rxm.read("particles.star").write("particles.xmd")
 ```
 
-That one holds for a file without `data_optics`. XMD has no optics table,
-and until optics are joined into each row a write of one raises rather than
-leave them out.
+XMD has no optics table, so the optics are joined into each particle's row
+on the way, and written as far as Xmipp's conventions spell them.
 
 A column no convention writes — `_rlnCtfImage` and its kind — is carried over
 untouched when the destination is the format the result was read from, so

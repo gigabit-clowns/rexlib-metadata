@@ -17,6 +17,9 @@ Nothing has been released yet. This is what the first release will say.
   first and held it.
 
 ### New
+- `result.joined("particles")` puts each particle's optics on its row.
+  Writing a Relion file with optics to `.xmd` now works, the optics joined
+  into the particles, where it raised.
 - Reads and writes Xmipp's `.xmd`: the image reference and the angles come
   back canonical, and a written `.xmd` opens with the line Xmipp looks for.
 - Reads and writes particle shifts, `shift_x`, `shift_y` and `shift_z`, in
