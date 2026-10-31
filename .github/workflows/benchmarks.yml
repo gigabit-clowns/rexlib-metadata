@@ -1,9 +1,5 @@
 name: Benchmarks
 
-# CodSpeed measures the benchmarks under CPU simulation, which counts
-# instructions rather than seconds, so a shared runner's noise does not reach
-# the result. It compares a pull request against main and comments the
-# difference. The comparison with starfile and starfile-rs runs on demand.
 on:
   push:
     branches:
@@ -66,8 +62,6 @@ jobs:
       - name: Install the benchmarks
         run: 'pip install --only-binary :all: --group bench'
 
-      # Built from the checkout, which is what is being measured, and
-      # installed alone: its one dependency, pyarrow, is pinned in the group.
       - name: Build the package
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target

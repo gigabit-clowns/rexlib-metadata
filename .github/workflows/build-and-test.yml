@@ -132,10 +132,6 @@ jobs:
       - name: Run tests
         run: pytest tests/python/
 
-  # One cell's worth of tests again, measured: the Rust tests through
-  # cargo-llvm-cov, and the Python ones against an editable install, so that
-  # the report names python/ rather than site-packages. Clippy's findings go
-  # along as JSON, which is how SonarQube reads Rust.
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
@@ -172,9 +168,6 @@ jobs:
       - name: Report clippy's findings
         run: cargo clippy --locked --all-targets --message-format=json > coverage/clippy.json
 
-      # Everything the tests need is pinned in the group and comes as a
-      # wheel; maturin then builds the package into the same environment,
-      # editable, without resolving anything.
       - name: Install the tests' dependencies
         run: |
           python -m venv .venv

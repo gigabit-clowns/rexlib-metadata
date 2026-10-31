@@ -1,8 +1,5 @@
 name: CodeQL
 
-# GitHub's own analysis, beside SonarQube: the workflows, the Python and the
-# Rust, each read as it is, without a build. Every week too, so that a new
-# query reaches code nobody has touched.
 on:
   push:
     branches:
