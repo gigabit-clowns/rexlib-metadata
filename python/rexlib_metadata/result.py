@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
 
-    from rexlib_metadata.abc import Reader
+    from rexlib_metadata.abc import Reader, Writer
     from rexlib_metadata.convention import ArrowColumn, ConventionBundle
     from rexlib_metadata.registry import MetadataRegistry
     from rexlib_metadata.schema import Schema, TableSchema
@@ -98,14 +98,16 @@ class RawResult:
         """Read the file again, keeping only the raw `columns` of it."""
         return tuple(self._reader.read_tables_keeping(self._path, columns))
 
-    def write(self, path: str) -> None:
+    def write(self, path: str, *, writer: Writer | None = None) -> None:
         """Write the tables this result holds to `path`, as they are.
 
-        The writer is chosen by the destination's extension, and the names
-        written are the ones the tables carry.
+        The writer is chosen by the destination's extension unless `writer`
+        names the one to use, and the names written are the ones the tables
+        carry.
         """
         tables = self.tables()
-        writer = self._registry.writer_for(path)
+        if writer is None:
+            writer = self._registry.writer_for(path)
         _replace(path, lambda temporary: writer.write_tables(temporary, tables))
 
     def _one(self) -> pa.Table:
@@ -274,6 +276,7 @@ class ReadResult:
         path: str,
         *,
         bundle: ConventionBundle | None = None,
+        writer: Writer | None = None,
         updates: pa.Table | pd.DataFrame | pl.DataFrame | None = None,
     ) -> None:
         """Write the whole file this result was read from to `path`.
@@ -284,15 +287,18 @@ class ReadResult:
         canonical table this result shows. `updates` holds a row for every
         row of that table, in the same order.
 
-        The conventions come from the destination's extension, the way a
-        read takes them from the source's, unless `bundle` names the one to
-        write through. A column of the file that no convention writes is
-        carried over untouched when the destination is the format the
-        result was read from, and left out when it is not. The file is
-        written beside the destination and moved over it at the end.
+        The writer and the conventions come from the destination's
+        extension, the way a read takes them from the source's, unless
+        `writer` or `bundle` names the one to write through. The source is
+        read again by the reader it was read with. A column of the file
+        that no convention writes is carried over untouched when the
+        destination is the format the result was read from, and left out
+        when it is not. The file is written beside the destination and
+        moved over it at the end.
         """
         registry = self._raw.registry
-        writer = registry.writer_for(path)
+        if writer is None:
+            writer = registry.writer_for(path)
         bundles = (
             (bundle,) if bundle is not None else registry.bundles_for(path)
         )

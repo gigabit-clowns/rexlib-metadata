@@ -7,6 +7,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from rexlib_metadata._rexlib import version as _version
+from rexlib_metadata.abc import Reader
 from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.conventions.relion import relion4_bundle
 from rexlib_metadata.conventions.star import StarReader, StarWriter
@@ -27,6 +28,7 @@ def read(
     *,
     columns: Iterable[str] | None = None,
     bundle: ConventionBundle | None = None,
+    reader: Reader | None = None,
 ) -> ReadResult:
     """Return a lazy canonical result over the metadata file at `path`.
 
@@ -35,10 +37,13 @@ def read(
     under their canonical names; `result.raw` is the same file read as it
     names its own. Passing `columns` shows only those canonical columns,
     and only the tables that declare one of them; a write still carries
-    every other column of the file. Passing `bundle` uses that one instead
-    of the registered ones.
+    every other column of the file. Passing `reader` or `bundle` uses that
+    one instead of the registered ones, so a file whose extension says
+    nothing of its dialect, or is not registered at all, can be read.
     """
-    return global_registry.read(path, columns=columns, bundle=bundle)
+    return global_registry.read(
+        path, columns=columns, bundle=bundle, reader=reader
+    )
 
 
 __all__ = ["Chunk", "RawResult", "ReadResult", "__version__", "read"]
