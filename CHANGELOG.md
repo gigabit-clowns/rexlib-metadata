@@ -10,7 +10,7 @@ Nothing has been released yet. This is what the first release will say.
   where everything used to be a `RuntimeError`.
 
 ### Changed
-- Reading a STAR file is more than twice as fast: a million rows in 1.8 s
+- Reading a STAR file is three times as fast: a million rows in 1.4 s
   rather than 4.
 - Naming a canonical table, as `result["particles"]`, no longer reads the
   file. The name is checked against the canonical schema; a table the schema

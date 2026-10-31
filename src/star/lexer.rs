@@ -57,6 +57,15 @@ fn tokenize_values<'a>(
     path: &str,
     line_num: usize,
 ) -> Result<Vec<Token<'a>>, Error> {
+    if is_plain(line) {
+        Ok(plain_values(line))
+    } else {
+        scanned_values(line, path, line_num)
+    }
+}
+
+/// Every value of `line`, quoted ones included, one character at a time.
+fn scanned_values<'a>(line: &'a str, path: &str, line_num: usize) -> Result<Vec<Token<'a>>, Error> {
     let mut tokens = Vec::new();
     let mut scan = Scan::Between;
     for (at, ch) in line.char_indices() {
@@ -74,6 +83,22 @@ fn tokenize_values<'a>(
         }
         Scan::Between => Ok(tokens),
     }
+}
+
+/// Whether every value of `line` is a run of characters between ASCII
+/// whitespace: no quote to open, nothing outside ASCII, and no vertical tab,
+/// which `char::is_whitespace` counts and `split_ascii_whitespace` does not.
+/// Most data rows are, and they are read without the scan below.
+fn is_plain(line: &str) -> bool {
+    line.bytes()
+        .all(|byte| byte.is_ascii() && !matches!(byte, b'"' | b'\'' | b'\x0B'))
+}
+
+fn plain_values(line: &str) -> Vec<Token<'_>> {
+    line.split_ascii_whitespace()
+        .take_while(|value| !value.starts_with('#'))
+        .map(Token::Value)
+        .collect()
 }
 
 fn quoted<'a>(
@@ -133,6 +158,36 @@ mod tests {
 
     fn tok(line: &str) -> Vec<Token<'_>> {
         tokenize_line(line, "test.star", 1).unwrap()
+    }
+
+    #[test]
+    fn a_plain_line_reads_as_the_full_scan_reads_it() {
+        let lines = [
+            "1.0 2.0 abc",
+            "   leading and trailing   ",
+            "tab\tseparated\t\tvalues",
+            "a#b c",
+            "a #comment",
+            "#only a comment",
+            "x\ry",
+            "",
+        ];
+        for line in lines {
+            assert!(is_plain(line), "{line:?}");
+            assert_eq!(
+                plain_values(line),
+                scanned_values(line, "test.star", 1).unwrap(),
+                "{line:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_line_with_a_quote_a_vertical_tab_or_beyond_ascii_is_scanned() {
+        for line in ["'a b' c", "a\"b", "a\x0Bb", "ñ b"] {
+            assert!(!is_plain(line), "{line:?}");
+        }
+        assert_eq!(tok("a\x0Bb"), vec![Token::Value("a"), Token::Value("b")]);
     }
 
     #[test]
