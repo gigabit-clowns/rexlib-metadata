@@ -53,7 +53,7 @@ jobs:
 
       - name: Build the source distribution
         run: |
-          python -m pip install --group sdist
+          python -m pip install --only-binary :all: --group sdist
           python -m build --sdist
 
       - name: Keep the source distribution
