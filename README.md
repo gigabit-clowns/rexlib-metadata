@@ -1,13 +1,13 @@
 # rexlib-metadata
 
-Read and write CryoEM metadata formats (STAR, XMD, SQLite, HDF5) as Pandas or Polars DataFrames. Highly performant: its Rust core reads a million-row STAR file 3.5× faster than starfile and 1.6× faster than starfile-rs. Python API, extensible by design.
+Read and write CryoEM metadata formats (STAR, XMD, SQLite, HDF5) as Pandas or Polars DataFrames. Highly performant: its Rust core reads a million-row STAR file 3.5× faster than starfile and 1.5× faster than starfile-rs. Python API, extensible by design.
 
 Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 
 [![Build and Test](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml)
 [![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/gigabit-clowns/rexlib-metadata)
 [![vs starfile](https://img.shields.io/badge/vs%20starfile-3.5%C3%97%20faster-brightgreen)](#performance)
-[![vs starfile-rs](https://img.shields.io/badge/vs%20starfile--rs-1.6%C3%97%20faster-brightgreen)](#performance)
+[![vs starfile-rs](https://img.shields.io/badge/vs%20starfile--rs-1.5%C3%97%20faster-brightgreen)](#performance)
 
 ## Features
 
@@ -24,29 +24,22 @@ Reading and writing STAR files through Relion's conventions is what works today,
 
 ## Performance
 
-A million-row Relion particles file, 243 MiB, read to a pandas DataFrame,
-best of three ([`scripts/compare.py`](scripts/compare.py), 2026-10-31, one
-Windows machine):
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/performance-dark.svg">
+  <img alt="Reading a million-row Relion STAR file to pandas, best of three: rexlib-metadata raw 1.42 s, canonical 1.94 s, starfile-rs 2.87 s, starfile 6.83 s" src="docs/assets/performance-light.svg">
+</picture>
 
-| Read | Seconds | vs starfile | vs starfile-rs |
-|---|---|---|---|
-| rexlib-metadata, canonical — typed, under canonical names | 1.91 | 3.5× faster | 1.6× faster |
-| rexlib-metadata, raw — the file's own names, every value text | 1.40 | 4.8× faster | 2.2× faster |
-| [starfile](https://github.com/teamtomo/starfile) | 6.76 | | |
-| [starfile-rs](https://github.com/hanjinliu/starfile-rs) | 3.06 | | |
+The canonical read is the fair comparison: like starfile and
+[starfile-rs](https://github.com/hanjinliu/starfile-rs), it hands back
+numbers, and it does so 3.5× and 1.5× faster than they do. The raw read
+does less — every value stays text, as the file wrote it — so part of its
+lead is work it does not do.
 
-The canonical read is the fair comparison: like the other two, it hands back
-numbers. The raw one does less — it leaves every value as text, as the file
-wrote it — so its lead is partly work it does not do.
-
-Every pull request is benchmarked through
+The chart is one run of `python -m scripts.compare --rows 1000000 --svg`,
+which generates the file, times each read and draws it again.
+Every pull request is also benchmarked through
 [CodSpeed](https://codspeed.io/gigabit-clowns/rexlib-metadata), which counts
-instructions rather than seconds, and compared against `main`. The numbers
-above are wall time and come from one run of
-
-```bash
-python -m scripts.compare --rows 1000000
-```
+instructions rather than seconds, against `main`.
 
 ## Installation
 

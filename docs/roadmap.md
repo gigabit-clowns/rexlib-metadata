@@ -234,6 +234,10 @@ which is why the release profile is cargo's default.
       seconds and compares a pull request against `main`
 - [ ] CodSpeed's check required by the ruleset, with its regression threshold
       stated in `docs/ci.md`
+- [ ] A read from a cold cache, a file of several gigabytes on Linux after
+      the cache is dropped: if the I/O shows behind the parse, prefetch —
+      `posix_fadvise(SEQUENTIAL)`, or a thread reading the next block — as
+      vitrio does for its stacks; if it does not, nothing
 - [x] The build profile chosen by the numbers, below: cargo's default
 
 A million rows, 243 MiB, read to pandas, best of three, on one Windows
