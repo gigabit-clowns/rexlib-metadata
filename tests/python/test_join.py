@@ -46,18 +46,20 @@ def test_a_table_without_the_key_points_at_nothing():
 def test_a_relation_on_a_key_one_table_lacks_is_refused():
     a = TableSchema("a", ColumnDescriptor("k", pa.int32()))
     b = TableSchema("b", ColumnDescriptor("j", pa.int32()))
+    relations = [Relation("a", "b", "k")]
 
     with pytest.raises(ValueError, match="both tables"):
-        Schema(a, b, relations=[Relation("a", "b", "k")])
+        Schema(a, b, relations=relations)
 
 
 def test_a_relation_between_tables_sharing_another_column_is_refused():
     shared = ColumnDescriptor("x", pa.float64())
     a = TableSchema("a", ColumnDescriptor("k", pa.int32()), shared)
     b = TableSchema("b", ColumnDescriptor("k", pa.int32()), shared)
+    relations = [Relation("a", "b", "k")]
 
     with pytest.raises(ValueError, match="also share 'x'"):
-        Schema(a, b, relations=[Relation("a", "b", "k")])
+        Schema(a, b, relations=relations)
 
 
 def test_the_canonical_particles_point_at_their_optics():
