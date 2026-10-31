@@ -170,6 +170,13 @@ and comments on the pull request how each benchmark moved against `main`.
 It authenticates through OIDC, the repository being public, so no token is
 kept. `REXLIB_BENCH_ROWS` changes the size for a local run.
 
+CPU simulation leaves system calls out, since they cannot be simulated the
+same way twice, so a benchmark that spends its time reading or writing the
+file is understated, and CodSpeed says which. That is accepted: what this
+phase optimises is CPU — tokens, Arrow, casts — and the walltime instrument
+that would count the rest is noise on a shared runner. Time with the I/O in
+it is what `scripts/compare.py` measures.
+
 Nothing in it installs from source or resolves freely: the tools come from
 wheels, pinned in the `bench` group alongside maturin and pyarrow, maturin
 builds this package's wheel, and pip installs that wheel with `--no-deps`.
