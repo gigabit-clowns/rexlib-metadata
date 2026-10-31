@@ -1,13 +1,11 @@
 # rexlib-metadata
 
-Read and write CryoEM metadata formats (STAR, XMD, SQLite, HDF5) as Pandas or Polars DataFrames. Highly performant: its Rust core reads a million-row STAR file 3.5× faster than starfile and 1.5× faster than starfile-rs. Python API, extensible by design.
+Highly performant reader and writer of CryoEM metadata formats (STAR, XMD, SQLite, HDF5), to and from Pandas or Polars DataFrames. Rust core, Python API, extensible by design.
 
 Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 
 [![Build and Test](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml)
 [![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/gigabit-clowns/rexlib-metadata)
-[![vs starfile](https://img.shields.io/badge/vs%20starfile-3.5%C3%97%20faster-brightgreen)](#performance)
-[![vs starfile-rs](https://img.shields.io/badge/vs%20starfile--rs-1.5%C3%97%20faster-brightgreen)](#performance)
 
 ## Features
 
