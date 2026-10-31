@@ -98,8 +98,7 @@ def _draw(directory: Path, bars: list[Bar], caption: str) -> None:
     for name, theme in (("light", LIGHT), ("dark", DARK)):
         chart = svg(bars, TITLE, caption, theme)
         (directory / f"performance-{name}.svg").write_text(
-            chart, encoding="utf-8", newline="
-"
+            chart, encoding="utf-8", newline="\n"
         )
 
 
