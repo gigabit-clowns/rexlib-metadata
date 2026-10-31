@@ -50,7 +50,8 @@ knowing which of the two it is talking about:
 | `columns=`, and a write that forwards every column of the source | Built; a read parses only the columns asked for, a write a whole file at a time |
 | Chunked reading | Built, `ReadResult.chunks()` over the Rust streaming parser |
 | The Xmipp bundle, and `.xmd` | Built for the image reference and the angles, `python/rexlib_metadata/conventions/xmipp.py` |
-| SQLite, HDF5 | Designed, not written |
+| SQLite | Built, generic, `python/rexlib_metadata/conventions/sqlite.py`; Scipion's dialect waits on real files |
+| HDF5 | Designed, not written |
 
 `docs/roadmap.md` is the authority on what comes next and in which order.
 Nothing here commits to a shape the roadmap has not reached yet, but the

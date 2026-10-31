@@ -176,6 +176,14 @@ from `source_columns`, as every convention shipped here does. One that
 looks at a column it does not declare stops recognising its table under
 `columns=`, and is read correctly without it.
 
+**SQLite is read in Python, through `sqlite3`** (2026-10-31). SQLite is
+already C, and there is no text to parse: what is left is turning rows into
+Arrow, which pyarrow does. `rusqlite` would compile a second SQLite into
+every wheel to do the same. The reader is generic — every table, typed by
+SQLite's own affinity rules, NUMERIC and an undeclared column read as text
+since they may hold anything — and a dialect such as Scipion's is a layer on
+top of it, not a reader of its own.
+
 **A table the file does not name is named `""`** (2026-10-31). STAR already
 reads a bare `data_` that way, and FREALIGN's `.par`, which is one table and
 names nothing, will too. The name is not invented: no format-specific word,

@@ -198,11 +198,16 @@ each argued from a real file in `docs/formats.md`.
 
 ## Phase 8 — SQLite
 
-- [ ] Decide between Rust (`rusqlite`) and Python (`sqlite3`)
-- [ ] `SqliteReader` and `SqliteWriter`
-- [ ] Pagination through `LIMIT`/`OFFSET`
-- [ ] `.db` and `.sqlite` registered
-- [ ] Tests: read, write, pagination
+- [x] Decide between Rust (`rusqlite`) and Python (`sqlite3`): Python,
+      `docs/design.md` says why
+- [x] `SqliteReader` and `SqliteWriter`, every table of the file and nothing
+      more, typed as the file declares
+- [x] Pagination through one cursor per table, `fetchmany`, rather than
+      `LIMIT`/`OFFSET`, which rereads every row it skips
+- [x] `.db` and `.sqlite` registered
+- [x] Tests: read, write, pagination, over databases the tests build
+- [ ] Scipion's `.sqlite` — `Objects` with `c01`…, named by `Classes`, and
+      `Properties` — over real files, which are on their way
 
 ## Phase 9 — HDF5
 
