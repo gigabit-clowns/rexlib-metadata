@@ -17,6 +17,8 @@ Nothing has been released yet. This is what the first release will say.
   first and held it.
 
 ### New
+- Reads and writes SQLite (`.sqlite`, `.db`): every table, typed as the file
+  declares, whole or a chunk at a time, through `.raw`.
 - `result.joined("particles")` puts each particle's optics on its row.
   Writing a Relion file with optics to `.xmd` now works, the optics joined
   into the particles, where it raised.
