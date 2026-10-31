@@ -8,6 +8,17 @@ pub(crate) fn tokenize_line<'a>(
     path: &str,
     line_num: usize,
 ) -> Result<Vec<Token<'a>>, Error> {
+    match line.trim_start().bytes().next() {
+        None | Some(b'#' | b'd' | b'l' | b'_') => keyword_or_values(line, path, line_num),
+        Some(_) => tokenize_values(line, path, line_num),
+    }
+}
+
+fn keyword_or_values<'a>(
+    line: &'a str,
+    path: &str,
+    line_num: usize,
+) -> Result<Vec<Token<'a>>, Error> {
     let clean_line = line.split_once('#').map_or(line, |(head, _)| head).trim();
     if clean_line.is_empty() {
         Ok(vec![])
@@ -57,10 +68,9 @@ fn tokenize_values<'a>(
     path: &str,
     line_num: usize,
 ) -> Result<Vec<Token<'a>>, Error> {
-    if is_plain(line) {
-        Ok(plain_values(line))
-    } else {
-        scanned_values(line, path, line_num)
+    match plain_values(line) {
+        Some(tokens) => Ok(tokens),
+        None => scanned_values(line, path, line_num),
     }
 }
 
@@ -85,20 +95,24 @@ fn scanned_values<'a>(line: &'a str, path: &str, line_num: usize) -> Result<Vec<
     }
 }
 
-/// Whether every value of `line` is a run of characters between ASCII
-/// whitespace: no quote to open, nothing outside ASCII, and no vertical tab,
-/// which `char::is_whitespace` counts and `split_ascii_whitespace` does not.
-/// Most data rows are, and they are read without the scan below.
-fn is_plain(line: &str) -> bool {
-    line.bytes()
-        .all(|byte| byte.is_ascii() && !matches!(byte, b'"' | b'\'' | b'\x0B'))
-}
-
-fn plain_values(line: &str) -> Vec<Token<'_>> {
-    line.split_ascii_whitespace()
-        .take_while(|value| !value.starts_with('#'))
-        .map(Token::Value)
-        .collect()
+/// The values of a line split on ASCII whitespace, or None for a line the
+/// scan has to read: one with a quote, a character beyond ASCII, or a
+/// vertical tab, which `char::is_whitespace` counts and this split does not.
+fn plain_values(line: &str) -> Option<Vec<Token<'_>>> {
+    let mut tokens = Vec::new();
+    for value in line.split_ascii_whitespace() {
+        if value.starts_with('#') {
+            break;
+        }
+        if !value
+            .bytes()
+            .all(|byte| byte.is_ascii() && !matches!(byte, b'"' | b'\'' | b'\x0B'))
+        {
+            return None;
+        }
+        tokens.push(Token::Value(value));
+    }
+    Some(tokens)
 }
 
 fn quoted<'a>(
@@ -170,13 +184,13 @@ mod tests {
             "a #comment",
             "#only a comment",
             "x\ry",
+            "1 2 # it's a comment",
             "",
         ];
         for line in lines {
-            assert!(is_plain(line), "{line:?}");
             assert_eq!(
                 plain_values(line),
-                scanned_values(line, "test.star", 1).unwrap(),
+                Some(scanned_values(line, "test.star", 1).unwrap()),
                 "{line:?}"
             );
         }
@@ -185,7 +199,7 @@ mod tests {
     #[test]
     fn a_line_with_a_quote_a_vertical_tab_or_beyond_ascii_is_scanned() {
         for line in ["'a b' c", "a\"b", "a\x0Bb", "ñ b"] {
-            assert!(!is_plain(line), "{line:?}");
+            assert!(plain_values(line).is_none(), "{line:?}");
         }
         assert_eq!(tok("a\x0Bb"), vec![Token::Value("a"), Token::Value("b")]);
     }

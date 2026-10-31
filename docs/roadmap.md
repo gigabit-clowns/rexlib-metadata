@@ -281,8 +281,12 @@ the two to the same answer. Every other line is scanned as before.
 
 - [x] The tokens borrow from the line rather than own a copy
 - [x] A plain data row is split on whitespace rather than scanned
-- [ ] A projected read that skips the columns it drops while tokenising,
-      rather than after: two columns of twenty-one still cost 80 % of all
+- [x] A projected read that skips the columns it drops while tokenising,
+      looked at and left: stopping early saves only the rest of a line, and a
+      canonical read always needs `_rlnImageName`, which Relion writes near
+      the end. What was there to win was the lexer's: a line is classified by
+      its first character, and a data row split once, each value checked as
+      it is split, 7 to 9 % off every read
 - [x] The writer, which built a `Vec<String>` per row, quoted it into a
       second and joined it into a third: each value now goes from its Arrow
       array to a buffered file, 5.53 s to 0.42 s for a million rows
