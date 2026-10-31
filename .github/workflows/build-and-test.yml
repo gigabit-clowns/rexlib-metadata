@@ -19,6 +19,9 @@ concurrency:
   group: build-and-test-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build_with_cargo:
     name: Cargo / ${{ matrix.os }}
@@ -196,8 +199,6 @@ jobs:
     name: SonarQube scan
     needs: coverage
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - name: SonarQube scan
         uses: gigabit-clowns/.github/.github/composites/sonar-scan@main
