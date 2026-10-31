@@ -139,7 +139,7 @@ into it is logic Rust's own tests cannot reach.
 ```bash
 pip install maturin
 maturin develop            # builds the extension into the active environment
-pip install .[test]        # the suites
+pip install --group test   # what the suites need, without the project
 pip install --group lint   # the linters and the type checker the gate runs
 pytest tests/python/       # the Python suites
 cargo test                 # the Rust unit tests
@@ -147,8 +147,9 @@ cargo test                 # the Rust unit tests
 bash scripts/local-gate.sh   # all of it, in CI's order
 ```
 
-`lint` is a dependency group rather than an extra, because a group installs
-without the project: the linters read the source and have no use for the
+`test` and `lint` are dependency groups rather than extras, because a group
+installs without the project: `test` leaves alone the extension maturin just
+built, and the linters read the source and have no use for the
 compiled module, and asking pip for an extra would have built the whole crate
 to deliver ruff. CI runs them once rather than in every cell, the source
 being the same source nineteen times over. A development environment wants
@@ -163,9 +164,9 @@ active and calls the tools through its interpreter rather than through the
 launchers beside it, which are not reliable everywhere.
 
 `maturin develop` puts the compiled `_rexlib` next to the sources, inside
-`python/rexlib_metadata/`, where `.gitignore` expects it. `pip install .[test]`
-does the same build and brings pandas, polars and pytest with it, which is
-what CI runs.
+`python/rexlib_metadata/`, where `.gitignore` expects it. CI's cells run
+`pip install . --group test` instead, which builds the project as a user's
+install would and brings the suites' dependencies with it.
 
 PyO3's `extension-module` feature is enabled by maturin, through
 `[tool.maturin] features` in `pyproject.toml`, and is deliberately not on in

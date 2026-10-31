@@ -15,12 +15,12 @@ to the same ref cancels the run in flight.
 |---|---|
 | `lint` | `ruff check .`, the cognitive complexity check and `mypy`, once |
 | `build_with_cargo` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, `cargo test`, on the three platforms |
-| `build_with_pip` | `pip install .[test,hdf5]` (`.[test]` on 3.15, which h5py has no wheel for) and `pytest tests/python/`, three platforms × Python 3.10 to 3.15, and once more on the oldest extras |
+| `build_with_pip` | `pip install .[hdf5] --group test` (no `hdf5` on 3.15, which h5py has no wheel for) and `pytest tests/python/`, three platforms × Python 3.10 to 3.15, and once more on the oldest extras |
 
 One cell of nineteen installs the **oldest** polars, pandas and h5py this
 package says it supports rather than the newest. The extras declare a range —
 `polars>=1.0`, `pandas>=2.2.2` on 3.10, `h5py>=3.11` — and a range nobody tests at its floor
-is a claim rather than a fact; the pins in `[test]` only ever prove the
+is a claim rather than a fact; the pins in the `test` group only ever prove the
 ceiling. Testing the floor and the ceiling and not the middle is the usual
 compromise, and it is cheap here because polars reaches us through one
 function.
@@ -144,12 +144,12 @@ firing. Three of the four are one rule in three costumes — lock your
 dependencies — and a library is the one thing that must not:
 
 - **a lock file is missing** (`uv.lock`, `poetry.lock`, `pylock.toml`), and
-  **`pip install .[test]` resolves versions freely**. A library declares
+  **`pip install . --group test` resolves versions freely**. A library declares
   ranges; an application freezes a tree. Freezing ours would mean CI proving
   that one resolution works, when the claim in `pyproject.toml` is that every
   resolution inside the range does. The floors cell exists for exactly that
   reason.
-- **`--only-binary :all:` is missing from `pip install .[test]`**, because a
+- **`--only-binary :all:` is missing from `pip install . --group test`**, because a
   source distribution runs its build script. The distribution being built
   there is *this* one, by maturin, which is the whole point of the step; with
   that flag the job cannot build the crate at all. The other two installs,

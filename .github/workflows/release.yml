@@ -104,7 +104,8 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
           CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.cargo/bin:$PATH"
           CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=11.0
-          CIBW_TEST_EXTRAS: test,hdf5
+          CIBW_TEST_GROUPS: test
+          CIBW_TEST_EXTRAS: hdf5
           CIBW_TEST_COMMAND: pytest {project}/tests/python
 
       - name: Keep the wheels
