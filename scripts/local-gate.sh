@@ -32,7 +32,7 @@ step "cargo test" cargo test --locked
 step "cargo clippy" cargo clippy --locked --all-targets -- -D warnings
 step "maturin develop" "$python" -m maturin develop --quiet
 step "ruff" "$python" -m ruff check .
-step "complexipy" "$bin/complexipy" python tests --max-complexity-allowed 7 --quiet
+step "complexipy" "$bin/complexipy" python tests benchmarks scripts --max-complexity-allowed 7 --quiet
 step "mypy" "$python" -m mypy
 step "pytest" "$python" -m pytest tests/python/
 

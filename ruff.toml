@@ -3,7 +3,9 @@ line-length = 80
 
 include = [
     "python/**/*.py",
-    "tests/**/*.py"
+    "tests/**/*.py",
+    "benchmarks/**/*.py",
+    "scripts/**/*.py"
 ]
 
 [lint]
@@ -31,8 +33,12 @@ extend-select = [
     "PLR2004"  # Asserting against literal values is the point of a test
 ]
 
+"benchmarks/**/*.py" = [
+    "D",       # a benchmark is named for what it measures, like a test
+]
+
 [lint.isort]
-known-first-party = ["rexlib_metadata"]
+known-first-party = ["benchmarks", "rexlib_metadata"]
 
 [lint.pydocstyle]
 convention = "pep257"

@@ -79,7 +79,7 @@ jobs:
         run: ruff check .
 
       - name: Check cognitive complexity
-        run: complexipy python tests --max-complexity-allowed 7 --quiet
+        run: complexipy python tests benchmarks scripts --max-complexity-allowed 7 --quiet
 
       - name: Check types
         run: mypy
