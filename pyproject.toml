@@ -30,14 +30,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test   = [
-    "pytest==9.2.0",
-    "pandas==2.3.3; python_version == '3.10'",
-    "pandas==3.1.0; python_version >= '3.11'",
-    "polars==2.0.0; python_version == '3.10'",
-    "polars==2.1.0; python_version >= '3.11'",
-    "h5py==3.16.0; python_version < '3.15'",
-]
 pandas = [
     "pandas>=2.2.2,<3.0; python_version == '3.10'",
     "pandas>=3.0; python_version >= '3.11'",
@@ -46,6 +38,19 @@ polars = ["polars>=1.0"]
 hdf5   = ["h5py>=3.11"]
 
 [dependency-groups]
+test = [
+    "pytest==9.2.0",
+    "pandas==2.3.3; python_version == '3.10'",
+    "pandas==3.1.0; python_version >= '3.11'",
+    "polars==2.0.0; python_version == '3.10'",
+    "polars==2.1.0; python_version >= '3.11'",
+    "h5py==3.16.0; python_version < '3.15'",
+]
+develop = [
+    "maturin==1.15.0",
+    "pyarrow==25.0.1; python_version == '3.10'",
+    "pyarrow==26.0.0; python_version >= '3.11'",
+]
 lint = [
     "ruff==0.17.3",
     "complexipy==8.3.0",
@@ -56,16 +61,18 @@ lint = [
 ]
 sdist = ["build==1.6.1"]
 bench = [
-    "maturin==1.15.0",
-    "pyarrow==26.0.0",
-    "pytest==9.2.0",
+    { include-group = "test" },
+    { include-group = "develop" },
     "pytest-codspeed==5.0.3",
-    "pandas==3.1.0",
+]
+coverage = [
+    { include-group = "test" },
+    { include-group = "develop" },
+    "pytest-cov==7.1.0",
 ]
 compare = [
-    "maturin==1.15.0",
-    "pyarrow==26.0.0",
-    "pandas==3.1.0",
+    { include-group = "test" },
+    { include-group = "develop" },
     "starfile==0.5.13",
     "starfile-rs==0.1.12",
 ]

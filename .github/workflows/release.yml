@@ -1,9 +1,5 @@
 name: Release
 
-# Builds what would be published: the source distribution, and from it a
-# wheel for each platform, each tested before it is kept. A push to main
-# replaces the development prerelease with them. A tag would publish them
-# to PyPI, once the name is settled (#40).
 on:
   push:
     branches:
@@ -63,9 +59,6 @@ jobs:
           path: dist/rexlib_metadata-*.tar.gz
           if-no-files-found: error
 
-  # Built from the source distribution rather than the checkout, so that
-  # what is published is known to build. One abi3 wheel per platform serves
-  # every Python from 3.10, and cibuildwheel tests it on each of them.
   wheels:
     name: Build wheels for ${{ matrix.os }} (${{ matrix.architectures }})
     needs: sdist
@@ -98,8 +91,7 @@ jobs:
         id: sdist
         run: echo "path=$(ls dist/rexlib_metadata-*.tar.gz)" >> "$GITHUB_OUTPUT"
 
-      # The manylinux containers have no Rust; the macOS and Windows runners
-      # do.
+      # The manylinux containers have no Rust.
       - name: Build and test the wheels
         uses: pypa/cibuildwheel@b3395e271a35f73dad77f21802abe9b986dfe299 # v4.3.1
         with:
@@ -112,7 +104,8 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
           CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.cargo/bin:$PATH"
           CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=11.0
-          CIBW_TEST_EXTRAS: test,hdf5
+          CIBW_TEST_GROUPS: test
+          CIBW_TEST_EXTRAS: hdf5
           CIBW_TEST_COMMAND: pytest {project}/tests/python
 
       - name: Keep the wheels
@@ -150,8 +143,7 @@ jobs:
             --title "Development build" \
             --notes "The head of main, built at $GITHUB_SHA. Not a release."
 
-  # PyPI trusts this workflow in this repository, so no token is kept. Off
-  # until the name is settled and the trusted publisher set up (#40).
+  # Off until the package name is settled (#40).
   publish:
     name: Publish to PyPI
     if: false && startsWith(github.ref, 'refs/tags/v')

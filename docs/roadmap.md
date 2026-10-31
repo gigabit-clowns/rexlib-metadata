@@ -305,10 +305,8 @@ repository, rather than piecemeal clean-ups along the way.
 
 Loose ends are issues, not a list in this file: an item nobody is assigned to
 and no pull request closes is a way of forgetting something in writing. The
-tracker holds the licensing scheme and the SPDX headers that follow it (#35),
-the arrow cap and what lifts it (#36), the stub that types Arrow as `Any`
-(#37), SonarQube and CodeQL (#39), publishing (#40), and a read that matched
-nothing coming back empty rather than saying so (#53).
+tracker holds what is open: the arrow cap and what lifts it (#36), and
+publishing (#40).
 
 This file keeps the plan: the phases, in the order they are meant to happen.
 

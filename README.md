@@ -257,7 +257,7 @@ maturin develop
 ### Run tests
 
 ```bash
-pip install .[test]
+pip install . --group test
 pytest
 ```
 
