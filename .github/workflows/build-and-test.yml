@@ -118,12 +118,13 @@ jobs:
           shared-key: pip-${{ matrix.os }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
+      # h5py has no 3.15 wheel yet, and building one means building libhdf5.
       - name: Install package and test dependencies
-        run: pip install .[test] -v
+        run: pip install ".[test${{ matrix.python-version != '3.15' && ',hdf5' || '' }}]" -v
 
       - name: Install the oldest extras this package claims
         if: matrix.extras == 'oldest'
-        run: 'pip install --only-binary :all: "polars==1.0.0" "pandas==2.2.2"'
+        run: 'pip install --only-binary :all: "polars==1.0.0" "pandas==2.2.2" "h5py==3.11.0"'
 
       - name: Run tests
         run: pytest tests/python/

@@ -43,7 +43,7 @@ pandas = [
     "pandas>=3.0; python_version >= '3.11'",
 ]
 polars = ["polars>=1.0"]
-hdf5   = ["h5py>=3.10"]
+hdf5   = ["h5py>=3.11"]
 
 [dependency-groups]
 lint = [

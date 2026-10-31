@@ -66,6 +66,9 @@ floor that cannot be installed in a current environment is not a floor, and
 CI is where that was found — the cell that installs the oldest extras failed
 on its first run, which is what it is for.
 
+The floor of the `hdf5` extra is 3.11, the first h5py built for NumPy 2,
+which is what a fresh install resolves; the oldest-extras cell installs it.
+
 `h5py` is pinned in `[test]` for `python_version < '3.15'` only. It ships
 no wheel for 3.15 yet, and building it means building libhdf5, so the 3.15
 cells skip the HDF5 tests rather than fail. The marker goes when a 3.15

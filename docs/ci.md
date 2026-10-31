@@ -15,11 +15,11 @@ to the same ref cancels the run in flight.
 |---|---|
 | `lint` | `ruff check .`, the cognitive complexity check and `mypy`, once |
 | `build_with_cargo` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, `cargo test`, on the three platforms |
-| `build_with_pip` | `pip install .[test]` and `pytest tests/python/`, three platforms × Python 3.10 to 3.15, and once more on the oldest extras |
+| `build_with_pip` | `pip install .[test,hdf5]` (`.[test]` on 3.15, which h5py has no wheel for) and `pytest tests/python/`, three platforms × Python 3.10 to 3.15, and once more on the oldest extras |
 
-One cell of nineteen installs the **oldest** polars and pandas this package
-says it supports rather than the newest. The extras declare a range —
-`polars>=1.0`, `pandas>=2.2.2` on 3.10 — and a range nobody tests at its floor
+One cell of nineteen installs the **oldest** polars, pandas and h5py this
+package says it supports rather than the newest. The extras declare a range —
+`polars>=1.0`, `pandas>=2.2.2` on 3.10, `h5py>=3.11` — and a range nobody tests at its floor
 is a claim rather than a fact; the pins in `[test]` only ever prove the
 ceiling. Testing the floor and the ceiling and not the middle is the usual
 compromise, and it is cheap here because polars reaches us through one
