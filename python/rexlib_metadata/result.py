@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import pyarrow as pa
+import pyarrow.compute as pc
 
 from rexlib_metadata.convention import RawTable
 from rexlib_metadata.engine import (
@@ -23,7 +24,13 @@ from rexlib_metadata.engine import (
 from rexlib_metadata.join import joined
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Iterator, Set
+    from collections.abc import (
+        Callable,
+        Collection,
+        Iterable,
+        Iterator,
+        Set,
+    )
 
     import pandas as pd
     import polars as pl
@@ -32,6 +39,8 @@ if TYPE_CHECKING:
     from rexlib_metadata.convention import ArrowColumn, ConventionBundle
     from rexlib_metadata.registry import MetadataRegistry
     from rexlib_metadata.schema import Relation, Schema, TableSchema
+
+    Rows = Collection[int] | Collection[bool] | pa.Array | pa.ChunkedArray
 
 
 class RawResult:
@@ -341,14 +350,21 @@ class ReadResult:
         bundle: ConventionBundle | None = None,
         writer: Writer | None = None,
         updates: pa.Table | pd.DataFrame | pl.DataFrame | None = None,
+        rows: Rows | None = None,
     ) -> None:
         """Write the whole file this result was read from to `path`.
 
         The source is read again, so that every canonical table and every
         column reaches the destination whatever this result shows, and the
         columns of `updates` take the place of their namesakes in the one
-        canonical table this result shows. `updates` holds a row for every
-        row of that table, in the same order.
+        canonical table this result shows.
+
+        `rows` keeps only some rows of that table, in the order given:
+        their positions, as `df.index` of a filtered frame, or a mask of
+        one boolean per row. Every column of the rows kept is written, the
+        ones no convention covers included, and the other tables whole.
+        `updates` holds a row for every row written, in the same order:
+        one per row of the table, or one per row `rows` keeps.
 
         The writer and the conventions come from the destination's
         extension, the way a read takes them from the source's, unless
@@ -365,8 +381,7 @@ class ReadResult:
         bundles = (
             (bundle,) if bundle is not None else registry.bundles_for(path)
         )
-        source = self._raw.reread()
-        changed = {} if updates is None else {self._one_name(source): updates}
+        source, changed = self._source(updates, rows)
         names = produced_tables(source, self._bundles, self._schema)
         folds = self._folds(names, bundles)
         folded = {r.related for relations in folds.values() for r in relations}
@@ -385,6 +400,31 @@ class ReadResult:
             if name not in folded
         ]
         _replace(path, lambda temporary: writer.write_tables(temporary, tables))
+
+    def _source(
+        self,
+        updates: pa.Table | pd.DataFrame | pl.DataFrame | None,
+        rows: Rows | None,
+    ) -> tuple[
+        tuple[RawTable, ...], dict[str, pa.Table | pd.DataFrame | pl.DataFrame]
+    ]:
+        source = self._raw.reread()
+        if updates is None and rows is None:
+            return source, {}
+        shown = self._one_name(source)
+        if rows is not None:
+            source = self._selected(source, self._schema[shown], rows)
+        return source, {} if updates is None else {shown: updates}
+
+    def _selected(
+        self, source: tuple[RawTable, ...], table: TableSchema, rows: Rows
+    ) -> tuple[RawTable, ...]:
+        filling = source_table(source, self._bundles, table)
+        if filling is None:
+            return source
+        positions = _positions(rows, filling.table.num_rows, table.name)
+        kept = RawTable(filling.schema, filling.table.take(positions))
+        return tuple(kept if raw is filling else raw for raw in source)
 
     def _file_table(
         self,
@@ -557,10 +597,10 @@ def _merged(
     changed = _as_arrow(updates)
     if changed.num_rows != canonical.num_rows:
         raise ValueError(
-            f"updates holds {changed.num_rows} rows where table "
-            f"'{schema.name}' holds {canonical.num_rows}; a row written back "
-            "has to be the row read, so a filtered frame makes every column "
-            "yours: write it through a result of its own"
+            f"updates holds {changed.num_rows} rows where {canonical.num_rows}"
+            f" of table '{schema.name}' are written; it holds one per row "
+            "written, in the same order: one per row of the table, or one "
+            "per row rows= keeps"
         )
     for name in changed.column_names:
         column = changed.column(name).cast(schema.column(name).dtype)
@@ -570,6 +610,40 @@ def _merged(
         else:
             canonical = canonical.append_column(name, column)
     return canonical
+
+
+def _positions(rows: Rows, count: int, table: str) -> pa.Array:
+    selection = _as_array(rows)
+    if pa.types.is_boolean(selection.type):
+        if len(selection) != count:
+            raise ValueError(
+                f"rows is a mask of {len(selection)} where table '{table}' "
+                f"holds {count} rows"
+            )
+        return pc.indices_nonzero(selection.fill_null(False))
+    if not pa.types.is_integer(selection.type):
+        raise TypeError(
+            f"rows holds {selection.type}; it takes row positions or a mask"
+        )
+    outside = pc.or_(
+        pc.less(selection, pa.scalar(0)),
+        pc.greater_equal(selection, pa.scalar(count)),
+    )
+    if selection.null_count or pc.any(outside).as_py():
+        raise ValueError(
+            f"rows names a row outside table '{table}', which holds {count}"
+        )
+    return selection.cast(pa.int64())
+
+
+def _as_array(rows: Rows) -> pa.Array:
+    to_arrow = getattr(rows, "to_arrow", None)
+    found = rows if to_arrow is None else to_arrow()
+    if isinstance(found, pa.ChunkedArray):
+        return found.combine_chunks()
+    if isinstance(found, pa.Array):
+        return found
+    return pa.array(found)
 
 
 def _as_arrow(frame: pa.Table | pd.DataFrame | pl.DataFrame) -> pa.Table:

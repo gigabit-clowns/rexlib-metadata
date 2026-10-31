@@ -21,6 +21,8 @@ Nothing has been released yet. This is what the first release will say.
   first and held it.
 
 ### New
+- `write(path, rows=...)` keeps only some rows, by position or by mask:
+  read, filter the particles, write them back with every column they had.
 - Benchmarks, run in CI through CodSpeed, and a comparison with starfile and
   starfile-rs: `python -m scripts.compare`.
 - Reads and writes HDF5 (`.h5`, `.hdf5`) with the `hdf5` extra: a compound

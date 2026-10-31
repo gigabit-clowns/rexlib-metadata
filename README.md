@@ -265,6 +265,21 @@ df["angle_rot"] += 10
 result.write("rotated.star", updates=df)   # every other column, untouched
 ```
 
+Keep only some particles with `rows=`, their positions or a mask. A filtered
+pandas frame hands its own index over, and `updates` then holds the rows
+kept:
+
+```python
+particles = rxm.read("run_data.star")["particles"]
+df = particles.to_pandas()
+good = df[df["ctf_max_resolution"] < 4].copy()
+good["angle_rot"] += 10
+particles.write("good.star", rows=good.index, updates=good[["angle_rot"]])
+```
+
+Every column of those rows is written, the ones no convention covers
+included, and the other tables, the optics, whole.
+
 A write reads the source again rather than keeping it, so the source has to
 be where it was. It writes every table of the file whatever the result
 shows, and goes through a temporary file beside the destination, so writing

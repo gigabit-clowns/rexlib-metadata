@@ -578,7 +578,7 @@ fills, every column of each, whatever the view.
 Written out as it is meant to end up. What exists today is `read` with
 `columns=`, `bundle=` and `reader=`, `to_pandas()`, `to_polars()`,
 `result[name]`, `chunks()` on one canonical table, and `write()` with
-`updates=`, `bundle=` and `writer=`; `backend=` does not.
+`updates=`, `rows=`, `bundle=` and `writer=`; `backend=` does not.
 
 ```python
 import rexlib_metadata as rxm
