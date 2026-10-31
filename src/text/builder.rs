@@ -179,6 +179,7 @@ pub(crate) fn build_record_batch(
     Ok(sink.pop().expect("a closed block is a batch").2)
 }
 
+#[cfg(test)]
 pub(crate) fn rows_of_record_batch(
     batch: &RecordBatch,
 ) -> Result<(Vec<String>, Vec<Vec<String>>), Error> {
@@ -195,7 +196,7 @@ pub(crate) fn rows_of_record_batch(
     Ok((names, rows))
 }
 
-fn string_columns(batch: &RecordBatch) -> Result<Vec<&StringArray>, Error> {
+pub(crate) fn string_columns(batch: &RecordBatch) -> Result<Vec<&StringArray>, Error> {
     batch
         .columns()
         .iter()
@@ -215,6 +216,7 @@ fn string_columns(batch: &RecordBatch) -> Result<Vec<&StringArray>, Error> {
         .collect()
 }
 
+#[cfg(test)]
 fn value_at(column: &StringArray, row: usize) -> String {
     if column.is_null(row) {
         String::new()

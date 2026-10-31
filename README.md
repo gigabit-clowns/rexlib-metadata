@@ -21,20 +21,31 @@ Reading and writing STAR files through Relion's conventions is what works today,
 ## Performance
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/performance-dark.svg">
-  <img alt="Reading 10 million Relion particles to pandas, best of three: rexlib-metadata raw 13.79 s, canonical 18.67 s, starfile-rs 28.89 s, starfile 68.52 s" src="docs/assets/performance-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/performance-read-dark.svg">
+  <img alt="Reading 10 million Relion particles to pandas, best of three: rexlib-metadata raw 13.15 s, canonical 18.40 s, starfile-rs 29.00 s, starfile 67.70 s" src="docs/assets/performance-read-light.svg">
 </picture>
 
-The canonical read is the fair comparison: like [starfile](https://github.com/teamtomo/starfile) and
+The canonical read is the fair comparison: like starfile and
 [starfile-rs](https://github.com/hanjinliu/starfile-rs), it hands back
-numbers, and it does so 3.7× and 1.5× faster than they do: on ten million
-particles, the size a few days of collection pick, that is 50 s and 10 s
+numbers, and it does so 3.7× and 1.6× faster than they do: on ten million
+particles, the size a few days of collection pick, that is 49 s and 11 s
 less per read. The raw read does less — every value stays text, as the file
 wrote it — so part of its lead is work it does not do.
 
-The chart is one run of `python -m scripts.compare --rows 10000000 --svg`,
-which generates the file, times each read and draws it again.
-Every pull request is also benchmarked through
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/performance-write-dark.svg">
+  <img alt="Writing 10 million Relion particles, best of three: rexlib-metadata raw as read 3.86 s, starfile-rs as read 15.39 s, rexlib-metadata canonical rereading the source 29.65 s, starfile-rs from pandas 180.96 s, starfile from pandas 247.69 s" src="docs/assets/performance-write-light.svg">
+</picture>
+
+Each write starts from what its library's read left in memory. Written as
+read, the raw write is 4× faster than starfile-rs's. Written from typed
+columns, the canonical write is 6× faster than starfile-rs and 8× faster
+than starfile writing from pandas — and it reads the source again on the
+way, so that every column of the file reaches the destination.
+
+Both charts are one run of `python -m scripts.compare --rows 10000000
+--svg`, which generates the file, times each read and write and draws them
+again. Every pull request is also benchmarked through
 [CodSpeed](https://codspeed.io/gigabit-clowns/rexlib-metadata), which counts
 instructions rather than seconds, against `main`.
 
