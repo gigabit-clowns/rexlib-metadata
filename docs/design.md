@@ -184,6 +184,15 @@ SQLite's own affinity rules, NUMERIC and an undeclared column read as text
 since they may hold anything — and a dialect such as Scipion's is a layer on
 top of it, not a reader of its own.
 
+**HDF5 is read through h5py, an extra** (2026-10-31). h5py ships libhdf5 in
+its wheels for every platform this package builds for, where the Rust
+`hdf5` crate needs libhdf5 at build time on each of them; and most users
+read STAR, so it is `rexlib-metadata[hdf5]` rather than a dependency, and
+imported only once an HDF5 file is opened. HDF5 has no tables, so two
+layouts are one: a one-dimensional compound dataset, each field a column,
+and a group whose children are datasets of one length, each a column. A
+table is named for its path. The writer writes the second.
+
 **A table the file does not name is named `""`** (2026-10-31). STAR already
 reads a bare `data_` that way, and FREALIGN's `.par`, which is one table and
 names nothing, will too. The name is not invented: no format-specific word,
@@ -633,7 +642,7 @@ a chunk over every so many rows, so a chunk costs its own rows and nothing
 more, and the columns not asked for are dropped as each row is read. Random
 access waits for an API that asks for it; when it comes, it is a progressive
 index of chunk offsets built as chunks are read, never a mandatory first
-scan. SQLite and HDF5 use what they have — `LIMIT`/`OFFSET`, dataset
+scan. SQLite and HDF5 use what they have — a cursor per table, dataset
 slicing. The API the user sees is the same either way.
 
 ## Open questions

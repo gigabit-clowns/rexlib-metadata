@@ -211,10 +211,12 @@ each argued from a real file in `docs/formats.md`.
 
 ## Phase 9 — HDF5
 
-- [ ] `Hdf5Reader` and `Hdf5Writer`, crate `hdf5` or `h5py`
-- [ ] Pagination through dataset slicing
-- [ ] `.h5` and `.hdf5` registered
-- [ ] Tests: read and write datasets
+- [x] `Hdf5Reader` and `Hdf5Writer`, through `h5py` as the `hdf5` extra:
+      a compound dataset or a group of column datasets is a table
+- [x] Pagination through dataset slicing
+- [x] `.h5` and `.hdf5` registered
+- [x] Tests: read and write datasets, over files the tests build
+- [ ] A real CryoEM HDF5 file under `tests/files/`, when one is offered
 
 ## Phase 10 — Performance, measured in CI
 

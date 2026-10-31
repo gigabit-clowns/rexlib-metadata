@@ -9,6 +9,7 @@ from collections.abc import Iterable
 from rexlib_metadata._rexlib import version as _version
 from rexlib_metadata.abc import Reader
 from rexlib_metadata.convention import ConventionBundle
+from rexlib_metadata.conventions.hdf5 import Hdf5Reader, Hdf5Writer
 from rexlib_metadata.conventions.relion import relion4_bundle
 from rexlib_metadata.conventions.sqlite import SqliteReader, SqliteWriter
 from rexlib_metadata.conventions.star import StarReader, StarWriter
@@ -21,6 +22,7 @@ __version__: str = _version()
 _STAR = (".star",)
 _XMD = (".xmd",)
 _SQLITE = (".sqlite", ".db")
+_HDF5 = (".h5", ".hdf5")
 
 global_registry.register_reader(_STAR, StarReader())
 global_registry.register_writer(_STAR, StarWriter())
@@ -30,6 +32,8 @@ global_registry.register_writer(_XMD, StarWriter(header=HEADER))
 global_registry.register_bundle(_XMD, xmipp_bundle())
 global_registry.register_reader(_SQLITE, SqliteReader())
 global_registry.register_writer(_SQLITE, SqliteWriter())
+global_registry.register_reader(_HDF5, Hdf5Reader())
+global_registry.register_writer(_HDF5, Hdf5Writer())
 
 
 def read(

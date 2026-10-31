@@ -51,7 +51,7 @@ knowing which of the two it is talking about:
 | Chunked reading | Built, `ReadResult.chunks()` over the Rust streaming parser |
 | The Xmipp bundle, and `.xmd` | Built for the image reference and the angles, `python/rexlib_metadata/conventions/xmipp.py` |
 | SQLite | Built, generic, `python/rexlib_metadata/conventions/sqlite.py`; Scipion's dialect waits on real files |
-| HDF5 | Designed, not written |
+| HDF5 | Built, generic, `python/rexlib_metadata/conventions/hdf5.py`, through the `hdf5` extra |
 
 `docs/roadmap.md` is the authority on what comes next and in which order.
 Nothing here commits to a shape the roadmap has not reached yet, but the

@@ -13,6 +13,7 @@ stay off, two crates that move as one, and the pins that are split in half.
 | `tempfile` (dev) | Files for the parser tests |
 | `pyarrow` (Python) | The Python half of the bridge; the only hard runtime dependency |
 | `pandas`, `polars` | Extras, one per output backend |
+| `h5py` | The `hdf5` extra, imported only when an HDF5 file is opened |
 
 `arrow` is taken with `default-features = false`. Its defaults are `csv`,
 `ipc` and `json`, none of which this crate imports and none of which
@@ -64,3 +65,8 @@ headers and dies on import beside numpy 2 with a dtype size mismatch. A
 floor that cannot be installed in a current environment is not a floor, and
 CI is where that was found — the cell that installs the oldest extras failed
 on its first run, which is what it is for.
+
+`h5py` is pinned in `[test]` for `python_version < '3.15'` only. It ships
+no wheel for 3.15 yet, and building it means building libhdf5, so the 3.15
+cells skip the HDF5 tests rather than fail. The marker goes when a 3.15
+wheel exists; Renovate does not lift it.
