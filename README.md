@@ -35,8 +35,8 @@ numbers, and it does so 3.5× and 1.5× faster than they do. The raw read
 does less — every value stays text, as the file wrote it — so part of its
 lead is work it does not do.
 
-The chart is one run of `python -m scripts.compare --rows 1000000 --svg
-docs/assets`, which generates the file, times each read and draws it again.
+The chart is one run of `python -m scripts.compare --rows 1000000 --svg`,
+which generates the file, times each read and draws it again.
 Every pull request is also benchmarked through
 [CodSpeed](https://codspeed.io/gigabit-clowns/rexlib-metadata), which counts
 instructions rather than seconds, against `main`.

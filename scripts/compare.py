@@ -2,10 +2,11 @@
 
 """Time one read of a large STAR file here and in starfile and starfile-rs.
 
-    python -m scripts.compare --rows 1000000 --svg docs/assets
+    python -m scripts.compare --rows 1000000 --svg
 
 Prints a Markdown table of the best of `--repeat` runs of each and, with
-`--svg`, draws it as a light and a dark bar chart for the README. This is a
+`--svg`, draws it into `docs/assets` as a light and a dark bar chart for
+the README. This is a
 comparison to write down, not a gate: their releases move it, and CI's
 benchmarks watch only our own numbers.
 """
@@ -55,6 +56,7 @@ READS: dict[str, Callable[[Path], object]] = {
 }
 
 TITLE = "Reading a million-row Relion STAR file to pandas"
+ASSETS = Path(__file__).resolve().parent.parent / "docs" / "assets"
 
 
 def best_of(read: Callable[[Path], object], path: Path, repeat: int) -> float:
@@ -72,7 +74,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--rows", type=int, default=1_000_000)
     parser.add_argument("--repeat", type=int, default=3)
-    parser.add_argument("--svg", type=Path, help="directory for the charts")
+    parser.add_argument(
+        "--svg", action="store_true", help="draw the charts into docs/assets"
+    )
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as directory:
         path = write(Path(directory) / "particles.star", args.rows)
@@ -90,14 +94,14 @@ def main() -> None:
             f"python -m scripts.compare · {datetime.date.today()} · "
             f"{platform.system()}, Python {platform.python_version()}"
         )
-        _draw(args.svg, bars, caption)
+        _draw(bars, caption)
 
 
-def _draw(directory: Path, bars: list[Bar], caption: str) -> None:
-    directory.mkdir(parents=True, exist_ok=True)
+def _draw(bars: list[Bar], caption: str) -> None:
+    ASSETS.mkdir(parents=True, exist_ok=True)
     for name, theme in (("light", LIGHT), ("dark", DARK)):
         chart = svg(bars, TITLE, caption, theme)
-        (directory / f"performance-{name}.svg").write_text(
+        (ASSETS / f"performance-{name}.svg").write_text(
             chart, encoding="utf-8", newline="\n"
         )
 
