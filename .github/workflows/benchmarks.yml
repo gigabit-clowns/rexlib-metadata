@@ -63,10 +63,14 @@ jobs:
           shared-key: bench-ubuntu-latest
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Install the package and the benchmarks
+      - name: Install the benchmarks
+        run: 'pip install --only-binary :all: --group bench'
+
+      # Built from the checkout, which is what is being measured.
+      - name: Install the package
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        run: pip install . --group bench
+        run: pip install .
 
       - name: Run the benchmarks
         uses: CodSpeedHQ/action@821a40cd6c80e3cfe387caf55668287addd808da # v5.5.0
@@ -90,8 +94,11 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
 
-      - name: Install the package and the others
-        run: pip install . --group compare
+      - name: Install the others
+        run: 'pip install --only-binary :all: --group compare'
+
+      - name: Install the package
+        run: pip install .
 
       - name: Read a million rows through each
         run: python -m scripts.compare --rows 1000000 >> "$GITHUB_STEP_SUMMARY"
