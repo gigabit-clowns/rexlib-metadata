@@ -114,7 +114,7 @@ cannot both run, and only the scanner reads Rust and coverage.
 |---|---|
 | `coverage/rust.lcov` | `cargo llvm-cov` over the Rust tests |
 | `coverage/clippy.json` | `cargo clippy --message-format=json`, which is how SonarQube reads Rust |
-| `coverage/python.xml` | `pytest --cov` against an editable install, so the report names `python/` and not `site-packages` |
+| `coverage/python.xml` | `pytest --cov` against an editable install, so the report names `python/` and not `site-packages`: the `coverage` group, every version pinned and a wheel, then `maturin develop`, so nothing resolves freely |
 
 The Python tests drive the Rust too, but only an instrumented extension
 could count that, and the Rust tests already cover the parser on their

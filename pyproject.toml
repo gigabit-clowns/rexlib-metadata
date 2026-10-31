@@ -62,7 +62,15 @@ bench = [
     "pytest-codspeed==5.0.3",
     "pandas==3.1.0",
 ]
-coverage = ["pytest-cov==7.1.0"]
+coverage = [
+    "maturin==1.15.0",
+    "pyarrow==26.0.0",
+    "pytest==9.2.0",
+    "pytest-cov==7.1.0",
+    "pandas==3.1.0",
+    "polars==2.1.0",
+    "h5py==3.16.0",
+]
 compare = [
     "maturin==1.15.0",
     "pyarrow==26.0.0",

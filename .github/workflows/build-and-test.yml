@@ -169,14 +169,21 @@ jobs:
       - name: Report clippy's findings
         run: cargo clippy --locked --all-targets --message-format=json > coverage/clippy.json
 
-      - name: Install the coverage tools
-        run: 'pip install --only-binary :all: --group coverage'
+      # Everything the tests need is pinned in the group and comes as a
+      # wheel; maturin then builds the package into the same environment,
+      # editable, without resolving anything.
+      - name: Install the tests' dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --only-binary :all: --group coverage
 
-      - name: Install the package, editable, and its test dependencies
-        run: pip install -e .[test,hdf5]
+      - name: Install the package, editable
+        env:
+          VIRTUAL_ENV: ${{ github.workspace }}/.venv
+        run: .venv/bin/maturin develop
 
       - name: Measure the Python tests
-        run: pytest tests/python --cov=rexlib_metadata --cov-report=xml:coverage/python.xml
+        run: .venv/bin/pytest tests/python --cov=rexlib_metadata --cov-report=xml:coverage/python.xml
 
       - name: Keep the reports
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
