@@ -142,11 +142,10 @@ Has to change, in this order:
 - `.par`: `empiar/10076/data/Frealign9Parameter_0_r1.par`, 18 MB.
 - `.csv`: `empiar/10255/data/final.csv`, 54 MB.
 
-All three from `ftp.ebi.ac.uk/empiar/world_availability/`. None belongs in
-the repository at that size: each has to be trimmed to a handful of rows with
-its header intact, which for the `.cs` means rewriting the shape in its
-`.npy` header, and each needs its provenance recorded beside it in
-`tests/files/`.
+All three from `ftp.ebi.ac.uk/empiar/world_availability/`, and all three
+are under `tests/files/`, trimmed to ten rows with their headers intact.
+`tests/files/README.md` records where each came from, how it was trimmed,
+and what trimming it showed.
 
 [teamtomo](https://teamtomo.org/site/io_packages/) is the other source worth
 raiding: a package per format, tests included, and assets we could borrow
