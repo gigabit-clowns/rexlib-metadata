@@ -190,9 +190,9 @@ wheels, pinned in the `bench` group alongside maturin and pyarrow, maturin
 builds this package's wheel, and pip installs that wheel with `--no-deps`.
 
 The comparison with starfile and starfile-rs is not a benchmark: their
-releases would move it. `python -m scripts.compare` times one read of a
-million rows through each, and the same workflow runs it on demand, writing
-the table to the job summary.
+releases would move it. `python -m scripts.compare` times one read of ten
+million rows through each — the size of a few days' picking — and the same
+workflow runs it on demand, writing the table to the job summary.
 
 ## Release
 
