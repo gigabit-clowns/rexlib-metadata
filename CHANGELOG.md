@@ -17,6 +17,8 @@ Nothing has been released yet. This is what the first release will say.
   first and held it.
 
 ### New
+- Reads and writes HDF5 (`.h5`, `.hdf5`) with the `hdf5` extra: a compound
+  dataset, or a group of one dataset per column, is a table.
 - Reads and writes SQLite (`.sqlite`, `.db`): every table, typed as the file
   declares, whole or a chunk at a time, through `.raw`.
 - `result.joined("particles")` puts each particle's optics on its row.

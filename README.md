@@ -33,7 +33,7 @@ Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 - **Extensible** — plug in custom readers and conventions by subclassing Python ABCs; no Rust required
 - **Fast core** — parsing and Arrow serialization in Rust via PyO3 + Maturin
 
-Reading and writing STAR files through Relion's conventions is what works today, columns read on their own, chunked reads and forwarding on write included. XMD reads and writes its image reference and angles, and SQLite every table as the file declares it. More of XMD, Scipion's SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
+Reading and writing STAR files through Relion's conventions is what works today, columns read on their own, chunked reads and forwarding on write included. XMD reads and writes its image reference and angles, and SQLite and HDF5 every table as the file declares it. More of XMD and Scipion's SQLite are on their way — see the [roadmap](docs/roadmap.md).
 
 ## Installation
 
@@ -46,6 +46,9 @@ pip install rexlib-metadata[polars]
 
 # Both
 pip install rexlib-metadata[pandas,polars]
+
+# HDF5 files, through h5py
+pip install rexlib-metadata[hdf5]
 ```
 
 Requires Python ≥ 3.10.
