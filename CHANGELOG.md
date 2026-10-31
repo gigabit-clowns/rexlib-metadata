@@ -17,6 +17,8 @@ Nothing has been released yet. This is what the first release will say.
   first and held it.
 
 ### New
+- Benchmarks, run in CI through CodSpeed, and a comparison with starfile and
+  starfile-rs: `python -m scripts.compare`.
 - Reads and writes HDF5 (`.h5`, `.hdf5`) with the `hdf5` extra: a compound
   dataset, or a group of one dataset per column, is a table.
 - Reads and writes SQLite (`.sqlite`, `.db`): every table, typed as the file

@@ -1,0 +1,97 @@
+name: Benchmarks
+
+# CodSpeed measures the benchmarks under CPU simulation, which counts
+# instructions rather than seconds, so a shared runner's noise does not reach
+# the result. It compares a pull request against main and comments the
+# difference. The comparison with starfile and starfile-rs runs on demand.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - src/**
+      - python/**
+      - benchmarks/**
+      - Cargo.toml
+      - Cargo.lock
+      - pyproject.toml
+      - .github/workflows/benchmarks.yml
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - src/**
+      - python/**
+      - benchmarks/**
+      - Cargo.toml
+      - Cargo.lock
+      - pyproject.toml
+      - .github/workflows/benchmarks.yml
+
+  workflow_dispatch:
+
+concurrency:
+  group: benchmarks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  codspeed:
+    name: CodSpeed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: '3.14'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: bench-ubuntu-latest
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install the package and the benchmarks
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: pip install . --group bench
+
+      - name: Run the benchmarks
+        uses: CodSpeedHQ/action@821a40cd6c80e3cfe387caf55668287addd808da # v5.5.0
+        with:
+          mode: simulation
+          run: pytest benchmarks --codspeed
+
+  compare:
+    name: Against starfile and starfile-rs
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: '3.14'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      - name: Install the package and the others
+        run: pip install . --group compare
+
+      - name: Read a million rows through each
+        run: python -m scripts.compare --rows 1000000 >> "$GITHUB_STEP_SUMMARY"

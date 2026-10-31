@@ -55,6 +55,16 @@ lint = [
     "polars==2.1.0",
 ]
 sdist = ["build==1.6.1"]
+bench = [
+    "pytest==9.2.0",
+    "pytest-codspeed==5.0.3",
+    "pandas==3.1.0",
+]
+compare = [
+    "pandas==3.1.0",
+    "starfile==0.5.13",
+    "starfile-rs==0.1.12",
+]
 
 [project.urls]
 Homepage = "https://github.com/gigabit-clowns/rexlib-metadata"

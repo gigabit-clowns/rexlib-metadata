@@ -69,10 +69,10 @@ directory of its own that nothing can cache and nothing can find afterwards.
 Only `main` writes. A pull request restores and saves nothing, so one branch
 cannot evict another's, and the cache a pull request reads is the one its
 base produced. Nothing evicts them either: GitHub starts at 10 GiB and there
-are six entries.
+are seven entries.
 
 The rule that would drop them is the other one, that an entry goes a week
-after its last read. `keep-caches-warm.yml` reads all six every morning
+after its last read. `keep-caches-warm.yml` reads all seven every morning
 through the organisation's workflow, which looks each one up by prefix and
 downloads nothing — a lookup is a read, and a read is what resets the week.
 A quiet fortnight therefore costs nothing.
@@ -159,6 +159,21 @@ this paragraph: `cargo build`, `cargo test` and `cargo clippy` now pass
 run instead of being quietly rewritten inside it; the gate script uses `[[`;
 and fourteen `pytest.raises` blocks hold one call each, which is what they
 meant to assert.
+
+## Benchmarks
+
+`benchmarks.yml` runs `pytest benchmarks --codspeed` on a pull request or a
+push to `main` that touches the code, over a generated Relion-like file of
+100 000 rows. CodSpeed runs it under CPU simulation, which counts
+instructions, so the noise of a shared runner does not reach the number,
+and comments on the pull request how each benchmark moved against `main`.
+It authenticates through OIDC, the repository being public, so no token is
+kept. `REXLIB_BENCH_ROWS` changes the size for a local run.
+
+The comparison with starfile and starfile-rs is not a benchmark: their
+releases would move it. `python -m scripts.compare` times one read of a
+million rows through each, and the same workflow runs it on demand, writing
+the table to the job summary.
 
 ## Release
 
