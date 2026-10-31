@@ -1,27 +1,13 @@
 # rexlib-metadata
 
-Read and write CryoEM metadata formats (STAR, XMD, SQLite, HDF5) as Pandas or Polars DataFrames. Rust core, Python API, extensible by design.
+Read and write CryoEM metadata formats (STAR, XMD, SQLite, HDF5) as Pandas or Polars DataFrames. Highly performant: its Rust core reads a million-row STAR file 3.5× faster than starfile and 1.6× faster than starfile-rs. Python API, extensible by design.
 
 Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 
 [![Build and Test](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml)
 [![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/gigabit-clowns/rexlib-metadata)
-
-## SonarCloud status
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
-
-### Ratings
-[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
-[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
-[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
-
-### Specific metrics
-[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=bugs)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
-[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
-[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
-[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
-[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
+[![vs starfile](https://img.shields.io/badge/vs%20starfile-3.5%C3%97%20faster-brightgreen)](#performance)
+[![vs starfile-rs](https://img.shields.io/badge/vs%20starfile--rs-1.6%C3%97%20faster-brightgreen)](#performance)
 
 ## Features
 
@@ -35,6 +21,32 @@ Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 - **Fast core** — parsing and Arrow serialization in Rust via PyO3 + Maturin
 
 Reading and writing STAR files through Relion's conventions is what works today, columns read on their own, chunked reads and forwarding on write included. XMD reads and writes its image reference and angles, and SQLite and HDF5 every table as the file declares it. More of XMD and Scipion's SQLite are on their way — see the [roadmap](docs/roadmap.md).
+
+## Performance
+
+A million-row Relion particles file, 243 MiB, read to a pandas DataFrame,
+best of three ([`scripts/compare.py`](scripts/compare.py), 2026-10-31, one
+Windows machine):
+
+| Read | Seconds | vs starfile | vs starfile-rs |
+|---|---|---|---|
+| rexlib-metadata, canonical — typed, under canonical names | 1.91 | 3.5× faster | 1.6× faster |
+| rexlib-metadata, raw — the file's own names, every value text | 1.40 | 4.8× faster | 2.2× faster |
+| [starfile](https://github.com/teamtomo/starfile) | 6.76 | | |
+| [starfile-rs](https://github.com/hanjinliu/starfile-rs) | 3.06 | | |
+
+The canonical read is the fair comparison: like the other two, it hands back
+numbers. The raw one does less — it leaves every value as text, as the file
+wrote it — so its lead is partly work it does not do.
+
+Every pull request is benchmarked through
+[CodSpeed](https://codspeed.io/gigabit-clowns/rexlib-metadata), which counts
+instructions rather than seconds, and compared against `main`. The numbers
+above are wall time and come from one run of
+
+```bash
+python -m scripts.compare --rows 1000000
+```
 
 ## Installation
 
@@ -269,3 +281,19 @@ cargo test
 ### Contributing
 
 [AGENTS.md](AGENTS.md) is the place to start: the architecture, the conventions of the codebase and the design invariants, everything needed before writing a line here. [docs/design.md](docs/design.md) goes deeper into the schema and convention layers and the questions still open, and [docs/roadmap.md](docs/roadmap.md) says what comes next.
+
+## SonarCloud status
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
+
+### Ratings
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
+
+### Specific metrics
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=bugs)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
