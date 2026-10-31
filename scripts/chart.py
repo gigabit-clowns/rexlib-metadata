@@ -2,7 +2,7 @@
 
 """Draw the comparison of `scripts/compare.py` as a bar chart, in SVG.
 
-One horizontal bar per read, fastest first, its seconds at the tip. Ours
+One horizontal bar per operation, cheapest first, its cost at the tip. Ours
 are blue and the others neutral, each named beside its bar, so colour is
 never the only thing that says which is which. A light and a dark file,
 for the README to pick between through `<picture>`.
@@ -61,11 +61,23 @@ DARK = Theme(
 
 @dataclass(frozen=True)
 class Bar:
-    """One read: what it is called, how long it took, and whether it is ours."""
+    """One operation: its name, what it cost, and whether it is ours."""
 
     name: str
-    seconds: float
+    value: float
     ours: bool
+
+
+@dataclass(frozen=True)
+class Measure:
+    """What the bars count, said under the title and after each value."""
+
+    subtitle: str
+    unit: str
+
+
+SECONDS = Measure("Seconds, lower is better", "s")
+GIB = Measure("Peak memory in GiB, lower is better", "GiB")
 
 
 @dataclass(frozen=True)
@@ -78,11 +90,17 @@ class _Ink:
     weight: int = 400
 
 
-def svg(bars: list[Bar], title: str, caption: str, theme: Theme) -> str:
+def svg(
+    bars: list[Bar],
+    title: str,
+    caption: str,
+    theme: Theme,
+    measure: Measure = SECONDS,
+) -> str:
     """Return the whole chart as an SVG document."""
-    bars = sorted(bars, key=lambda bar: bar.seconds)
-    step = _step(max(bar.seconds for bar in bars))
-    scale = step * math.ceil(max(bar.seconds for bar in bars) / step)
+    bars = sorted(bars, key=lambda bar: bar.value)
+    step = _step(max(bar.value for bar in bars))
+    scale = step * math.ceil(max(bar.value for bar in bars) / step)
     height = TOP + PITCH * len(bars) + 56
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" '
@@ -91,17 +109,20 @@ def svg(bars: list[Bar], title: str, caption: str, theme: Theme) -> str:
         f'<rect width="{WIDTH}" height="{height}" rx="8" '
         f'fill="{theme.surface}"/>',
         _text(24, 36, title, _Ink(theme.primary, 17, weight=600)),
-        _text(24, 60, "Seconds, lower is better", _Ink(theme.secondary, 13)),
+        _text(24, 60, measure.subtitle, _Ink(theme.secondary, 13)),
         *_grid(scale, step, len(bars), theme),
-        *(_bar(row, bar, scale, theme) for row, bar in enumerate(bars)),
+        *(
+            _bar(row, bar, scale, theme, measure.unit)
+            for row, bar in enumerate(bars)
+        ),
         _text(24, height - 20, caption, _Ink(theme.muted, 12)),
         "</svg>",
     ]
     return "\n".join(parts) + "\n"
 
 
-def _x(seconds: float, scale: int) -> float:
-    return PLOT_LEFT + (PLOT_RIGHT - PLOT_LEFT) * seconds / scale
+def _x(value: float, scale: int) -> float:
+    return PLOT_LEFT + (PLOT_RIGHT - PLOT_LEFT) * value / scale
 
 
 def _step(longest: float) -> int:
@@ -128,10 +149,10 @@ def _grid(scale: int, step: int, rows: int, theme: Theme) -> list[str]:
     return lines
 
 
-def _bar(row: int, bar: Bar, scale: int, theme: Theme) -> str:
+def _bar(row: int, bar: Bar, scale: int, theme: Theme, unit: str) -> str:
     top = TOP + PITCH * row
     middle = top + BAR / 2 + 4.5
-    tip = _x(bar.seconds, scale)
+    tip = _x(bar.value, scale)
     name = _Ink(theme.primary, 14, anchor="end")
     if bar.ours:
         name = replace(name, weight=600)
@@ -141,7 +162,7 @@ def _bar(row: int, bar: Bar, scale: int, theme: Theme) -> str:
         [
             _text(LABEL_RIGHT, middle, bar.name, name),
             f'<path d="{_rounded_end(PLOT_LEFT, top, tip)}" fill="{fill}"/>',
-            _text(tip + 8, middle, f"{bar.seconds:.2f} s", value),
+            _text(tip + 8, middle, f"{bar.value:.2f} {unit}", value),
         ]
     )
 

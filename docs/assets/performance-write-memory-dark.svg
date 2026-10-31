@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="368" viewBox="0 0 760 368" role="img" aria-label="Writing 10 million Relion particles">
+<rect width="760" height="368" rx="8" fill="#1a1a19"/>
+<text x="24.0" y="36.0" fill="#f0efec" font-size="17" font-weight="600" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">Writing 10 million Relion particles</text>
+<text x="24.0" y="60.0" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">Peak memory in GiB, lower is better</text>
+<line x1="312.0" y1="86" x2="312.0" y2="302.0" stroke="#2c2c2a" stroke-width="1"/>
+<text x="312.0" y="320.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">0</text>
+<line x1="406.5" y1="86" x2="406.5" y2="302.0" stroke="#2c2c2a" stroke-width="1"/>
+<text x="406.5" y="320.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">5</text>
+<line x1="501.0" y1="86" x2="501.0" y2="302.0" stroke="#2c2c2a" stroke-width="1"/>
+<text x="501.0" y="320.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">10</text>
+<line x1="595.5" y1="86" x2="595.5" y2="302.0" stroke="#2c2c2a" stroke-width="1"/>
+<text x="595.5" y="320.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">15</text>
+<line x1="690.0" y1="86" x2="690.0" y2="302.0" stroke="#2c2c2a" stroke-width="1"/>
+<text x="690.0" y="320.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">20</text>
+<text x="300.0" y="108.5" fill="#f0efec" font-size="14" font-weight="600" text-anchor="end" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">rexlib-metadata, raw (as read)</text>
+<path d="M312.0,92.0 H364.1 Q368.1,92.0 368.1,96.0 V112.0 Q368.1,116.0 364.1,116.0 H312.0 Z" fill="#3987e5"/>
+<text x="376.1" y="108.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">2.97 GiB</text>
+<text x="300.0" y="152.5" fill="#f0efec" font-size="14" font-weight="600" text-anchor="end" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">rexlib-metadata, canonical (rereads)</text>
+<path d="M312.0,136.0 H419.0 Q423.0,136.0 423.0,140.0 V156.0 Q423.0,160.0 419.0,160.0 H312.0 Z" fill="#3987e5"/>
+<text x="431.0" y="152.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">5.87 GiB</text>
+<text x="300.0" y="196.5" fill="#f0efec" font-size="14" font-weight="400" text-anchor="end" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">starfile-rs, as read</text>
+<path d="M312.0,180.0 H489.5 Q493.5,180.0 493.5,184.0 V200.0 Q493.5,204.0 489.5,204.0 H312.0 Z" fill="#6f6d66"/>
+<text x="501.5" y="196.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">9.60 GiB</text>
+<text x="300.0" y="240.5" fill="#f0efec" font-size="14" font-weight="400" text-anchor="end" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">starfile-rs, from pandas</text>
+<path d="M312.0,224.0 H522.1 Q526.1,224.0 526.1,228.0 V244.0 Q526.1,248.0 522.1,248.0 H312.0 Z" fill="#6f6d66"/>
+<text x="534.1" y="240.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">11.33 GiB</text>
+<text x="300.0" y="284.5" fill="#f0efec" font-size="14" font-weight="400" text-anchor="end" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">starfile, from pandas</text>
+<path d="M312.0,268.0 H659.7 Q663.7,268.0 663.7,272.0 V288.0 Q663.7,292.0 659.7,292.0 H312.0 Z" fill="#6f6d66"/>
+<text x="671.7" y="284.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">18.61 GiB</text>
+<text x="24.0" y="348.0" fill="#898781" font-size="12" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">10,000,000 rows, 2434 MiB, peak memory, a process each · python -m scripts.compare · 2026-10-31 · Windows, Python 3.14.0</text>
+</svg>
