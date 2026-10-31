@@ -10,7 +10,7 @@ add the items a pull request discovers rather than leaving them in a comment.
 
 ## Where the work stands
 
-Phases 0 to 4 are on `main`. The single `src/star.rs` became
+Phases 0 to 5 are on `main`. The single `src/star.rs` became
 `src/star/{lexer,mod}.rs` beside `src/text/{parser,builder,mod}.rs`, and with
 it came quoted values, comments, a typed `Error` carrying path and line,
 multi-block parsing, and the Rust half of CI. Then the schema, the
@@ -18,8 +18,9 @@ conventions and the engine, which a read now goes through: `rxm.read(path)`
 comes back under canonical names, and `result.raw` is the file under its own.
 Then writing, through write conventions, and forwarding: `columns=` narrows
 what a read shows, and a write reads the source again and carries every
-column of it, a whole file at a time until Phase 5. Both suites are green,
-59 tests in Rust and 127 in Python.
+column of it. Then chunked reading: `result["particles"].chunks(n)` streams
+a file in bounded memory. Both suites are green, 68 tests in Rust and 156 in
+Python.
 
 What the STAR parser does not do, and that a real file may yet ask for:
 
@@ -154,8 +155,8 @@ of several tables asks which one rather than handing back the last.
 - [x] `ReadResult.names` and `ReadResult.__getitem__`, which took the place
       of the `TableCollection` this once planned
 - [x] Tests: a real Relion 3.1 file, its optics in a block of their own
-- [ ] Continuous deployment: a development release on push to `main`, the
-      same pattern as `rexlib-python`
+- [x] Continuous deployment: a development release on push to `main`, the
+      same pattern as `rexlib-python`, with PyPI waiting on the name (#40)
 
 ## Phase 6b — What a second format needs first
 

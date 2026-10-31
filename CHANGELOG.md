@@ -17,6 +17,7 @@ Nothing has been released yet. This is what the first release will say.
   first and held it.
 
 ### New
+- One wheel per platform serves every Python from 3.10.
 - Reads a canonical table a chunk at a time:
   `for chunk in result["particles"].chunks(10_000)`. The file opens when
   iteration starts and closes when it ends, so a file larger than memory

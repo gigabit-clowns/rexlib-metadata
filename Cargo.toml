@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3       = "0.30"
 arrow      = { version = "59", default-features = false }
-pyo3-arrow = "0.20"
+pyo3-arrow = { version = "0.20", default-features = false }
 thiserror  = "2"
 
 [dev-dependencies]

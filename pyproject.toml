@@ -52,6 +52,7 @@ lint = [
     "pandas-stubs==3.0.5.260914",
     "polars==2.1.0",
 ]
+sdist = ["build==1.6.1"]
 
 [project.urls]
 Homepage = "https://github.com/gigabit-clowns/rexlib-metadata"
@@ -60,7 +61,7 @@ Issues   = "https://github.com/gigabit-clowns/rexlib-metadata/issues"
 [tool.maturin]
 python-source = "python"
 module-name   = "rexlib_metadata._rexlib"
-features      = ["pyo3/extension-module"]
+features      = ["pyo3/extension-module", "pyo3/abi3-py310"]
 
 [tool.mypy]
 files          = ["python/rexlib_metadata"]
