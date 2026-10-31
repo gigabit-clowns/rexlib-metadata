@@ -10,6 +10,8 @@ Nothing has been released yet. This is what the first release will say.
   where everything used to be a `RuntimeError`.
 
 ### Changed
+- Writing a STAR file is thirteen times as fast: the writer hands each
+  value from Arrow to the file, where it built three strings per value.
 - Reading a STAR file is three times as fast: a million rows in 1.4 s
   rather than 4.
 - Naming a canonical table, as `result["particles"]`, no longer reads the

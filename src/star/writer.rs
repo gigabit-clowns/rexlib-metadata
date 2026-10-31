@@ -3,11 +3,15 @@
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
+use arrow::array::{Array, StringArray};
 use arrow::record_batch::RecordBatch;
 
 use crate::error::{Error, unwritable};
-use crate::text::builder::rows_of_record_batch;
+use crate::text::builder::string_columns;
 
+const BUFFER: usize = 1 << 20;
+
+/// A value refused while writing removes the half-written file.
 pub(crate) fn write_tables(
     path: &str,
     header: Option<&str>,
@@ -16,18 +20,32 @@ pub(crate) fn write_tables(
     if let Some(header) = header {
         check_header(header)?;
     }
-    let file = File::create(path).map_err(|source| io_error(path, source))?;
-    let mut out = BufWriter::new(file);
+    for (_, batch) in tables {
+        check_names(batch)?;
+        string_columns(batch)?;
+    }
+    let written = write_file(path, header, tables);
+    if written.is_err() {
+        let _ = std::fs::remove_file(path);
+    }
+    written
+}
+
+fn write_file(
+    path: &str,
+    header: Option<&str>,
+    tables: &[(String, RecordBatch)],
+) -> Result<(), Error> {
+    let io = |source| io_error(path, source);
+    let file = File::create(path).map_err(io)?;
+    let mut out = BufWriter::with_capacity(BUFFER, file);
     if let Some(header) = header {
-        writeln!(out, "{header}").map_err(|source| io_error(path, source))?;
+        writeln!(out, "{header}").map_err(io)?;
     }
     for (name, batch) in tables {
-        let (columns, rows) = rows_of_record_batch(batch)?;
-        check_names(&columns)?;
-        let quoted = quote_rows(&rows)?;
-        write_block(&mut out, name, &columns, &quoted).map_err(|source| io_error(path, source))?;
+        write_block(&mut out, path, name, batch)?;
     }
-    out.flush().map_err(|source| io_error(path, source))
+    out.flush().map_err(io)
 }
 
 fn io_error(path: &str, source: std::io::Error) -> Error {
@@ -40,71 +58,103 @@ fn io_error(path: &str, source: std::io::Error) -> Error {
 fn check_header(header: &str) -> Result<(), Error> {
     match header.lines().find(|line| !line.starts_with('#')) {
         Some(line) => Err(unwritable(format!(
-            "the header line {line:?} is not a comment, and a STAR file would              read it as data"
+            "the header line {line:?} is not a comment, and a STAR file would \
+             read it as data"
         ))),
         None => Ok(()),
     }
 }
 
-fn check_names(columns: &[String]) -> Result<(), Error> {
-    for column in columns {
-        if !column.starts_with('_') {
-            return Err(unwritable(format!(
-                "column '{column}' does not start with '_', and a STAR file \
-                 would not read it back as a column"
-            )));
+fn check_names(batch: &RecordBatch) -> Result<(), Error> {
+    let schema = batch.schema();
+    match schema
+        .fields()
+        .iter()
+        .find(|field| !field.name().starts_with('_'))
+    {
+        Some(field) => Err(unwritable(format!(
+            "column '{}' does not start with '_', and a STAR file would not \
+             read it back as a column",
+            field.name()
+        ))),
+        None => Ok(()),
+    }
+}
+
+fn write_block<W: Write>(
+    out: &mut W,
+    path: &str,
+    name: &str,
+    batch: &RecordBatch,
+) -> Result<(), Error> {
+    let io = |source| io_error(path, source);
+    writeln!(out, "data_{name}\n\nloop_").map_err(io)?;
+    for (index, field) in batch.schema().fields().iter().enumerate() {
+        writeln!(out, "{} #{}", field.name(), index + 1).map_err(io)?;
+    }
+    let columns = string_columns(batch)?;
+    for row in 0..batch.num_rows() {
+        write_row(out, path, &columns, row)?;
+    }
+    writeln!(out).map_err(io)
+}
+
+fn write_row<W: Write>(
+    out: &mut W,
+    path: &str,
+    columns: &[&StringArray],
+    row: usize,
+) -> Result<(), Error> {
+    for (index, column) in columns.iter().enumerate() {
+        if index > 0 {
+            out.write_all(b" ")
+                .map_err(|source| io_error(path, source))?;
         }
+        let value = if column.is_null(row) {
+            ""
+        } else {
+            column.value(row)
+        };
+        write_value(out, path, value)?;
     }
-    Ok(())
+    out.write_all(b"\n")
+        .map_err(|source| io_error(path, source))
 }
 
-fn quote_rows(rows: &[Vec<String>]) -> Result<Vec<Vec<String>>, Error> {
-    rows.iter()
-        .map(|row| row.iter().map(|value| quoted(value)).collect())
-        .collect()
-}
-
-fn quoted(value: &str) -> Result<String, Error> {
+fn write_value<W: Write>(out: &mut W, path: &str, value: &str) -> Result<(), Error> {
+    let io = |source| io_error(path, source);
     if !needs_quotes(value) {
-        return Ok(value.to_string());
+        return out.write_all(value.as_bytes()).map_err(io);
     }
+    let quote = quote_for(value)?;
+    out.write_all(quote).map_err(io)?;
+    out.write_all(value.as_bytes()).map_err(io)?;
+    out.write_all(quote).map_err(io)
+}
+
+fn quote_for(value: &str) -> Result<&'static [u8], Error> {
     match (value.contains('"'), value.contains('\'')) {
         (true, true) => Err(unwritable(format!(
             "the value {value:?} holds both kinds of quote, which STAR has no \
              way to escape"
         ))),
-        (true, false) => Ok(format!("'{value}'")),
-        _ => Ok(format!("\"{value}\"")),
+        (true, false) => Ok(b"'"),
+        _ => Ok(b"\""),
     }
 }
 
 fn needs_quotes(value: &str) -> bool {
     value.is_empty()
-        || value.contains(char::is_whitespace)
-        || value.contains('"')
-        || value.contains('\'')
-        || value.starts_with('#')
-        || value.starts_with('_')
+        || value.starts_with(['#', '_'])
         || value.starts_with("data_")
         || value == "loop_"
-}
-
-fn write_block<W: Write>(
-    out: &mut W,
-    name: &str,
-    columns: &[String],
-    rows: &[Vec<String>],
-) -> std::io::Result<()> {
-    writeln!(out, "data_{name}")?;
-    writeln!(out)?;
-    writeln!(out, "loop_")?;
-    for (index, column) in columns.iter().enumerate() {
-        writeln!(out, "{column} #{}", index + 1)?;
-    }
-    for row in rows {
-        writeln!(out, "{}", row.join(" "))?;
-    }
-    writeln!(out)
+        || value.bytes().any(|byte| {
+            matches!(
+                byte,
+                b' ' | b'\t' | b'\n' | b'\r' | 0x0B | 0x0C | b'"' | b'\''
+            )
+        })
+        || (!value.is_ascii() && value.contains(char::is_whitespace))
 }
 
 #[cfg(test)]
@@ -280,6 +330,19 @@ data_",
         .unwrap_err();
 
         assert!(error.to_string().contains("\"data_\""));
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn a_value_refused_while_writing_leaves_no_file_behind() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("out.star");
+        let mut tables = one("first", &["_rlnA"], &[&["fine"]]);
+        tables.extend(one("second", &["_rlnA"], &[&["it's \"this\""]]));
+
+        let error = write_tables(path.to_str().unwrap(), None, &tables).unwrap_err();
+
+        assert!(error.to_string().contains("both kinds of quote"));
         assert!(!path.exists());
     }
 

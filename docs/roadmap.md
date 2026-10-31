@@ -267,6 +267,9 @@ the two to the same answer. Every other line is scanned as before.
 - [x] A plain data row is split on whitespace rather than scanned
 - [ ] A projected read that skips the columns it drops while tokenising,
       rather than after: two columns of twenty-one still cost 80 % of all
+- [x] The writer, which built a `Vec<String>` per row, quoted it into a
+      second and joined it into a third: each value now goes from its Arrow
+      array to a buffered file, 5.53 s to 0.42 s for a million rows
 - [x] The second of a canonical read that the conventions cost, looked at:
       most of it was the regular expression that split `index@path`, now a
       split on `@` that a test holds to the same answer, 0.57 s to 0.15 s.

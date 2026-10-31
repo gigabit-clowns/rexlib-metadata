@@ -126,6 +126,7 @@ own; the Rust number is the Rust tests'.
 |---|---|
 | `sonar.sources=src,python,scripts,.github` | everything that is shipped or that runs |
 | `sonar.tests=tests` | a statement instead of a heuristic: the Python analyser recognises a test by its `test_*.py` name, and a helper in `tests/` without that name is a test too |
+| `sonar.coverage.exclusions=scripts/**` | the comparison, the chart and the gate are tools for this repository, analysed but not measured: no test exists for them, nor should |
 | `sonar.python.version=3.10` | the floor from `pyproject.toml`: a rule that wants newer syntax is wrong here until the floor moves |
 | the three report paths | the files `coverage` hands over |
 | `sonar.rust.clippy.enable=false` | the scan job has no Rust toolchain, and clippy has already run with the one that builds the crate |
