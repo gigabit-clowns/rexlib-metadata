@@ -234,10 +234,26 @@ which is why the release profile is cargo's default.
       seconds and compares a pull request against `main`
 - [ ] CodSpeed's check required by the ruleset, with its regression threshold
       stated in `docs/ci.md`
-- [ ] A read from a cold cache, a file of several gigabytes on Linux after
-      the cache is dropped: if the I/O shows behind the parse, prefetch —
-      `posix_fadvise(SEQUENTIAL)`, or a thread reading the next block — as
-      vitrio does for its stacks; if it does not, nothing
+- [x] A read from a cold cache, measured: no prefetch, because the I/O
+      does not show behind the parse. Ten million rows, 2.4 GiB, on GitHub's
+      runners, best of three with the cache dropped before each cold read:
+
+      | | ubuntu-24.04-arm | ubuntu-latest |
+      |---|---|---|
+      | The disk alone | 6.13 s, 397 MiB/s | 5.87 s, 415 MiB/s |
+      | Read, warm | 10.32 s | 13.17 s |
+      | Read, cold | 10.47 s | 13.86 s |
+      | Cold, `fadvise(SEQUENTIAL)` | 10.58 s | 14.15 s |
+      | Cold, `fadvise(WILLNEED)` | 10.66 s | 14.20 s |
+      | Cold, a thread reading ahead | 10.78 s | 13.31 s |
+
+      The disk delivers twice what the parser takes, so the kernel's own
+      read-ahead keeps ahead of it and a cold read costs 1.5 to 5 % more
+      than a warm one, which is all a prefetch could win back. vitrio gains
+      because reading a stack is nearly all I/O; here the parse sets the
+      pace. Storage slower than some 200 MiB/s — a disk, a loaded NFS or
+      Lustre — would change that, and the script that measured this is
+      `.github/measure/cold_read.py` at `3e50392`, to run there
 - [x] The build profile chosen by the numbers, below: cargo's default
 
 A million rows, 243 MiB, read to pandas, best of three, on one Windows
