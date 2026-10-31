@@ -13,7 +13,7 @@ use crate::text::Token;
 use crate::text::builder::{ArrowSink, Chunk};
 use crate::text::parser::{Parser, parse_blocks};
 
-type Tokenize = fn(&str, &str, usize) -> Result<Vec<Token>, Error>;
+type Tokenize = for<'a> fn(&'a str, &str, usize) -> Result<Vec<Token<'a>>, Error>;
 
 /// Every block of a STAR file, keeping only the columns `columns` names
 /// when it names any.

@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 use std::fs::File;
-use std::io::{BufRead, BufReader, ErrorKind, Lines};
-use std::iter::Enumerate;
+use std::io::{BufRead, BufReader, ErrorKind};
 
 use super::Token;
 use crate::error::{Error, parse_error};
 
 pub(crate) trait Sink {
     fn open(&mut self, name: &str, columns: &[String]);
-    fn row(&mut self, values: &[String]) -> Result<(), Error>;
+    fn row(&mut self, values: &[&str]) -> Result<(), Error>;
     fn close(&mut self, name: String, columns: Vec<String>) -> Result<(), Error>;
 }
 
@@ -47,6 +46,7 @@ impl State {
                 values,
             } => {
                 sink.open(&name, &columns);
+                let values: Vec<&str> = values.iter().map(String::as_str).collect();
                 sink.row(&values)?;
                 sink.close(name, columns)
             }
@@ -56,7 +56,7 @@ impl State {
 
 pub(crate) fn parse_blocks<T, S>(path: &str, tokenize: T, sink: &mut S) -> Result<(), Error>
 where
-    T: Fn(&str, &str, usize) -> Result<Vec<Token>, Error>,
+    T: for<'a> Fn(&'a str, &str, usize) -> Result<Vec<Token<'a>>, Error>,
     S: Sink,
 {
     let mut parser = Parser::open(path, tokenize)?;
@@ -64,16 +64,20 @@ where
     Ok(())
 }
 
+/// Reads one line at a time into a buffer it keeps, so a million lines
+/// are one allocation rather than a million.
 pub(crate) struct Parser<T> {
     path: String,
-    lines: Enumerate<Lines<BufReader<File>>>,
+    reader: BufReader<File>,
+    line: String,
+    line_num: usize,
     tokenize: T,
     state: State,
 }
 
 impl<T> Parser<T>
 where
-    T: Fn(&str, &str, usize) -> Result<Vec<Token>, Error>,
+    T: for<'a> Fn(&'a str, &str, usize) -> Result<Vec<Token<'a>>, Error>,
 {
     pub(crate) fn open(path: &str, tokenize: T) -> Result<Self, Error> {
         let file = File::open(path).map_err(|source| Error::Io {
@@ -82,7 +86,9 @@ where
         })?;
         Ok(Self {
             path: path.to_string(),
-            lines: BufReader::new(file).lines().enumerate(),
+            reader: BufReader::new(file),
+            line: String::new(),
+            line_num: 0,
             tokenize,
             state: State::Preamble,
         })
@@ -91,36 +97,48 @@ where
     /// Hands one line to `sink`, and says whether there are more.
     pub(crate) fn step<S: Sink>(&mut self, sink: &mut S) -> Result<bool, Error> {
         let state = std::mem::replace(&mut self.state, State::Preamble);
-        let Some((index, line)) = self.lines.next() else {
+        if !self.read_line()? {
             state.close(sink)?;
             return Ok(false);
-        };
-        self.state = self.next_state(state, index + 1, line, sink)?;
+        }
+        self.state = self.next_state(state, sink)?;
         Ok(true)
     }
 
-    fn next_state<S: Sink>(
-        &self,
-        state: State,
-        line_num: usize,
-        line: std::io::Result<String>,
-        sink: &mut S,
-    ) -> Result<State, Error> {
+    /// Reads the next line into the buffer, without its line ending, and
+    /// says whether there was one.
+    fn read_line(&mut self) -> Result<bool, Error> {
+        self.line.clear();
+        self.line_num += 1;
+        let read = self
+            .reader
+            .read_line(&mut self.line)
+            .map_err(|source| match source.kind() {
+                ErrorKind::InvalidData => parse_error(&self.path, self.line_num, "not valid UTF-8"),
+                _ => Error::Io {
+                    path: self.path.clone(),
+                    source,
+                },
+            })?;
+        if self.line.ends_with('\n') {
+            self.line.pop();
+            if self.line.ends_with('\r') {
+                self.line.pop();
+            }
+        }
+        Ok(read > 0)
+    }
+
+    fn next_state<S: Sink>(&self, state: State, sink: &mut S) -> Result<State, Error> {
         let path = self.path.as_str();
-        let line = line.map_err(|source| match source.kind() {
-            ErrorKind::InvalidData => parse_error(path, line_num, "not valid UTF-8"),
-            _ => Error::Io {
-                path: path.to_string(),
-                source,
-            },
-        })?;
-        let tokens = (self.tokenize)(&line, path, line_num)?;
+        let line_num = self.line_num;
+        let tokens = (self.tokenize)(&self.line, path, line_num)?;
         let Some(first) = tokens.first() else {
             return Ok(state);
         };
         match first {
             Token::DataBlock(name) => {
-                let name = name.clone();
+                let name = (*name).to_string();
                 state.close(sink)?;
                 Ok(State::InBlock { name })
             }
@@ -152,7 +170,10 @@ fn open_loop(state: State, path: &str, line: usize) -> Result<State, Error> {
 }
 
 fn read_names(state: State, tokens: &[Token], path: &str, line: usize) -> Result<State, Error> {
-    let values = row_values_of(tokens);
+    let values: Vec<String> = row_values_of(tokens)
+        .into_iter()
+        .map(str::to_string)
+        .collect();
     let names = column_names_of(tokens);
     if values.is_empty() {
         return declare_columns(state, names, path, line);
@@ -256,7 +277,7 @@ fn declare_column(state: State, column: String, path: &str, line: usize) -> Resu
 
 fn read_row<S: Sink>(
     state: State,
-    values: &[String],
+    values: &[&str],
     sink: &mut S,
     path: &str,
     line: usize,
@@ -285,7 +306,7 @@ fn read_row<S: Sink>(
 
 fn check_row_width(
     columns: &[String],
-    values: &[String],
+    values: &[&str],
     path: &str,
     line: usize,
 ) -> Result<(), Error> {
@@ -307,17 +328,17 @@ fn column_names_of(tokens: &[Token]) -> Vec<String> {
     tokens
         .iter()
         .filter_map(|token| match token {
-            Token::Column(name) => Some(name.clone()),
+            Token::Column(name) => Some((*name).to_string()),
             _ => None,
         })
         .collect()
 }
 
-fn row_values_of(tokens: &[Token]) -> Vec<String> {
+fn row_values_of<'a>(tokens: &[Token<'a>]) -> Vec<&'a str> {
     tokens
         .iter()
         .filter_map(|token| match token {
-            Token::Value(value) => Some(value.clone()),
+            Token::Value(value) => Some(*value),
             _ => None,
         })
         .collect()
@@ -347,8 +368,9 @@ mod tests {
             self.rows.clear();
         }
 
-        fn row(&mut self, values: &[String]) -> Result<(), Error> {
-            self.rows.push(values.to_vec());
+        fn row(&mut self, values: &[&str]) -> Result<(), Error> {
+            self.rows
+                .push(values.iter().map(ToString::to_string).collect());
             Ok(())
         }
 
@@ -365,7 +387,7 @@ mod tests {
 
     fn blocks_of<T>(content: &str, tokenize: T) -> Result<Vec<Block>, Error>
     where
-        T: Fn(&str, &str, usize) -> Result<Vec<Token>, Error>,
+        T: for<'a> Fn(&'a str, &str, usize) -> Result<Vec<Token<'a>>, Error>,
     {
         let mut f = NamedTempFile::new().unwrap();
         write!(f, "{content}").unwrap();
@@ -382,22 +404,23 @@ mod tests {
         blocks_of(content, crate::star::lexer::tokenize_line).unwrap_err()
     }
 
-    fn comma_lexer(line: &str, path: &str, line_num: usize) -> Result<Vec<Token>, Error> {
+    fn comma_lexer<'a>(
+        line: &'a str,
+        path: &str,
+        line_num: usize,
+    ) -> Result<Vec<Token<'a>>, Error> {
         let line = line.trim();
         if line.is_empty() {
             return Ok(vec![]);
         }
         if let Some(name) = line.strip_prefix("_table,") {
-            return Ok(vec![Token::DataBlock(name.to_string())]);
+            return Ok(vec![Token::DataBlock(name)]);
         }
         if line == "_header" {
             return Ok(vec![Token::Loop]);
         }
         if let Some(names) = line.strip_prefix("_columns,") {
-            return Ok(names
-                .split(',')
-                .map(|name| Token::Column(name.to_string()))
-                .collect());
+            return Ok(names.split(',').map(Token::Column).collect());
         }
         if line.starts_with('_') {
             return Err(parse_error(
@@ -408,7 +431,7 @@ mod tests {
         }
         Ok(line
             .split(',')
-            .map(|value| Token::Value(value.trim().to_string()))
+            .map(|value| Token::Value(value.trim()))
             .collect())
     }
 

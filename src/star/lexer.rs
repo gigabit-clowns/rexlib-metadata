@@ -3,18 +3,17 @@
 use crate::error::{Error, parse_error};
 use crate::text::Token;
 
-pub(crate) fn tokenize_line(line: &str, path: &str, line_num: usize) -> Result<Vec<Token>, Error> {
+pub(crate) fn tokenize_line<'a>(
+    line: &'a str,
+    path: &str,
+    line_num: usize,
+) -> Result<Vec<Token<'a>>, Error> {
     let clean_line = line.split_once('#').map_or(line, |(head, _)| head).trim();
     if clean_line.is_empty() {
         Ok(vec![])
-    } else if clean_line.starts_with("data_") {
+    } else if let Some(name) = clean_line.strip_prefix("data_") {
         ensure_single_word(clean_line, path, line_num, "data block header")?;
-        Ok(vec![Token::DataBlock(
-            clean_line
-                .strip_prefix("data_")
-                .expect("guaranteed by starts_with")
-                .to_string(),
-        )])
+        Ok(vec![Token::DataBlock(name)])
     } else if clean_line.split_whitespace().next() == Some("loop_") {
         ensure_single_word(clean_line, path, line_num, "loop_ keyword")?;
         Ok(vec![Token::Loop])
@@ -25,12 +24,12 @@ pub(crate) fn tokenize_line(line: &str, path: &str, line_num: usize) -> Result<V
     }
 }
 
-fn tokenize_tag(
-    line: &str,
-    clean_line: &str,
+fn tokenize_tag<'a>(
+    line: &'a str,
+    clean_line: &'a str,
     path: &str,
     line_num: usize,
-) -> Result<Vec<Token>, Error> {
+) -> Result<Vec<Token<'a>>, Error> {
     let name = clean_line
         .split_whitespace()
         .next()
@@ -39,75 +38,76 @@ fn tokenize_tag(
         .find(name)
         .map(|at| at + name.len())
         .expect("the name came from this line");
-    let mut tokens = vec![Token::Column(name.to_string())];
+    let mut tokens = vec![Token::Column(name)];
     tokens.extend(tokenize_values(&line[after_name..], path, line_num)?);
     Ok(tokens)
 }
 
-fn tokenize_values(line: &str, path: &str, line_num: usize) -> Result<Vec<Token>, Error> {
-    let mut tokens: Vec<Token> = vec![];
-    let mut current = String::new();
-    let mut in_quote: Option<char> = None;
-
-    for ch in line.chars() {
-        if let Some(q) = in_quote {
-            in_quote = process_quoted_char(ch, q, &mut current, &mut tokens);
-        } else {
-            let (new_quote, stop) = process_unquoted_char(ch, &mut current, &mut tokens);
-            in_quote = new_quote;
-            if stop {
-                break;
-            }
-        }
-    }
-
-    if in_quote.is_some() {
-        return Err(parse_error(path, line_num, "unterminated quoted value"));
-    }
-    flush_bare(&mut current, &mut tokens);
-    Ok(tokens)
+/// Where the scan of a line is: between values, inside a bare one that
+/// began at a byte, or inside a quoted one whose text begins at a byte.
+#[derive(Clone, Copy)]
+enum Scan {
+    Between,
+    Bare(usize),
+    Quoted(char, usize),
 }
 
-fn process_quoted_char(
-    ch: char,
+fn tokenize_values<'a>(
+    line: &'a str,
+    path: &str,
+    line_num: usize,
+) -> Result<Vec<Token<'a>>, Error> {
+    let mut tokens = Vec::new();
+    let mut scan = Scan::Between;
+    for (at, ch) in line.char_indices() {
+        scan = match scan {
+            Scan::Quoted(quote, from) => quoted(line, quote, from, at, ch, &mut tokens),
+            Scan::Between if ch == '#' => break,
+            _ => unquoted(line, scan, at, ch, &mut tokens),
+        };
+    }
+    match scan {
+        Scan::Quoted(..) => Err(parse_error(path, line_num, "unterminated quoted value")),
+        Scan::Bare(from) => {
+            tokens.push(Token::Value(&line[from..]));
+            Ok(tokens)
+        }
+        Scan::Between => Ok(tokens),
+    }
+}
+
+fn quoted<'a>(
+    line: &'a str,
     quote: char,
-    current: &mut String,
-    tokens: &mut Vec<Token>,
-) -> Option<char> {
-    if ch == quote {
-        tokens.push(Token::Value(std::mem::take(current)));
-        None
-    } else {
-        current.push(ch);
-        Some(quote)
-    }
-}
-
-fn process_unquoted_char(
+    from: usize,
+    at: usize,
     ch: char,
-    current: &mut String,
-    tokens: &mut Vec<Token>,
-) -> (Option<char>, bool) {
-    match ch {
-        '#' if current.is_empty() => (None, true),
-        '"' | '\'' => {
-            flush_bare(current, tokens);
-            (Some(ch), false)
-        }
-        c if c.is_whitespace() => {
-            flush_bare(current, tokens);
-            (None, false)
-        }
-        c => {
-            current.push(c);
-            (None, false)
-        }
+    tokens: &mut Vec<Token<'a>>,
+) -> Scan {
+    if ch == quote {
+        tokens.push(Token::Value(&line[from..at]));
+        Scan::Between
+    } else {
+        Scan::Quoted(quote, from)
     }
 }
 
-fn flush_bare(current: &mut String, tokens: &mut Vec<Token>) {
-    if !current.is_empty() {
-        tokens.push(Token::Value(std::mem::take(current)));
+fn unquoted<'a>(
+    line: &'a str,
+    scan: Scan,
+    at: usize,
+    ch: char,
+    tokens: &mut Vec<Token<'a>>,
+) -> Scan {
+    let ends_bare = ch == '"' || ch == '\'' || ch.is_whitespace();
+    if let (Scan::Bare(from), true) = (scan, ends_bare) {
+        tokens.push(Token::Value(&line[from..at]));
+    }
+    match ch {
+        '"' | '\'' => Scan::Quoted(ch, at + ch.len_utf8()),
+        c if c.is_whitespace() => Scan::Between,
+        _ if matches!(scan, Scan::Bare(_)) => scan,
+        _ => Scan::Bare(at),
     }
 }
 
@@ -131,7 +131,7 @@ fn ensure_single_word(
 mod tests {
     use super::*;
 
-    fn tok(line: &str) -> Vec<Token> {
+    fn tok(line: &str) -> Vec<Token<'_>> {
         tokenize_line(line, "test.star", 1).unwrap()
     }
 
@@ -152,17 +152,14 @@ mod tests {
 
     #[test]
     fn data_block() {
-        assert_eq!(
-            tok("data_particles"),
-            vec![Token::DataBlock("particles".into())]
-        );
+        assert_eq!(tok("data_particles"), vec![Token::DataBlock("particles")]);
     }
 
     #[test]
     fn data_block_with_comment() {
         assert_eq!(
             tok("data_particles # Some comment"),
-            vec![Token::DataBlock("particles".into())]
+            vec![Token::DataBlock("particles")]
         );
     }
 
@@ -173,10 +170,7 @@ mod tests {
 
     #[test]
     fn column_name() {
-        assert_eq!(
-            tok("_rlnAngleRot"),
-            vec![Token::Column("_rlnAngleRot".into())]
-        );
+        assert_eq!(tok("_rlnAngleRot"), vec![Token::Column("_rlnAngleRot")]);
     }
 
     #[test]
@@ -184,9 +178,9 @@ mod tests {
         assert_eq!(
             tok("10.5 20.1 1024.0"),
             vec![
-                Token::Value("10.5".into()),
-                Token::Value("20.1".into()),
-                Token::Value("1024.0".into()),
+                Token::Value("10.5"),
+                Token::Value("20.1"),
+                Token::Value("1024.0"),
             ]
         );
     }
@@ -196,9 +190,9 @@ mod tests {
         assert_eq!(
             tok(r#"10.5 "path with spaces/file.mrcs" 512.0"#),
             vec![
-                Token::Value("10.5".into()),
-                Token::Value("path with spaces/file.mrcs".into()),
-                Token::Value("512.0".into()),
+                Token::Value("10.5"),
+                Token::Value("path with spaces/file.mrcs"),
+                Token::Value("512.0"),
             ]
         );
     }
@@ -208,9 +202,9 @@ mod tests {
         assert_eq!(
             tok("10.5 'path with spaces/file.mrcs' 512.0"),
             vec![
-                Token::Value("10.5".into()),
-                Token::Value("path with spaces/file.mrcs".into()),
-                Token::Value("512.0".into()),
+                Token::Value("10.5"),
+                Token::Value("path with spaces/file.mrcs"),
+                Token::Value("512.0"),
             ]
         );
     }
@@ -237,15 +231,12 @@ mod tests {
 
     #[test]
     fn loop_extra_is_value() {
-        assert_eq!(tok("loop_extra"), vec![Token::Value("loop_extra".into())]);
+        assert_eq!(tok("loop_extra"), vec![Token::Value("loop_extra")]);
     }
 
     #[test]
     fn a_bare_name_is_a_column() {
-        assert_eq!(
-            tok("_rlnAngleRot"),
-            vec![Token::Column("_rlnAngleRot".into())]
-        );
+        assert_eq!(tok("_rlnAngleRot"), vec![Token::Column("_rlnAngleRot")]);
     }
 
     #[test]
@@ -253,8 +244,8 @@ mod tests {
         assert_eq!(
             tok("_rlnFinalResolution                        16.363636"),
             vec![
-                Token::Column("_rlnFinalResolution".into()),
-                Token::Value("16.363636".into()),
+                Token::Column("_rlnFinalResolution"),
+                Token::Value("16.363636"),
             ]
         );
     }
@@ -263,10 +254,7 @@ mod tests {
     fn a_tag_value_may_be_quoted_and_hold_a_hash() {
         assert_eq!(
             tok("_rlnMaskName 'mask #2.mrc'"),
-            vec![
-                Token::Column("_rlnMaskName".into()),
-                Token::Value("mask #2.mrc".into()),
-            ]
+            vec![Token::Column("_rlnMaskName"), Token::Value("mask #2.mrc"),]
         );
     }
 
@@ -274,10 +262,7 @@ mod tests {
     fn a_comment_after_a_tag_value_is_dropped() {
         assert_eq!(
             tok("_rlnMaskName mask.mrc # which one"),
-            vec![
-                Token::Column("_rlnMaskName".into()),
-                Token::Value("mask.mrc".into()),
-            ]
+            vec![Token::Column("_rlnMaskName"), Token::Value("mask.mrc"),]
         );
     }
 
@@ -285,24 +270,20 @@ mod tests {
     fn a_hash_inside_a_bare_value_belongs_to_the_value() {
         assert_eq!(
             tok("mask#2.mrc 5"),
-            vec![Token::Value("mask#2.mrc".into()), Token::Value("5".into()),]
+            vec![Token::Value("mask#2.mrc"), Token::Value("5"),]
         );
     }
 
     #[test]
     fn a_hash_after_whitespace_starts_a_comment() {
-        assert_eq!(tok("5 # how many"), vec![Token::Value("5".into())]);
+        assert_eq!(tok("5 # how many"), vec![Token::Value("5")]);
     }
 
     #[test]
     fn an_empty_quoted_value_stays_a_value() {
         assert_eq!(
             tok("'' . 5"),
-            vec![
-                Token::Value(String::new()),
-                Token::Value(".".into()),
-                Token::Value("5".into()),
-            ]
+            vec![Token::Value(""), Token::Value("."), Token::Value("5"),]
         );
     }
 
@@ -310,7 +291,7 @@ mod tests {
     fn column_with_comment() {
         assert_eq!(
             tok("_rlnAngleRot # comment"),
-            vec![Token::Column("_rlnAngleRot".into())]
+            vec![Token::Column("_rlnAngleRot")]
         );
     }
 }
