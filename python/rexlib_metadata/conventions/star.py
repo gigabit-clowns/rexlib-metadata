@@ -54,6 +54,10 @@ class StarReader(Reader):
 class StarWriter(Writer):
     """Writes a STAR file through the Rust serializer."""
 
+    def __init__(self, header: str | None = None) -> None:
+        """Write `header`, comment lines only, before the first block."""
+        self._header = header
+
     def write_tables(self, path: str, tables: Iterable[RawTable]) -> None:
         """Write one data block per table, in the order given."""
         _star_write(
@@ -62,4 +66,5 @@ class StarWriter(Writer):
                 (table.schema.table_name, to_record_batch(table.table))
                 for table in tables
             ],
+            self._header,
         )

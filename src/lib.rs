@@ -87,12 +87,18 @@ impl StarChunks {
 }
 
 #[pyfunction]
-fn _star_write(py: Python<'_>, path: &str, tables: Vec<(String, PyRecordBatch)>) -> PyResult<()> {
+#[pyo3(signature = (path, tables, header=None))]
+fn _star_write(
+    py: Python<'_>,
+    path: &str,
+    tables: Vec<(String, PyRecordBatch)>,
+    header: Option<&str>,
+) -> PyResult<()> {
     let owned: Vec<(String, RecordBatch)> = tables
         .into_iter()
         .map(|(name, batch)| (name, batch.into_inner()))
         .collect();
-    py.detach(|| star::writer::write_tables(path, &owned))
+    py.detach(|| star::writer::write_tables(path, header, &owned))
         .map_err(to_python_error)
 }
 

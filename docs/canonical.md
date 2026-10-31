@@ -163,6 +163,14 @@ The mappings that are not a rename, which are the ones worth writing down.
 | `pixel_size` | `_rlnImagePixelSize` | in `data_optics` |
 | everything in `optics` | the row of `data_optics` the particle's `_rlnOpticsGroup` points at | joined per row |
 
+## Reading Xmipp
+
+| Canonical | Xmipp 3 | Note |
+|---|---|---|
+| `image_path` + `image_index` | `_image` | `index@path`, one-based, as Relion's |
+| `angle_rot`, `angle_tilt`, `angle_psi` | `_angleRot`, `_angleTilt`, `_anglePsi` | the same ZYZ angles, a rename |
+| `shift_x`, `shift_y` | `_shiftX`, `_shiftY` | pixels, and no pixel size in the file; not read yet |
+
 cryoSPARC's `alignments3D/pose` is the other shape worth naming: one column
 holding a rotation vector that produces three canonical ones, which is the
 M:N relation the convention layer exists for and the reason to reach that

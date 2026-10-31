@@ -33,7 +33,7 @@ Part of the [REX suite](https://github.com/gigabit-clowns) (gigabit-clowns org).
 - **Extensible** — plug in custom readers and conventions by subclassing Python ABCs; no Rust required
 - **Fast core** — parsing and Arrow serialization in Rust via PyO3 + Maturin
 
-Reading and writing STAR files through Relion's conventions is what works today, columns read on their own and forwarded on write included. Chunked reads, forwarding a chunk at a time, XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
+Reading and writing STAR files through Relion's conventions is what works today, columns read on their own, chunked reads and forwarding on write included. XMD reads and writes its image reference and angles. More of XMD, SQLite and HDF5 are on their way — see the [roadmap](docs/roadmap.md).
 
 ## Installation
 
@@ -204,6 +204,10 @@ source's. So a conversion is a change of extension:
 ```python
 rxm.read("particles.star").write("particles.xmd")
 ```
+
+That one holds for a file without `data_optics`. XMD has no optics table,
+and until optics are joined into each row a write of one raises rather than
+leave them out.
 
 A column no convention writes — `_rlnCtfImage` and its kind — is carried over
 untouched when the destination is the format the result was read from, so

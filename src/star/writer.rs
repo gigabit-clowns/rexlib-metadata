@@ -8,9 +8,19 @@ use arrow::record_batch::RecordBatch;
 use crate::error::{Error, unwritable};
 use crate::text::builder::rows_of_record_batch;
 
-pub(crate) fn write_tables(path: &str, tables: &[(String, RecordBatch)]) -> Result<(), Error> {
+pub(crate) fn write_tables(
+    path: &str,
+    header: Option<&str>,
+    tables: &[(String, RecordBatch)],
+) -> Result<(), Error> {
+    if let Some(header) = header {
+        check_header(header)?;
+    }
     let file = File::create(path).map_err(|source| io_error(path, source))?;
     let mut out = BufWriter::new(file);
+    if let Some(header) = header {
+        writeln!(out, "{header}").map_err(|source| io_error(path, source))?;
+    }
     for (name, batch) in tables {
         let (columns, rows) = rows_of_record_batch(batch)?;
         check_names(&columns)?;
@@ -24,6 +34,15 @@ fn io_error(path: &str, source: std::io::Error) -> Error {
     Error::Io {
         path: path.to_string(),
         source,
+    }
+}
+
+fn check_header(header: &str) -> Result<(), Error> {
+    match header.lines().find(|line| !line.starts_with('#')) {
+        Some(line) => Err(unwritable(format!(
+            "the header line {line:?} is not a comment, and a STAR file would              read it as data"
+        ))),
+        None => Ok(()),
     }
 }
 
@@ -113,7 +132,7 @@ mod tests {
         let path = directory.path().join("out.star");
         let path = path.to_str().unwrap();
 
-        write_tables(path, tables).unwrap();
+        write_tables(path, None, tables).unwrap();
         read_tables(path, None).unwrap()
     }
 
@@ -124,7 +143,7 @@ mod tests {
     fn written(tables: &[(String, RecordBatch)]) -> Result<(), Error> {
         let directory = TempDir::new().unwrap();
         let path = directory.path().join("out.star");
-        write_tables(path.to_str().unwrap(), tables)
+        write_tables(path.to_str().unwrap(), None, tables)
     }
 
     fn values_of(batch: &RecordBatch, column: usize) -> Vec<String> {
@@ -224,6 +243,47 @@ mod tests {
     }
 
     #[test]
+    fn a_header_comes_first_and_reads_as_a_comment() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("out.xmd");
+        let path = path.to_str().unwrap();
+        let tables = one("noname", &["_image"], &[&["1@a.stk"]]);
+
+        write_tables(path, Some("# XMIPP_STAR_1 *"), &tables).unwrap();
+
+        let text = std::fs::read_to_string(path).unwrap();
+        assert!(text.starts_with(
+            "# XMIPP_STAR_1 *
+data_noname
+"
+        ));
+        assert_eq!(
+            values_of(&read_tables(path, None).unwrap()[0].1, 0),
+            ["1@a.stk"]
+        );
+    }
+
+    #[test]
+    fn a_header_that_is_not_a_comment_says_so() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("out.star");
+        let tables = one("p", &["_rlnA"], &[&["1"]]);
+
+        let error = write_tables(
+            path.to_str().unwrap(),
+            Some(
+                "# fine
+data_",
+            ),
+            &tables,
+        )
+        .unwrap_err();
+
+        assert!(error.to_string().contains("\"data_\""));
+        assert!(!path.exists());
+    }
+
+    #[test]
     fn a_column_name_a_reader_would_not_see_says_so() {
         let error = written(&one("p", &["coord_x"], &[&["1.0"]])).unwrap_err();
 
@@ -249,8 +309,12 @@ mod tests {
 
     #[test]
     fn a_path_that_cannot_be_opened_says_which() {
-        let error =
-            write_tables("no/such/place/out.star", &one("p", &["_rlnA"], &[&["1"]])).unwrap_err();
+        let error = write_tables(
+            "no/such/place/out.star",
+            None,
+            &one("p", &["_rlnA"], &[&["1"]]),
+        )
+        .unwrap_err();
 
         assert!(matches!(error, Error::Io { .. }));
         assert!(error.to_string().contains("no/such/place/out.star"));

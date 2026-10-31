@@ -17,6 +17,8 @@ Nothing has been released yet. This is what the first release will say.
   first and held it.
 
 ### New
+- Reads and writes Xmipp's `.xmd`: the image reference and the angles come
+  back canonical, and a written `.xmd` opens with the line Xmipp looks for.
 - Reads and writes particle shifts, `shift_x`, `shift_y` and `shift_z`, in
   Ångström.
 - `read(path, reader=...)` and `write(path, writer=...)` name the reader and
