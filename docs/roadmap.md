@@ -308,10 +308,21 @@ touching a line:
 | `lto = true`, `codegen-units = 1` | 155 | 78 | 3.09 MB | 3.86 | 4.75 | 4.25 | 4.76 |
 
 The best gains 4 to 9 %, below the 10 % this was to clear, and thin LTO
-alone already has all of it. Measured again once the reads themselves are
-faster, since the same seconds are then a larger share; when it comes, it
-comes as a `dist` profile for the published wheels and the benchmarks, not
-for the test cells.
+alone already has all of it.
+
+Measured again once the tokens borrowed, the lexer split a row once and the
+writer stopped building strings (2026-10-31), adding the two writes, and
+none of it gains now:
+
+| Profile | Build | Relink | Raw | Canonical | Two columns | Chunks | Raw write | Canonical write |
+|---|---|---|---|---|---|---|---|---|
+| cargo's default, which we ship | 85 | 3 | 1.29 | 1.78 | 1.28 | 1.79 | 0.39 | 2.90 |
+| `lto = "thin"` | 78 | 29 | 1.40 | 1.87 | 1.32 | 1.88 | 0.39 | 2.95 |
+| `lto = "thin"`, `codegen-units = 1` | 138 | 58 | 1.31 | 1.78 | 1.26 | 1.81 | 0.42 | 2.83 |
+| `lto = true`, `codegen-units = 1` | 169 | 82 | 1.31 | 1.82 | 1.28 | 1.80 | 0.42 | 2.83 |
+
+Every difference is within 5 %, either way. What LTO used to inline across
+crates — arrow's calls in the hot loop — is no longer in it.
 
 ## Phase 11 — Review and clean-up
 
