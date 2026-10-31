@@ -239,17 +239,24 @@ which is why the release profile is cargo's default.
 A million rows, 243 MiB, read to pandas, best of three, on one Windows
 machine with cargo's default release profile (2026-10-31):
 
-| Read | Seconds |
-|---|---|
-| rexlib-metadata, raw | 3.96 |
-| rexlib-metadata, canonical | 4.99 |
-| starfile | 6.99 |
-| starfile-rs | 2.97 |
+| Read | Seconds | Before the tokens borrowed |
+|---|---|---|
+| rexlib-metadata, raw | 1.80 | 3.96 |
+| rexlib-metadata, canonical | 2.73 | 4.99 |
+| starfile | 6.86 | 6.99 |
+| starfile-rs | 2.96 | 2.97 |
 
-starfile-rs is faster at the raw read. It is not quite the same read — it
-infers numbers, and pandas builds a numeric column faster than one of text,
-which is what a raw read here hands it — but closing that gap, or showing
-where it comes from, is what this phase is for.
+Nearly all of a raw read was the Rust parser, at some 60 MB/s: every value
+of every row was built a character at a time into a `String`, cloned into a
+second one, and copied into Arrow, and every line was a `String` of its own.
+Now a token is a slice of the line, the line is one buffer read into again,
+and the only copy is the one into Arrow. Pandas and the hop to pyarrow were
+never more than a few hundredths of a second.
+
+- [x] The tokens borrow from the line rather than own a copy
+- [ ] A projected read that skips the columns it drops while tokenising,
+      rather than after: two columns of twenty-one still cost 80 % of all
+- [ ] The second of a canonical read that the conventions cost, looked at
 
 **The build profile was measured, and stays cargo's default** (2026-10-31).
 A million rows, read to pandas, best of five, on one Windows machine; the

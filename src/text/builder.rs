@@ -104,7 +104,7 @@ impl Sink for ArrowSink {
         self.blocks += 1;
     }
 
-    fn row(&mut self, values: &[String]) -> Result<(), Error> {
+    fn row(&mut self, values: &[&str]) -> Result<(), Error> {
         let block = self
             .block
             .as_mut()
@@ -172,7 +172,8 @@ pub(crate) fn build_record_batch(
     let mut sink = ArrowSink::default();
     sink.open("", column_names);
     for row in rows {
-        sink.row(row)?;
+        let values: Vec<&str> = row.iter().map(String::as_str).collect();
+        sink.row(&values)?;
     }
     sink.close(String::new(), column_names.to_vec())?;
     Ok(sink.pop().expect("a closed block is a batch").2)
