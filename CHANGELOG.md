@@ -42,6 +42,11 @@ Nothing has been released yet. This is what the first release will say.
   where everything used to be a `RuntimeError`.
 
 ### Changed
+- pyarrow is declared as `pyarrow>=16` rather than pinned to one version,
+  so the package installs beside the pyarrow an environment already has.
+- A canonical read keeps nothing of the file once its frame is handed back;
+  it held a text copy of every row for as long as the result lived.
+  Materialising twice reads twice; `result.raw` still keeps what it read.
 - Writing a STAR file is thirteen times as fast: the writer hands each
   value from Arrow to the file, where it built three strings per value.
 - Reading a STAR file is three times as fast: a million rows in 1.4 s

@@ -529,7 +529,7 @@ class ReadResult:
     def _raw_tables(self) -> tuple[RawTable, ...]:
         columns = self._raw_columns()
         if columns is None:
-            return self._raw.tables()
+            return self._raw.reread()
         return self._raw.read_keeping(columns)
 
     def _names(self, raw_tables: tuple[RawTable, ...]) -> tuple[str, ...]:

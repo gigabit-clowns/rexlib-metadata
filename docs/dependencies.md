@@ -46,6 +46,14 @@ as raising `arrow` alone does — which is what a Renovate pull request for
 in that same branch rather than merge the one half. Capping `pyo3` too would
 buy silence instead of that signal.
 
+pyarrow, the one hard runtime dependency, is a range, `pyarrow>=16`: a
+library that pinned it would force every environment it is installed into
+onto that one version. 14 is the first with the Arrow C capsules the Rust
+half hands its batches over through, and 16 the first built for NumPy 2,
+which a fresh install of pandas brings; the oldest-extras cell installs 16.
+The exact pins are in the `test` and `develop` groups, where freezing is
+what is wanted.
+
 Two pins in `pyproject.toml` are split in half behind a PEP 508 marker, and
 both for the same reason: pyarrow raised its floor to 3.11 in 26.0.0 and
 pandas in 3.0.0, so the 3.10 cell has to stay behind while everything from

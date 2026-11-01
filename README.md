@@ -9,7 +9,7 @@ Highly performant reader and writer of CryoEM metadata formats (STAR, XMD, SQLit
 
 - **One vocabulary, whatever the file** — columns come back under canonical names, typed: `_rlnCoordinateX` and Xmipp's equivalent both arrive as `coord_x`
 - **The file's own names too** — `result.raw` is the same read as the format wrote it, every value a string
-- **Lazy I/O** — `rxm.read()` returns immediately with no file I/O, and so does naming a table; data is only loaded when you call `to_pandas()`, `to_polars()` or `chunks()`
+- **Lazy I/O** — `rxm.read()` returns immediately with no file I/O, and so does naming a table; data is only loaded when you call `to_pandas()`, `to_polars()` or `chunks()`, and nothing of the file is kept once the frame is handed back
 - **Bounded memory** — `chunks()` streams a file larger than memory, parsing only the columns asked for
 - **Lossless writes** — columns no convention covers are carried over; a conversion is a change of extension
 - **Extensible** — custom readers and conventions by subclassing Python ABCs; no Rust required

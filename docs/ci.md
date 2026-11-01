@@ -17,9 +17,10 @@ to the same ref cancels the run in flight.
 | `build_with_cargo` | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, `cargo test`, on the three platforms |
 | `build_with_pip` | `pip install .[hdf5] --group test` (no `hdf5` on 3.15, which h5py has no wheel for) and `pytest tests/python/`, three platforms × Python 3.10 to 3.15, and once more on the oldest extras |
 
-One cell of nineteen installs the **oldest** polars, pandas and h5py this
-package says it supports rather than the newest. The extras declare a range —
-`polars>=1.0`, `pandas>=2.2.2` on 3.10, `h5py>=3.11` — and a range nobody tests at its floor
+One cell of nineteen installs the **oldest** pyarrow, polars, pandas and h5py
+this package says it supports rather than the newest. The dependency and the
+extras declare a range — `pyarrow>=16`, `polars>=1.0`, `pandas>=2.2.2` on
+3.10, `h5py>=3.11` — and a range nobody tests at its floor
 is a claim rather than a fact; the pins in the `test` group only ever prove the
 ceiling. Testing the floor and the ceiling and not the middle is the usual
 compromise, and it is cheap here because polars reaches us through one
