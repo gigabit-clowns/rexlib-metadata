@@ -127,7 +127,7 @@ jobs:
 
       - name: Install the oldest extras this package claims
         if: matrix.extras == 'oldest'
-        run: 'pip install --only-binary :all: "polars==1.0.0" "pandas==2.2.2" "h5py==3.11.0"'
+        run: 'pip install --only-binary :all: "pyarrow==16.0.0" "polars==1.0.0" "pandas==2.2.2" "h5py==3.11.0"'
 
       - name: Run tests
         run: pytest tests/python/

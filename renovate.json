@@ -25,6 +25,11 @@
       "enabled": false
     },
     {
+      "description": "A range's ceiling is the exact newest version CI has passed; any later release makes widen raise it, and CI decides whether it merges. Narrowing a range is a person's decision.",
+      "matchDepTypes": ["project.dependencies", "project.optional-dependencies"],
+      "rangeStrategy": "widen"
+    },
+    {
       "description": "Python version in CI matrix is a manual decision",
       "matchDepNames": ["python"],
       "enabled": false
@@ -54,15 +59,6 @@
       "matchCurrentVersion": "<3",
       "constraints": { "python": "3.10" },
       "constraintsFiltering": "strict"
-    },
-    {
-      "description": [
-        "The pandas and polars extras declare the range this package supports, not a pin to keep current. Widening them is a support decision, not a dependency update.",
-        "Matched on the raw value because matchCurrentVersion cannot read a range: package rules run before the lookup, and a range only resolves to a currentVersion inside it."
-      ],
-      "matchDepTypes": ["project.optional-dependencies"],
-      "matchCurrentValue": "/^>=/",
-      "enabled": false
     },
     {
       "description": [

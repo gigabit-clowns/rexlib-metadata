@@ -230,3 +230,25 @@ def test_the_parser_keeps_what_a_read_and_a_select_would(name):
     assert StarReader().read_tables_keeping(path, columns) == (
         _Plain().read_tables_keeping(path, columns)
     )
+
+
+
+class _CountingStar(StarReader):
+    def __init__(self):
+        self.reads = 0
+
+    def read_tables(self, path):
+        self.reads += 1
+        return super().read_tables(path)
+
+
+def test_a_canonical_read_keeps_nothing_of_the_file():
+    reader = _CountingStar()
+    result = rxm.read(str(FILES / "one_loop.star"), reader=reader)
+
+    result["particles"].to_pandas()
+    result["particles"].to_pandas()
+    result.raw.to_pandas()
+    result.raw.to_pandas()
+
+    assert reader.reads == 3

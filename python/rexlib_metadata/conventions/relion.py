@@ -328,7 +328,7 @@ def parsed(column: ArrowColumn, dtype: pa.DataType) -> ArrowColumn:
 
 def _empty_as_null(column: ArrowColumn) -> ArrowColumn:
     written = pc.not_equal(column, pa.scalar(""))
-    return pc.if_else(written, column, pa.scalar(None, pa.string()))
+    return pc.if_else(written, column, pa.nulls(len(column), pa.string()))
 
 
 def split_reference(
