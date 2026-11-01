@@ -1,710 +1,339 @@
 # Design notes
 
-The design this repository is being built towards, at the level of detail
-that does not belong in `AGENTS.md`: the requirements it answers, the
-decisions taken and when, the interfaces in code, and what is still open.
-`AGENTS.md` states the rules; this file states why they are the rules and
-what they look like written out.
-
-Keep it true the same way: a change that contradicts something here updates
-it in the same pull request, and a decision taken in a discussion is only
-taken once it is written down here.
+The requirements, the decisions that stand, the interfaces, the engine's
+rules and what is still open. A change that contradicts this file updates it
+in the same pull request. The canonical columns are in
+[canonical.md](canonical.md), what each format demands in
+[formats.md](formats.md), progress in [roadmap.md](roadmap.md).
 
 ## The requirements
 
-The library reads and writes tables, or groups of related tables, between the
-formats the field uses — Relion STAR, Xmipp XMD, and the binary ones — and a
-canonical in-memory representation. It has to be extensible in both
-directions at once: a new industry format, and a new canonical
-representation, are each supposed to be additions rather than rewrites.
+Tables, or groups of related tables, between the field's formats and one
+canonical in-memory form. A new format and a new canonical representation are
+each an addition, not a rewrite.
 
-From the original requirements document:
-
-1. A reader can be defined without its writer, and a writer without its
-   reader.
-2. Dependency inversion throughout. Readers, writers, conventions and columns
-   are all injectable from the client side.
-3. Highly performant. Rust with a Python API — confirmed, and built.
-4. Heuristics decide reader, writer and conventions: `*.star` gives the STAR
-   reader with Relion4 conventions, `*.xmd` the STAR reader with Xmipp ones,
-   and the content is consulted where the extension does not settle it. Every
-   heuristic can be overridden.
-5. Groups of related tables are a first-class case, not an afterthought.
-6. Loading and writing are paginated.
+1. A reader without its writer, and a writer without its reader.
+2. Dependency inversion: readers, writers, conventions and columns injectable
+   from the client side.
+3. Highly performant: Rust with a Python API.
+4. Heuristics pick reader, writer and conventions (`*.star` → STAR reader,
+   Relion conventions; `*.xmd` → STAR reader, Xmipp conventions; the content
+   where the extension does not settle it). Every heuristic can be overridden.
+5. Groups of related tables are first-class.
+6. Paginated reading and writing.
 7. Single columns can be read, and the rest forwarded on write.
-8. Column typing is strict.
-9. Formats that are not human-readable — SQLite, HDF5 — are supported.
+8. Strict column typing.
+9. Binary formats: SQLite, HDF5.
 
-The canonical table is a pandas or a polars DataFrame, the user's choice,
-which is why Arrow is what sits underneath both.
+The canonical table is a pandas or polars DataFrame, the user's choice; Arrow
+sits under both.
 
 ## Decisions
 
-**A library of its own.** The "separate library, name TBD" of the original
-document is this repository, `rexlib-metadata`. It is part of the REX suite
-and depends on nothing else in it.
-
-**Arrow as the canonical form** (Phase 0). One representation that both
-pandas and polars are built on, so neither is privileged and neither is a
-hard dependency. `arrow-rs` in Rust, the C Data Interface across the
-boundary.
-
-**Everything reads as `Utf8`** (Phase 1). Inference in the reader would take
-the typing decision away from the schema, silently and per file. A reader
-that guesses `1e5` into a float has already decided something the convention
-was supposed to decide.
-
-**Read and write are separate pipelines** (2026-07-03). Separate ABCs,
-separate registration, separate lists in a bundle. Writing a reader must not
-imply writing a writer, and the mapping is not one to one anyway: a canonical
-column with several possible origins in Relion still has exactly one
-destination we would write it to. A single reversible object would have to
-misrepresent one of the two directions.
-
-**Matching by column presence, not by table name** (Phase 2 design). The name
-of a data block belongs to whoever wrote the file. The columns are the
-evidence.
-
-**Priority at the bundle level** (Phase 2 design). Column-level priority
-would make the result depend on registration order in a way nobody can
-predict from the outside. A bundle is a coherent unit: it wins or it loses as
-one.
-
-**Missing is null, and nothing else** (2026-10-18). Arrow's null is the only
-representation of an absent value in the canonical form. A token that does
-not parse into the declared type is an error naming the file, the canonical
-table and the value, never a silent null — not the line, which the rows do
-not keep once the parser has handed them on, and keeping it would cost every
-read a column of numbers: `_rlnDefocusU` holding `abc` is a broken file and the
-caller has to hear about it. Sentinels — Xmipp's `-999` and its kin — are
-knowledge about a format, so they are translated by the read convention that
-knows them and written back by the write convention, and the core never
-learns they exist. `ColumnDescriptor.default` is a different thing: it covers
-a column the file does not carry at all. An empty value of a typed column
-is not such a token: it is the null itself, as a text format that has no
-other spelling for one writes it, and it reads back as null.
-
-**Forwarding re-reads the source** (2026-10-18). A projection reads only the
-columns asked for. `write(path, updates=df)` streams the source again and
-emits the output substituting the columns that changed, so memory is one
-chunk rather than the whole file, and a file larger than RAM still works.
-
-Three things follow. The source has to still be there at write time, and the
-caller is trusted not to move it from under them; a guard on size and mtime
-was considered and dropped as distrust of the user for a mistake only the
-user can make, and an advisory lock is the answer if concurrent writers ever
-become real. The rows have to correspond one to one, so a different row count
-is an error saying that filtering makes the caller the owner of every column:
-there is no sane answer to which source row a filtered row forwards from. And
-writing over the source goes through a
-temporary file **in the destination directory**, renamed at the end, since
-a rename is only atomic within one filesystem and a temporary in the system
-temp directory would degrade into a copy.
-
-**The canonical form normalizes, it does not rename** (2026-10-18). A
-canonical column whose only merit is dropping the `rln` prefix leaves the
-consumer knowing which program wrote the row, which is what the canonical
-form exists to spare them. So: units are fixed and declared on the column
-rather than spelled in its name, shifts in Ångström because pixels mean
-nothing across a change of binning, angles in degrees, one documented
-rotation convention that every format converts into. Image references are
-split into a path as written and a zero-based index, because the consumer
-indexes arrays and because a plain string and a plain integer are usable by
-`mrcfile`, by vitrio, or by anything else — this library depends on no image
-library and names none in its API. Paths are kept exactly as the file writes
-them, since Relion resolves them against a project directory that the file
-does not state. The model stays relational, tables and the relations between
-them, and the convenience of a flat per-row view with the optics joined in is
-served on top of it, with the group kept so that writing can split it again.
-
-**No link-time optimisation until something measures it** (2026-10-27).
-The release profile asked for `lto = true` and `codegen-units = 1`, which
-cost 92 seconds of linking on every build of the wheel — measured by
-touching one line and rebuilding: 94 seconds with them, 2 seconds without,
-29 with thin LTO and parallel codegen. CI builds that wheel twenty-two times
-a run.
-
-Nothing measures what it bought. "Highly performant" is a requirement and
-the benchmark that would hold us to it is still an open item, so this was a
-cost paid in the dark. The profile is cargo's default now, and LTO comes
-back the day a benchmark on the parse path says what it is worth — with the
-numbers in the pull request that restores it. Nothing is published yet, so
-no wheel anybody has is affected. Measured on 2026-10-31, and the benchmark
-said 4 to 9 %, below the bar: the profile stays, and the numbers are in
-`docs/roadmap.md`, Phase 10.
-
-**One parser, and a whole read is every chunk of it** (2026-10-28). The
-state machine hands each row to a sink instead of keeping it, and the sink
-appends it to the Arrow builders of its block, cutting a chunk every so many
-rows. Reading a whole file is collecting every chunk; reading in chunks is
-the same machine stopping at each one. A second, simpler parser for the
-whole-file case was considered and dropped: two grammars of one format
-drift apart, and a case fixed in one is a case still broken in the other.
-While the parser is rewritten, the one it replaces stays as an oracle that
-the new one has to agree with on every real file, and goes when it does.
-
-**No memory map** (2026-10-28). The crate forbids `unsafe_code`, and mapping
-a file is unsafe for a reason that matters here: another process truncating
-the file while it is mapped is a `SIGBUS`, a file taking the process down,
-where the rule is that nothing that comes out of a file reaches a panic.
-A file is read through a buffered reader instead, which gives the same
-bounded memory without it.
-
-**No chunk index until something reads out of order** (2026-10-29). A
-progressive index of chunk offsets was planned for random access, and
-nothing asks for random access: `chunks()` walks a file from the top, and so
-does a write that forwards a chunk at a time. An index nothing reads is code
-no test or caller exercises, so the parser steps one line at a time and
-cuts a chunk every so many rows, and the index comes with the first API that
-asks for chunk *k* without reading the ones before it.
-
-**A reader may narrow a read, and never has to** (2026-10-28). The columns
-a caller asks for are canonical, and a reader knows only its own names, so
-the engine turns them into raw ones before the reader is called. It reaches
-the reader through `Reader.read_tables_keeping(path, columns)`, which is not
-abstract: by default it calls `read_tables` and drops the rest, so a reader
-a user wrote is correct without it and faster with it, and `read_tables`
-stays the one method a reader has to write. `StarReader` overrides it to
-drop the columns inside the parser, before a value is ever built.
-
-**What a narrowed read keeps is a set of raw names, known before the file is
-opened** (2026-10-29). This replaces the shape the entry above first had, a
-function from each table's `RawSchema` to the columns of it to keep, which
-the Rust parser could only answer by calling back into Python at every
-header, or by reading the file twice: in STAR the header of the second block
-sits behind every row of the first. The engine computes the set instead,
-from the conventions alone: for each canonical table that declares a column
-asked for, the `source_columns` of every convention producing one of those
-columns or a column the table requires, so the table can still be filled.
-The set may name more than a file holds and never less than a read needs.
-It costs a rule conventions did not state until now: `matches()` decides
-from `source_columns`, as every convention shipped here does. One that
-looks at a column it does not declare stops recognising its table under
-`columns=`, and is read correctly without it.
-
-**SQLite is read in Python, through `sqlite3`** (2026-10-31). SQLite is
-already C, and there is no text to parse: what is left is turning rows into
-Arrow, which pyarrow does. `rusqlite` would compile a second SQLite into
-every wheel to do the same. The reader is generic — every table, typed by
-SQLite's own affinity rules, NUMERIC and an undeclared column read as text
-since they may hold anything — and a dialect such as Scipion's is a layer on
-top of it, not a reader of its own.
-
-**HDF5 is read through h5py, an extra** (2026-10-31). h5py ships libhdf5 in
-its wheels for every platform this package builds for, where the Rust
-`hdf5` crate needs libhdf5 at build time on each of them; and most users
-read STAR, so it is `rexlib-metadata[hdf5]` rather than a dependency, and
-imported only once an HDF5 file is opened. HDF5 has no tables, so two
-layouts are one: a one-dimensional compound dataset, each field a column,
-and a group whose children are datasets of one length, each a column. A
-table is named for its path. The writer writes the second.
-
-**A table the file does not name is named `""`** (2026-10-31). STAR already
-reads a bare `data_` that way, and FREALIGN's `.par`, which is one table and
-names nothing, will too. The name is not invented: no format-specific word,
-no file stem, which would change from file to file. It stays a `str`, so
-nothing that reads a name has a second case. Conventions match on columns,
-so they never see it. Written to STAR it is `data_` again.
+- **A library of its own**, part of REX and depending on nothing else in it.
+  The name is open until the first PyPI release (`vitrio-metadata` is the
+  other candidate).
+- **Arrow is the canonical form**: `arrow-rs` in Rust, the C Data Interface
+  across the boundary. pandas and polars are extras, imported only by
+  `to_pandas()` / `to_polars()`.
+- **A reader never infers a type.** STAR and XMD arrive as `Utf8`; SQLite
+  and HDF5 are transcribed as they declare. Typing is the schema's, conversion
+  the convention's.
+- **Read and write are separate pipelines**: separate ABCs, registration and
+  lists in a bundle. A canonical column may have several origins and has one
+  destination.
+- **Matching is by column presence**, never by the raw table's name.
+- **Priority is per bundle**, never per column: a bundle wins or loses as one.
+- **Missing is null**, an empty value of a typed column included. A token
+  that does not parse into the declared type is an error naming the file,
+  the canonical table and the value (not the line). Sentinels such as
+  Xmipp's `-999` are the format's conventions' to translate, both ways.
+  `ColumnDescriptor.default` fills a column the file does not carry.
+- **The canonical form normalizes, it does not rename**: fixed units on the
+  column, one rotation convention, image references split into path and
+  zero-based index, paths as written. No image library is named in the API.
+  Details in [canonical.md](canonical.md).
+- **One parser.** The state machine in `src/text/` hands each row to a sink
+  that appends to Arrow builders and cuts a chunk every so many rows; a whole
+  read is every chunk. Another block-shaped text format is a new lexer, not a
+  second parser.
+- **No memory map**: the crate forbids `unsafe_code`, and a file truncated
+  while mapped is a `SIGBUS`. A buffered reader bounds memory instead.
+- **No chunk index** until an API asks for chunk *k* without reading the ones
+  before it; then a progressive index, never a mandatory first scan.
+- **No LTO**: the release profile is cargo's default (see the Phase 10
+  measurements in [roadmap.md](roadmap.md)).
+- **SQLite is read in Python through `sqlite3`.** Generic reader: every
+  table, typed by SQLite's affinity rules, `NUMERIC` and undeclared columns
+  as text. A dialect such as Scipion's is a bundle on top, not a reader.
+- **HDF5 is read through h5py, the `hdf5` extra**, imported only when an HDF5
+  file is opened. A table is a one-dimensional compound dataset (fields are
+  columns) or a group of equal-length datasets (each a column), named by its
+  path. The writer writes groups.
+- **A table the file does not name is named `""`**, a plain `str`. Written to
+  STAR it is `data_`.
+- **Relations between tables are data on the `Schema`**, not special cases in
+  a bundle (see [The schema layer](#the-schema-layer)).
 
 ## The canonical representation
 
-Apache Arrow is the canonical in-memory form: `arrow-rs` on the Rust side,
-the C Data Interface across the boundary. pandas and polars are both built on
-Arrow, so one representation serves both without a second copy and without
-either becoming a hard dependency — they are extras, imported only where a
-`to_pandas()` / `to_polars()` call actually asks for them.
-
-A reader never infers a type. No number is guessed, no date is recognised,
-nothing is read out of the look of a token: typing is the schema's job and
-conversion is the convention's job, and a reader that types on its own takes
-a decision away from the layer allowed to take it. For STAR and XMD, which
-state no types, that means every value arrives as `Utf8` and leaves as
-`Utf8` until a convention says otherwise. A format that does state its
-types — SQLite, HDF5 — is reported as it declares them, which is not
-inference but transcription.
-
-`pyo3-arrow` returns an `arro3` object rather than a `pyarrow` one. arro3 is
-not a dependency and must not become one: the object is consumed through the
-Arrow protocol methods it exposes, which is what `to_pyarrow_table` in
-`_arrow.py` does. Any new Rust entry point returning Arrow goes
-through that same function.
-
-What the boundary promises is therefore a protocol and not a class.
-`ArrowArrayExportable` in `_arrow.py` is that promise — one method,
-`__arrow_c_array__` — and it is what `_rexlib.pyi` types a Rust entry point
-as returning. Naming `arro3.core.RecordBatch` there would tie the stub to a
-package nothing installs.
+`pyo3-arrow` returns `arro3` objects. arro3 is not a dependency: every Rust
+entry point returning Arrow goes through `to_pyarrow_table` in `_arrow.py`,
+which consumes the Arrow protocol. `_rexlib.pyi` types those entry points as
+`ArrowArrayExportable` (one method, `__arrow_c_array__`), never as an arro3
+class.
 
 ## The schema layer
 
-The schema defines the canonical column structure and knows nothing about any
-file format. A `ColumnDescriptor` is one canonical column — name, Arrow type,
-unit, and a `required` flag that is false unless it says otherwise. A `SchemaTrait` is
-a reusable group of related columns, `EulerAngles` or `CartesianPosition`,
-and exists only so that tables can be composed out of them; it flattens into
-the table and has no identity at run time. A `TableSchema` is one table's full
-column set, and a `Schema` is one or more tables, which is what a multi-block
-Relion file needs.
+`python/rexlib_metadata/schema.py`; knows no file format.
 
-Composition deduplicates: the same name declared identically by two traits
-is the same declaration and collapses, and the same name declared two
-different ways is an error at construction. Failing there rather than at read
-time is the point — a contradictory schema is a programming mistake, not a
-data problem.
+| Type | What it is |
+|---|---|
+| `ColumnDescriptor(name, dtype, unit=None, required=False, default=None)` | One canonical column. Required and defaulted at once raises. |
+| `SchemaTrait(name, columns)` | A reusable group (`EulerAngles`), flattened into the table; no run-time identity. |
+| `TableSchema(name, *parts)` | One table, composed from traits and columns in order. |
+| `Relation(table, related, key)` | Each row of `table` points by `key` at one row of `related`. |
+| `Schema(*tables, relations=())` | One or more tables by unique name, and their relations. |
 
-Validation is strict in the other direction too. An unknown column raises; it
-is never passed through quietly.
-
-### In code
-
-Written, in `python/rexlib_metadata/schema.py`.
-
-```python
-@dataclass(frozen=True)
-class ColumnDescriptor:
-    name: str
-    dtype: pa.DataType
-    unit: str | None = None
-    required: bool = False
-    default: Any = None
-```
-
-A column is optional unless it says otherwise, which is the common case:
-`docs/canonical.md` requires almost nothing, since a file from picking has no
-pose and one from classification has no class. Required and defaulted at once
-is a contradiction and raises — a default is what makes a column optional.
-The unit sits here rather than in the name, so that a conversion can read it.
-
-`SchemaTrait` is a named, reusable group of related columns — `EulerAngles`,
-`CartesianPosition`. It is a composition tool only and flattens into the
-table.
-
-`TableSchema` is a table's full column set, composed from traits and loose
-columns in the order given:
-
-- the same name declared identically twice → keep the first, silently
-- the same name declared two different ways → raise at construction, naming
-  the column and both declarations
-
-The second rule covers every field, not the type alone. Two traits that
-disagree about a column's unit, or about whether it is required, disagree
-about what the column *is*, and the composer is the one who has to decide.
-
-`Schema` is one or more `TableSchema`, reached by name, and a name may not
-repeat. A Relion 4 file with `data_particles` and `data_optics` produces a
-`Schema` with two tables.
+- The same column declared identically twice collapses to the first; declared
+  two ways (any field, unit and `required` included) raises at construction.
+- A relation's two tables both declare its key and share no other column,
+  checked at construction.
+- An unknown column raises; nothing is passed through.
 
 ## The convention layer
 
-A convention maps file columns onto canonical columns. Reading and writing
-are separate pipelines — decided on 2026-07-03 — and the separation is total:
-separate ABCs, separate registration, separate lists inside a bundle.
-
-Two reasons, and both matter. Writing a reader must not oblige anyone to
-write the writer too, then or ever. And the mapping is genuinely not one to
-one: a canonical column may have several possible origins in Relion while
-there is exactly one place we would write it back to, so a single reversible
-object would have to lie about one direction or the other.
-
-A `ReadConvention` declares the file columns it consumes and the canonical
-columns it produces, answers `matches()` for a raw schema, and `load()`s. A
-`WriteConvention` declares the canonical columns it consumes and the file
-columns it produces, and `store()`s. A `ConventionBundle` groups all the
-conventions of one format — Relion4, Relion3, Xmipp — under a name,
-**grouped by the canonical table each one fills** — decided on 2026-10-27.
-One entry per format, so priority is per format and a format's halves cannot
-drift apart in the order.
-
-Matching is by column presence, never by the name of the raw table. A raw
-`data_particles` block becomes the canonical `particles` table because a
-convention recognised its columns, not because a string matched. Table names
-are the format's to choose and often the user's to mistype; the columns are
-what can actually be relied on.
-
-Two conventions of one bundle may not produce the same canonical column: that
-is an ambiguity inside a unit meant to be coherent, and it is rejected when
-the bundle is built. Across bundles the conflict is legitimate and
-priority resolves it — bundles are ordered, the first to produce a canonical
-column owns it, and later bundles cannot overwrite what an earlier one
-produced. Inside a bundle, every matching convention that adds something not
-yet covered applies.
-
-Required canonical columns that no convention produced are an error at the
-end of the read, not a column of nulls.
-
-**A chunk is its own type** — decided on 2026-10-30. `ReadResult.chunks()`
-yields a `Chunk`: rows already read, with `name`, `len()`, `to_arrow()`,
-`to_pandas()` and `to_polars()`. Not a `ReadResult`, which the roadmap had
-proposed and which would have had to lie twice — its contract is that no row
-is read until something materialises, and that `write()` writes the whole
-file, and a chunk is rows in hand that cannot write a whole file. Not a
-DataFrame either: every result in this API offers pandas and polars without
-privileging one, and a `chunks()` that returned pandas would need a second
-method or a parameter that changes its own return type.
-
-**Naming a canonical table reads nothing** — decided on 2026-10-30, because
-otherwise chunking is a lie. `result[name]` used to ask which tables the file
-filled, which read the file whole and held it; a 500k-row file then took
-three and a half seconds and stayed in memory before the first chunk arrived.
-The name is now checked against the schema, and a table the schema declares
-and the file does not fill is an error when the rows are asked for — the
-moment that knows.
-
-**A chunk carries the ordinal of its block** — decided on 2026-10-30. Two
-blocks of one name are told apart by nothing else, and a canonical table is
-filled from one of them, so the stream has to say when the source block ended
-rather than running on into the next one of the same name.
-
-**The destination chooses the write convention** — decided on 2026-10-28.
-Reading picks the bundle from the source's extension; writing picks it from
-the destination's, so `read("a.star").write("b.xmd")` converts and nothing
-has to be said about either format. Writing the canonical names themselves is
-not a default: a `.star` file holding `_coord_x` is valid STAR that no
-CryoEM program reads, and the file has a consumer. `result.raw.write(path)`
-writes the names the file used, and `bundle=` names a convention to write
-through instead.
-
-**A write converts with Arrow's own cast** — decided on 2026-10-28. A float
-becomes the shortest text that reads back as the same float64, so `587.0` is
-written `587` and nothing is rounded. Imitating a format's habit was the
-alternative and there is no habit to imitate: Relion's own files hold
-`587.000000`, `1572.444`, `-51.52270` and `7.4` for columns of the same kind.
-A convention is free to format its own column where a format demands it, the
-conversion being the convention's job and not the engine's.
-
-**A column no convention writes is carried over** — decided on 2026-10-28 —
-when the destination is the format the result was read from. Reading a Relion
-file and writing it again keeps `_rlnCtfImage` and its neighbours, which no
-canonical column covers, rather than dropping them where the caller only
-meant to filter rows. Towards another format nothing is carried: a Relion
-label inside an Xmipp file would be noise. This is the column half of the
-forwarding of Phase 4; the other half, doing it a chunk at a time rather than
-a file at a time, is still that phase's.
-
-Revised on 2026-10-31, after a review found the write losing data. The
-same format is the same writer, its class and its configuration, rather
-than the same suffix: `.sqlite` and `.db` are one format, `.star` and the
-`.xmd` that StarWriter writes with Xmipp's header two. A block no canonical
-table covers is carried over the same way, whole and in the file's order,
-since dropping it emptied `postprocess.star` written over itself, and a write
-that would hold nothing raises rather than replace a file with nothing. A
-column of `updates` that no write convention consumes raises too, rather
-than leave the value read in its place.
-
-One raw table fills one canonical table — decided on 2026-10-27. The engine
-takes the first raw table, in the order the file holds them, whose matching
-conventions declare every column the canonical table requires, and reads
-only from it. A canonical column that genuinely lives in another table — the
-optics case — is the convention's own job to expand to one value per row,
-and the join it would need is still open in `docs/canonical.md`.
-
-A read that understood nothing is an error, not an empty table — decided on
-2026-10-27. When no convention of any bundle declares a single column of any
-raw table, and at least one raw table has at least one row, the read raises
-and names the bundles it tried and the columns it found. The test is
-*nothing* rather than *less than expected*, a partial read being legitimate,
-and it takes a raw row so that an empty file still reads as empty.
-
-### In code
-
-`ArrowColumn` is `pa.Array | pa.ChunkedArray`, defined in `convention.py`.
-A column taken out of a `pa.Table` is chunked, and so is the result of every
-`pyarrow.compute` call over one; a convention that builds a column from
-nothing returns a plain array. The engine takes either.
+`python/rexlib_metadata/convention.py`.
 
 ```python
+ArrowColumn = pa.Array | pa.ChunkedArray
+
+class RawSchema:            # table_name: str, column_names: tuple[str, ...]
+    def has(self, *names: str) -> bool: ...
+
+class RawTable:             # schema: RawSchema, table: pa.Table
+    @classmethod
+    def of(cls, name: str, table: pa.Table) -> RawTable: ...
+
 class ReadConvention(ABC):
     source_columns: tuple[str, ...]   # file columns consumed
     target_columns: tuple[str, ...]   # canonical columns produced
-
     def matches(self, raw: RawSchema) -> bool: ...
     def load(self, table: pa.Table) -> dict[str, ArrowColumn]: ...
-
 
 class WriteConvention(ABC):
     source_columns: tuple[str, ...]   # canonical columns consumed
     target_columns: tuple[str, ...]   # file columns produced
-
     def store(self, canonical: dict[str, ArrowColumn]) -> dict[str, ArrowColumn]: ...
 
-
 class ConventionBundle:
-    name: str                                 # "relion4"
-    tables: tuple[str, ...]                   # ("particles", "optics")
-
+    def __init__(self, name: str,
+                 read: Mapping[str, Iterable[ReadConvention]] | None = None,
+                 write: Mapping[str, Iterable[WriteConvention]] | None = None): ...
+    tables: tuple[str, ...]           # canonical tables it reads into
     def read_conventions(self, table: str) -> tuple[ReadConvention, ...]: ...
     def write_conventions(self, table: str) -> tuple[WriteConvention, ...]: ...
 ```
 
-Written, in `python/rexlib_metadata/convention.py`, along with `RawSchema`,
-which is a raw table's name and column names and answers `has()` for the
-columns a `matches()` is looking for.
+A bundle is every convention of one format, keyed by the canonical table each
+fills. It is immutable and validates itself when built, raising on:
 
-A bundle validates itself when it is built, rather than when it is
-registered: it is immutable, so that is the first and last moment anything
-could be wrong, and the registry has nothing left to check. Three ways to
-be wrong:
+- two read conventions of one table declaring the same canonical column;
+- two write conventions of one table declaring the same file column;
+- a convention with no `target_columns`.
 
-- two `ReadConvention`s of one table declaring the same canonical column
-- two `WriteConvention`s of one table declaring the same file column, which
-  the design did not mention and is the same ambiguity seen from the other
-  side
-- a convention declaring no `target_columns` at all, which nothing would
-  ever ask for
+The same column in conventions of different tables is no collision
+(`optics_group` belongs to both `particles` and `optics`).
 
-The same canonical column declared by two conventions of *different* tables
-is no collision: `optics_group` is a particle's and the optics table's own,
-and the two are read from different places by different conventions.
+`matches()` decides from `source_columns` only, as every shipped convention
+does; a narrowed read depends on it.
 
-Each raises naming the bundle, the column and both conventions.
+A reader and a writer (`abc.py`):
+
+```python
+class Reader(ABC):
+    def read_tables(self, path: str) -> list[RawTable]: ...            # abstract
+    def read_tables_keeping(self, path: str, columns: Set[str]) -> list[RawTable]: ...
+    def read_chunks(self, path: str, size: int, columns: Set[str] | None = None
+                    ) -> Iterator[tuple[int, RawTable]]: ...
+
+class Writer(ABC):
+    def write_tables(self, path: str, tables: Iterable[RawTable]) -> None: ...  # abstract
+```
+
+`read_tables_keeping` and `read_chunks` default to reading everything and
+dropping or slicing; a reader that can do better overrides them, as
+`StarReader`, `SqliteReader` and `Hdf5Reader` do. `columns` is raw names and
+may name columns the file lacks. Each chunk carries its table's ordinal,
+which tells two tables of one name apart; a table of no rows is one empty
+chunk.
 
 ### The read engine
 
-```python
-covered = {}
+`read_canonical` in `engine.py`, for one canonical table:
 
-for bundle, raw, convention in _candidates(bundles, raw_tables):
-    if not _has_something_to_add(convention, raw, covered):
-        continue
-    produced = convention.load(raw.table)
-    _keep_first(covered, produced, convention, schema, _origin(bundle, convention))
+1. If some raw table has a row and no convention of the table, in any
+   bundle, matches any raw table, raise, naming the bundles and the columns
+   found.
+   A partial read is legitimate; an empty file reads as empty.
+2. The source is the first raw table, in file order, whose matching
+   conventions declare every required column. Only it is read.
+3. Bundles in order, then their conventions: a matching convention that adds
+   a column not yet covered is loaded. The first to produce a column owns it.
+   A losing output is discarded unvalidated.
+4. A kept column raises if its convention did not declare it, the table does
+   not declare it, or its Arrow type differs from the declared one (a
+   convention converts, the engine does not).
+5. Columns of different lengths raise; a value from another table is a
+   relation's job or the convention's, never a broadcast by the engine.
+6. A required column nobody produced raises. A defaulted one is filled with
+   its default; any other is absent, not nulls.
 
-rows = _row_count(covered, schema)
-_check_required(covered, schema)
-return _assemble(covered, schema, rows)
-```
+A narrowed read (`columns=`) keeps a set of raw names computed from the
+conventions alone, before the file is opened (`source_columns` in
+`engine.py`): for each canonical table declaring a requested column, the
+`source_columns` of every convention producing a requested or required
+column. It may name more than the file holds, never less than the read needs.
 
-One loop, because the three it walks — every bundle, by every raw table, by
-every convention — are a product, and `_candidates` is where that product
-belongs. The order of its clauses is the priority: a bundle earlier in the
-list reaches a column first, and `_keep_first` is what the name says.
+### The write engine
 
-The raw table is linked to the canonical table by `matches()` returning true
-for its `RawSchema` — no string comparison anywhere in the path.
+`write_canonical` in `engine.py` mirrors the read: bundles in order, a write
+convention applies when all its `source_columns` are present and it adds a
+file column not yet produced, the first to produce a file column owns it, an
+undeclared output raises, and a table nothing writes raises.
 
-Written, in `python/rexlib_metadata/engine.py`, as `read_canonical`, with
-five checks the sketch above leaves out. A column a convention produced but
-never declared in its `target_columns` is an error: the bundle can only be
-checked for ambiguity against what its conventions say they produce, so a
-column smuggled past that declaration would walk through the one validation
-that exists to stop two conventions owning the same thing. A column no convention produced and
-the schema requires is an error naming it. A column the schema does not
-declare is an error too, since strict validation cuts both ways. A column
-produced as the wrong Arrow type is an error rather than a cast: a
-convention converts, the engine does not. And columns of different lengths
-are an error, which is where the optics join stands today — a value read
-from another table has to be expanded to one per row by the convention that
-reads it, and until relations between tables are declared, that error is how
-the engine says so instead of producing a broken table.
+- The destination's extension chooses writer and bundles, so
+  `read("a.star").write("b.xmd")` converts. Canonical names are never written
+  as a default; `result.raw.write(path)` writes the file's own names.
+- Values are converted with Arrow's cast: a float is the shortest text that
+  reads back as the same `float64`. A convention may format its own column.
+- A related table the destination's conventions do not write is joined into
+  the rows that point at it (XMD has no optics table). `rxm.write` puts a
+  table that others point at first.
+- **Same format** means the same writer, class and configuration, not the
+  same suffix (`.sqlite` and `.db` are one; `.star` and `.xmd` are two). Then
+  a column no convention writes, and a block no canonical table covers, are
+  carried over in file order. Towards another format both are dropped.
+- A column of `updates` no write convention consumes raises. A write that
+  would hold nothing raises.
+- Every write goes to a temporary file in the destination's directory,
+  renamed over it at the end.
 
-A convention that lost a column is not held to account for it. Its output
-for a name already covered is discarded without being validated, since
-validating a value that is about to be thrown away lets a low-priority
-fallback break a read it contributes nothing to — and the rule is that a
-later bundle cannot take a column back, not that it can poison it.
-
-A column the schema declares with a default and nobody produced is
-materialised as that constant. One with no default is simply absent: a
-picking file would otherwise come back with forty columns of nulls.
-
-### Registering a bundle
-
-```python
-registry.register_bundle([".star"], Relion4Bundle())   # tried first
-registry.register_bundle([".star"], Relion3Bundle())   # fallback
-```
-
-### Writing one
+### Writing a convention
 
 ```python
-class MyEulerConvention(ReadConvention):
+class MyAngles(ReadConvention):
     source_columns = ("myAngle1", "myAngle2", "myAngle3")
-    target_columns = ("euler_rot", "euler_tilt", "euler_psi")
+    target_columns = ("angle_rot", "angle_tilt", "angle_psi")
 
     def matches(self, raw: RawSchema) -> bool:
         return raw.has(*self.source_columns)
 
     def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
         return {
-            "euler_rot":  table.column("myAngle1"),
-            "euler_tilt": table.column("myAngle2"),
-            "euler_psi":  table.column("myAngle3"),
+            target: pc.cast(table.column(source), pa.float64())
+            for source, target in zip(self.source_columns, self.target_columns)
         }
 
-bundle = ConventionBundle("mylab", read_conventions=[MyEulerConvention()])
-global_registry.register_bundle([".star"], bundle, prepend=True)
+bundle = ConventionBundle("mylab", read={"particles": [MyAngles()]})
+global_registry.register_bundle(".star", bundle, prepend=True)
 ```
 
 ## The registry, detection and injection
 
-`MetadataRegistry` maps an extension to a reader and, from Phase 2, to an
-ordered list of convention bundles. `global_registry` is the default
-instance, built at import time with what ships in the box; a local instance
-is how a test stays isolated from it.
+`MetadataRegistry` (`registry.py`) maps a lower-cased extension to a reader,
+a writer and an ordered list of bundles (`register_reader`,
+`register_writer`, `register_bundle(..., prepend=False)`).
+`global_registry` holds what ships; a local instance isolates a test.
 
-Detection is a heuristic with an override, always in that order. A `.star`
-gives the STAR reader and Relion conventions, a `.xmd` gives the same reader
-with Xmipp conventions, and where the extension is not enough the file's
-content decides. Every one of those decisions can be overridden at the call
-site, and none of them may be the only way to reach a behaviour. Dependency
-inversion is the requirement this library exists to satisfy: readers,
-writers, conventions and columns all have to be injectable from the user's
-side, so that a client can teach the library a format it has never heard of
-without changing a line in here.
-
-At the call site that override is `reader=` and `bundle=` on `read`, and
-`writer=` and `bundle=` on `write`, each an instance. With both named, the
-extension need not be registered. A write reads its source again through
-the reader the result was read with, never through one chosen afresh.
+Overrides at the call site, each an instance: `reader=` and `bundle=` on
+`read`, `writer=` and `bundle=` on `write`; `bundle=` takes one bundle or
+several in priority order. With both named the extension need not be
+registered. A write rereads its source through the reader it was read with.
 
 ## Laziness, projection and forwarding
 
-`rxm.read()` returns a `ReadResult` and does no row I/O. Materialisation
-happens in `to_pandas()` / `to_polars()`, and a `ReadResult` holds no open
-file handle once the call that created it has returned: handles exist only
-for the duration of actual I/O. A reader that keeps one open breaks every
-caller that reads more files than the platform has descriptors.
+- `rxm.read()` returns a `ReadResult` and reads no row. Rows are read by
+  `to_pandas()`, `to_polars()`, `names` or `chunks()`. No file handle
+  outlives the call doing the I/O.
+- `result[name]` checks the name against the schema and reads nothing; a
+  declared table the file does not fill is an error when its rows are asked
+  for.
+- `columns=` shows only those canonical columns, and only the tables
+  declaring one; an undeclared name raises before any I/O.
+- `chunks(size)` needs one canonical table (`result[name]`), yields `Chunk`s
+  (`name`, `len()`, `to_arrow()`, `to_pandas()`, `to_polars()`), and stops
+  where the filling block ends. Tables a joined view points at are read
+  whole first.
+- `result.joined(name)` gives each row the columns of the row it points at.
+  `updates` through it may not change the related table's columns.
+- A view never narrows a write: `write` writes every canonical table the
+  source fills, every column, rereading the whole source. The source must
+  still be there.
+- `updates=` replaces columns of the one table the result shows; it holds a
+  row for every row written, in order. `rows=` (positions or a boolean mask)
+  keeps only those rows of that table.
 
-`columns=` shows what it says and nothing else, and a result that was
-given it keeps none of the rest once a call returns. Reading two columns of
-forty, changing one and writing the file back still has to leave the other
-thirty-eight exactly as they were, and the way that works is that the write
-re-reads the source and substitutes as it goes, a chunk at a time. Holding
-all forty in memory on the chance that a write may come charges the whole
-file to every caller who only ever reads, and makes a file larger than RAM
-impossible.
+Text formats are paginated by the parser; SQLite by a cursor per table, HDF5
+by dataset slicing.
 
-What follows from re-reading: the source has to still be there when the
-write happens, the rows have to correspond one to one — a `updates` frame of
-a different length is an error, because a filtered row forwards from nothing
-in particular — and a write over the source goes through a temporary file in
-the destination directory, renamed at the end. The destination directory
-rather than the system temp one: a rename is atomic only within a
-filesystem.
-
-A view never narrows what is written — decided on 2026-10-28.
-`result["particles"]` and `columns=` decide what a read shows and which
-table `updates` lands in; `write` writes every canonical table the source
-fills, every column of each, whatever the view.
-
-## The intended public API
-
-Written out as it is meant to end up. What exists today is `read` with
-`columns=`, `bundle=` and `reader=`, `to_pandas()`, `to_polars()`,
-`result[name]`, `chunks()` on one canonical table, `write()` with
-`updates=`, `rows=`, `bundle=` and `writer=`, `bundle=` taking one bundle or
-several in priority order, and `rxm.write(path, tables)` for canonical
-tables built anywhere; `backend=` does not.
+## The public API
 
 ```python
 import rexlib_metadata as rxm
 
 result = rxm.read("particles.star")
 result = rxm.read("particles.star", columns=["angle_rot"],
-                 bundle=relion4_bundle(), backend="polars")
-
-df = result.to_pandas()     # I/O happens here
-df = result.to_polars()
-
-df_particles = result["particles"].to_pandas()      # multi-table files
-
-for chunk in result.chunks(size=10_000):            # streaming
+                  bundle=relion4_bundle(), reader=StarReader())
+df = result.to_pandas()                      # or .to_polars()
+result.names                                 # canonical tables filled
+result["particles"].to_pandas()
+result.joined("particles").to_polars()       # optics joined per row
+for chunk in result["particles"].chunks(10_000):
     chunk.to_pandas()
+result.raw["particles"].to_pandas()          # the file's own names
+result.write("out.xmd")                      # converts
 
-result.write("output.star")
-
-# write-forwarding: read some columns, modify, write everything back
 result = rxm.read("particles.star", columns=["angle_rot"])
 df = result.to_pandas()
 df["angle_rot"] += 10
-result.write("output.star", updates=df)
+result.write("out.star", updates=df)         # every other column forwarded
+kept = df[df["angle_rot"] > 0]
+result.write("subset.star", rows=kept.index, updates=kept)
+
+rxm.write("new.star", {"particles": frame})  # canonical tables from memory
 ```
 
 ## Formats
 
-Implementation order, settled 2026-10-18: Relion 4 and 5 STAR first and
-properly, then Xmipp3 XMD, then cryoSPARC, and the stored formats — SQLite,
-PostgreSQL, HDF5 — after that, one at a time. What the early formats owe the
-later ones is an architecture that takes them without being rearranged.
-
-| Extension | Reader | Conventions |
+| Extension | Reader / writer | Bundle |
 |---|---|---|
-| `.star` | `StarReader` | Relion 4/5, Relion 3 |
-| `.xmd` | `StarReader` | Xmipp3 |
-| `.cs` | `CryosparcReader` | cryoSPARC |
-| `.db`, `.sqlite` | `SqliteReader` | — |
-| `.h5`, `.hdf5` | `Hdf5Reader` | — |
+| `.star` | `StarReader` / `StarWriter` | `relion4` |
+| `.xmd` | `StarReader` / `StarWriter(header=HEADER)` | `xmipp` |
+| `.sqlite`, `.db` | `SqliteReader` / `SqliteWriter` | — |
+| `.h5`, `.hdf5` | `Hdf5Reader` / `Hdf5Writer` | — |
 
-XMD is STAR with different column names, which is exactly the split the
-convention layer exists for: one reader, two bundles.
-
-cryoSPARC is not. A `.cs` file is a NumPy structured array on disk, so it
-needs a reader of its own, and it is the format that makes the M:N relation
-real rather than theoretical: its `alignments3D/pose` is one column holding a
-rotation vector that feeds three canonical angles. That is a good reason to
-reach it early — the convention layer is only proven once something bends it.
-
-Two more arrived with it, FREALIGN's `.par` and a cryoSPARC CSV export that
-carries blocks and declared types. What the four of them ask for, taken from
-their bytes rather than their documentation, is `docs/formats.md`, along with
-the three changes they want made before the second one is written.
-
-The name of the library is not settled. `vitrio-metadata` is the other
-candidate, and the decision is taken before the first PyPI release, which is
-also the last moment it is free.
-
-## Pagination
-
-Text formats are read by a parser that steps one line at a time and hands
-a chunk over every so many rows, so a chunk costs its own rows and nothing
-more, and the columns not asked for are dropped as each row is read. Random
-access waits for an API that asks for it; when it comes, it is a progressive
-index of chunk offsets built as chunks are read, never a mandatory first
-scan. SQLite and HDF5 use what they have — a cursor per table, dataset
-slicing. The API the user sees is the same either way.
+Order: Relion 4/5 STAR, Xmipp XMD, cryoSPARC, then the stored formats.
+cryoSPARC `.cs` (a NumPy structured array, one `pose` column feeding three
+angles), FREALIGN `.par` and the cryoSPARC CSV are in
+[formats.md](formats.md); Relion 3 is deferred.
 
 ## Open questions
 
-**The M:N column relation.** A canonical column may come from several file
-columns and a file column may feed several canonical ones. The current answer
-is the convention as the unit of mapping, with `matches()` deciding
-applicability, but it has not met a hard case yet.
-
-**Indexing the convention registry.** A plain key-value lookup is not enough
-if choosing a convention means an intelligent selection over the columns
-present. The current design walks every convention of every bundle in order
-and lets `matches()` decide, which is correct and linear in the number of
-conventions; whether that stays acceptable as the Relion bundle grows to its
-real size is unmeasured.
-
-**Table groups.** Relation between tables — which optics group a particle
-belongs to — is not modelled yet. `Schema` holds several tables; nothing
-holds what connects them.
-
-**Content-based detection.** "Look at the content" is stated as a
-requirement, but which bytes decide, and how far into the file the sniffing
-is allowed to read, is not settled.
-
-**The rotation convention.** Proposed in `docs/canonical.md`: ZYZ intrinsic,
-in degrees, taking the reference frame into the particle's. What remains is
-not the choice but the proof — the sign of each angle and the direction the
-rotation maps are stated there from documentation rather than from a file,
-and a round trip through a real Relion file and a real cryoSPARC one is what
-settles them. The same goes for whether a shift is added or subtracted.
-
-**Table relations.** Decided 2026-10-31: a `Relation(table, related, key)`
-on the `Schema`, data rather than a special case in a bundle, and checked
-when the schema is built — both tables declare the key and share no other
-column. The canonical form keeps the two tables; `result.joined(name)` is
-the flat view, and a write whose conventions do not write the related table
-joins it into the rows that point at it. What remains open is a convention
-that needs a joined column to read, as Relion 3.0's shifts in pixels need
-the optics' pixel size.
+- **The M:N column relation.** The convention is the unit of mapping, with
+  `matches()` deciding; no hard case has tested it yet (cryoSPARC's `pose`
+  will).
+- **Convention lookup cost.** Every convention of every bundle is walked in
+  order, linear in their number; unmeasured at the Relion bundle's full size.
+- **Content-based detection.** Which bytes decide, and how far a sniff may
+  read.
+- **The rotation convention's signs**, unverified against real files (see
+  [canonical.md](canonical.md)).
+- **A read convention that needs a joined column**, as Relion 3.0's shifts in
+  pixels need the optics' pixel size.
 
 ## References
 
-- [starfile-rs](https://github.com/hanjinliu/starfile-rs) — the reference
-  implementation the STAR reader was compared against.
-- [starfile](https://github.com/teamtomo/starfile) — the Python prior art.
-- Relion 3.1+ splits optics into their own data block, which is the source of
-  the multi-block requirement.
+- [starfile-rs](https://github.com/hanjinliu/starfile-rs): the STAR reader
+  was compared against it.
+- [starfile](https://github.com/teamtomo/starfile): Python prior art.
