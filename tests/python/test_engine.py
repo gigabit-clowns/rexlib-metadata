@@ -9,7 +9,7 @@ from rexlib_metadata.convention import (
     ReadConvention,
 )
 from rexlib_metadata.engine import read_canonical
-from rexlib_metadata.schema import ColumnDescriptor, TableSchema
+from rexlib_metadata.schema import ColumnDescriptor, Schema, TableSchema
 
 PARTICLES = TableSchema(
     "particles",
@@ -107,7 +107,7 @@ def a_bundle(name, *conventions):
 
 
 def read(*bundles, raw_tables=(RAW,), schema=PARTICLES):
-    return read_canonical(raw_tables, bundles, schema)
+    return read_canonical(raw_tables, bundles, Schema(schema), schema.name)
 
 
 def test_a_bundle_produces_the_canonical_columns():

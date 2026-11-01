@@ -9,7 +9,7 @@ use std::num::NonZeroUsize;
 use crate::error::Error;
 use crate::text::Token;
 use crate::text::builder::{ArrowSink, Chunk, Table};
-use crate::text::parser::{Parser, parse_blocks};
+use crate::text::parser::{Parser, Sink, parse_blocks, parse_headers};
 
 type Tokenize = for<'a> fn(&'a str, &str, usize) -> Result<Vec<Token<'a>>, Error>;
 
@@ -23,6 +23,29 @@ pub(crate) fn read_tables(
     let mut sink = ArrowSink::new(None, columns);
     parse_blocks(path, lexer::tokenize_line, &mut sink)?;
     Ok(sink.into_tables())
+}
+
+/// Every block's name and columns, in file order, without reading its rows.
+pub(crate) fn read_headers(path: &str) -> Result<Vec<(String, Vec<String>)>, Error> {
+    let mut sink = Headers::default();
+    parse_headers(path, lexer::tokenize_line, lexer::is_row, &mut sink)?;
+    Ok(sink.0)
+}
+
+#[derive(Default)]
+struct Headers(Vec<(String, Vec<String>)>);
+
+impl Sink for Headers {
+    fn open(&mut self, _: &str, _: &[String]) {}
+
+    fn row(&mut self, _: &[&str]) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn close(&mut self, name: String, columns: Vec<String>) -> Result<(), Error> {
+        self.0.push((name, columns));
+        Ok(())
+    }
 }
 
 /// The blocks of a STAR file, `chunk_size` rows at a time, read as they
@@ -290,6 +313,50 @@ _x
         assert_eq!(read.len(), 1);
         assert_eq!(read[0].1.num_rows(), 1);
         assert_eq!(read[0].1.num_columns(), 2);
+    }
+
+    fn headers(content: &str) -> Vec<(String, Vec<String>)> {
+        let file = written(content.as_bytes());
+        read_headers(file.path().to_str().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn headers_are_every_block_and_its_columns_in_order() {
+        let read = headers(
+            "data_general\n_rlnVoltage 300.0\n\ndata_empty\n\n\
+             data_particles\nloop_\n_x #1\n_y #2\n1 2\n3 4\n",
+        );
+
+        let expected = [
+            ("general", vec!["_rlnVoltage"]),
+            ("empty", vec![]),
+            ("particles", vec!["_x", "_y"]),
+        ];
+        let expected: Vec<(String, Vec<String>)> = expected
+            .into_iter()
+            .map(|(name, columns)| {
+                (
+                    name.to_string(),
+                    columns.into_iter().map(String::from).collect(),
+                )
+            })
+            .collect();
+        assert_eq!(read, expected);
+    }
+
+    #[test]
+    fn headers_skip_every_row_after_a_loops_first() {
+        let read = headers("data_p\nloop_\n_x\n1\n2 3 'unterminated\n\ndata_q\nloop_\n_y\n1\n");
+
+        assert_eq!(read.len(), 2);
+        assert_eq!(read[1].1, vec!["_y".to_string()]);
+    }
+
+    #[test]
+    fn headers_still_refuse_a_first_row_of_the_wrong_width() {
+        let file = written(b"data_p\nloop_\n_x\n_y\n1\n");
+
+        assert!(read_headers(file.path().to_str().unwrap()).is_err());
     }
 
     #[test]

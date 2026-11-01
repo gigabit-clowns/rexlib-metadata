@@ -21,7 +21,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from rexlib_metadata.abc import Reader, Writer
-from rexlib_metadata.convention import RawTable
+from rexlib_metadata.convention import RawSchema, RawTable
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Set
@@ -37,6 +37,14 @@ class Hdf5Reader(Reader):
     def read_tables(self, path: str) -> list[RawTable]:
         """Read every table of the file at `path`, in the file's order."""
         return self._read(path, None)
+
+    def read_schemas(self, path: str) -> list[RawSchema]:
+        """Name every table and its columns, reading no dataset."""
+        with _open(path) as file:
+            return [
+                RawSchema(table.name, table.column_names)
+                for table in _tables(file)
+            ]
 
     def read_tables_keeping(
         self, path: str, columns: Set[str]
@@ -80,10 +88,11 @@ class _CompoundTable:
     def __init__(self, name: str, dataset: Any) -> None:
         self.name = name
         self.rows = len(dataset)
+        self.column_names: tuple[str, ...] = dataset.dtype.names
         self._dataset = dataset
 
     def read(self, rows: slice, columns: Set[str] | None) -> RawTable:
-        names = _kept(self._dataset.dtype.names, columns)
+        names = _kept(self.column_names, columns)
         arrays = [
             _arrow(self.name, field, self._dataset.fields(field)[rows])
             for field in names
@@ -97,10 +106,11 @@ class _ColumnGroup:
     def __init__(self, name: str, datasets: dict[str, Any]) -> None:
         self.name = name
         self.rows = len(next(iter(datasets.values())))
+        self.column_names = tuple(datasets)
         self._datasets = datasets
 
     def read(self, rows: slice, columns: Set[str] | None) -> RawTable:
-        names = _kept(tuple(self._datasets), columns)
+        names = _kept(self.column_names, columns)
         arrays = [
             _arrow(self.name, name, _values(self._datasets[name], rows))
             for name in names

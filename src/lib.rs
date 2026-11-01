@@ -41,6 +41,12 @@ fn _star_read_tables(
 }
 
 #[pyfunction]
+fn _star_read_headers(py: Python<'_>, path: &str) -> PyResult<Vec<(String, Vec<String>)>> {
+    py.detach(|| star::read_headers(path))
+        .map_err(to_python_error)
+}
+
+#[pyfunction]
 #[pyo3(signature = (path, chunk_size, columns=None))]
 fn _star_read_chunks(
     path: &str,
@@ -126,6 +132,7 @@ fn _rexlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(version, m)?)?;
     m.add_function(wrap_pyfunction!(_star_read_tables, m)?)?;
     m.add_function(wrap_pyfunction!(_star_read_chunks, m)?)?;
+    m.add_function(wrap_pyfunction!(_star_read_headers, m)?)?;
     m.add_function(wrap_pyfunction!(_star_write, m)?)?;
     m.add_class::<StarChunks>()?;
     Ok(())

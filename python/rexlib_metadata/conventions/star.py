@@ -9,11 +9,12 @@ from typing import TYPE_CHECKING
 from rexlib_metadata._arrow import to_pyarrow_table, to_record_batches
 from rexlib_metadata._rexlib import (
     _star_read_chunks,
+    _star_read_headers,
     _star_read_tables,
     _star_write,
 )
 from rexlib_metadata.abc import Reader, Writer
-from rexlib_metadata.convention import RawTable
+from rexlib_metadata.convention import RawSchema, RawTable
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Set
@@ -27,6 +28,13 @@ class StarReader(Reader):
         return [
             RawTable.of(name, to_pyarrow_table(batches))
             for name, batches in _star_read_tables(path)
+        ]
+
+    def read_schemas(self, path: str) -> list[RawSchema]:
+        """Name every data block and its columns, skipping their rows."""
+        return [
+            RawSchema(name, tuple(columns))
+            for name, columns in _star_read_headers(path)
         ]
 
     def read_tables_keeping(

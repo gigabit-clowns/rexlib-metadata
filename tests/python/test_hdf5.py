@@ -176,3 +176,19 @@ def test_a_table_of_no_columns_is_refused(tmp_path):
 
     with pytest.raises(ValueError, match="no columns"):
         writer.write_tables(str(tmp_path / "out.h5"), [table])
+
+
+@pytest.mark.parametrize(
+    "made",
+    [
+        pytest.param(columns_file, id="column-group"),
+        pytest.param(compound_file, id="compound"),
+    ],
+)
+def test_schemas_are_what_a_whole_read_holds(tmp_path, made):
+    path = made(tmp_path)
+    reader = Hdf5Reader()
+
+    schemas = reader.read_schemas(path)
+
+    assert schemas == [table.schema for table in reader.read_tables(path)]
