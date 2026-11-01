@@ -159,3 +159,20 @@ def test_without_h5py_the_error_says_how_to_get_it(tmp_path, monkeypatch):
 
     with pytest.raises(ImportError, match=r"rexlib-metadata\[hdf5\]"):
         reader.read_tables(path)
+
+
+@pytest.mark.parametrize("order", [("a", "a/b"), ("a/b", "a")])
+def test_a_table_inside_another_is_refused(tmp_path, order):
+    tables = [RawTable.of(name, pa.table({"x": [1]})) for name in order]
+    writer = Hdf5Writer()
+
+    with pytest.raises(ValueError, match="inside table 'a'"):
+        writer.write_tables(str(tmp_path / "out.h5"), tables)
+
+
+def test_a_table_of_no_columns_is_refused(tmp_path):
+    table = RawTable.of("t", pa.table({"x": [1]}).drop_columns(["x"]))
+    writer = Hdf5Writer()
+
+    with pytest.raises(ValueError, match="no columns"):
+        writer.write_tables(str(tmp_path / "out.h5"), [table])

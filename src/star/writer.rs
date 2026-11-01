@@ -26,16 +26,16 @@ pub(crate) fn write_tables(
             string_columns(batch)?;
         }
     }
-    let written = write_file(path, header, tables);
+    let file = File::create(path).map_err(|source| io_error(path, source))?;
+    let written = write_file(file, path, header, tables);
     if written.is_err() {
         let _ = std::fs::remove_file(path);
     }
     written
 }
 
-fn write_file(path: &str, header: Option<&str>, tables: &[Table]) -> Result<(), Error> {
+fn write_file(file: File, path: &str, header: Option<&str>, tables: &[Table]) -> Result<(), Error> {
     let io = |source| io_error(path, source);
-    let file = File::create(path).map_err(io)?;
     let mut out = BufWriter::with_capacity(BUFFER, file);
     if let Some(header) = header {
         writeln!(out, "{header}").map_err(io)?;
@@ -428,6 +428,25 @@ data_",
 
         assert!(error.to_string().contains("_rlnClassNumber"));
         assert!(error.to_string().contains("Utf8"));
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_opened_is_left_as_it_was() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("out.star");
+        std::fs::write(&path, "kept").unwrap();
+        let mut permissions = std::fs::metadata(&path).unwrap().permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(&path, permissions).unwrap();
+
+        let written = write_tables(
+            path.to_str().unwrap(),
+            None,
+            &one("p", &["_rlnA"], &[&["1"]]),
+        );
+
+        assert!(written.is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "kept");
     }
 
     #[test]

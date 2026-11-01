@@ -212,6 +212,12 @@ def _untyped(table: str, column: str, kind: object, what: str) -> ValueError:
 
 def _check_paths(tables: list[RawTable]) -> None:
     names = [table.schema.table_name for table in tables]
+    _check_names(names)
+    _check_columns(tables)
+    _check_nesting(names)
+
+
+def _check_names(names: list[str]) -> None:
     if "" in names and len(names) > 1:
         raise ValueError(
             "A table with no name is written at the root of the file, where "
@@ -221,6 +227,32 @@ def _check_paths(tables: list[RawTable]) -> None:
         raise ValueError(
             "Two tables share a name, and HDF5 has one group per path"
         )
+
+
+def _check_columns(tables: list[RawTable]) -> None:
+    for table in tables:
+        if not table.table.num_columns:
+            raise ValueError(
+                f"Table '{table.schema.table_name}' has no columns, and an "
+                "empty group does not read back as a table"
+            )
+
+
+def _check_nesting(names: list[str]) -> None:
+    for outer, inner in _nested(names):
+        raise ValueError(
+            f"Table '{inner}' would be written inside table '{outer}', "
+            f"which would then read back as a group rather than a table"
+        )
+
+
+def _nested(names: list[str]) -> list[tuple[str, str]]:
+    return [
+        (outer, inner)
+        for outer in names
+        for inner in names
+        if outer and inner.startswith(f"{outer}/")
+    ]
 
 
 def _write_table(file: Any, table: RawTable) -> None:
