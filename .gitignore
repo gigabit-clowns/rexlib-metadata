@@ -34,3 +34,11 @@ python/rexlib_metadata/_rexlib*.pyd
 # Coverage reports, made by the coverage job or by hand
 coverage/
 .coverage
+
+# Benchmark results
+.codspeed
+
+# Linting
+.mypy_cache
+.ruff_cache
+.complexipy_cache

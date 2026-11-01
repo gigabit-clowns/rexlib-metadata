@@ -8,11 +8,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rexlib_metadata.canonical import SCHEMA
+from rexlib_metadata.convention import as_bundles
 from rexlib_metadata.result import RawResult, ReadResult
+from rexlib_metadata.writing import canonical_frame, replaced, written_frames
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Mapping
 
+    from rexlib_metadata._arrow import Frame
     from rexlib_metadata.abc import Reader, Writer
     from rexlib_metadata.convention import ConventionBundle
     from rexlib_metadata.schema import Schema
@@ -90,21 +93,59 @@ class MetadataRegistry:
         path: str,
         *,
         columns: Iterable[str] | None = None,
-        bundle: ConventionBundle | None = None,
+        bundle: ConventionBundle | Iterable[ConventionBundle] | None = None,
         reader: Reader | None = None,
     ) -> ReadResult:
         """Return a lazy canonical result over `path`, through its reader.
 
         The reader and the bundles registered for the extension apply, the
-        bundles in their order, unless `reader` or `bundle` names the one to
-        use instead; the extension need not be registered when both are
-        named. `columns` narrows the result to those canonical columns.
+        bundles in their order, unless `reader` or `bundle` names what to
+        use instead, `bundle` being one bundle or several in priority
+        order; the extension need not be registered when both are named.
+        `columns` narrows the result to those canonical columns.
         """
-        bundles = (bundle,) if bundle is not None else self.bundles_for(path)
+        bundles = as_bundles(bundle)
+        if bundles is None:
+            bundles = self.bundles_for(path)
         if reader is None:
             reader = self.reader_for(path)
         raw = RawResult(path, reader, self)
         return ReadResult(raw, bundles, self._schema, columns=columns)
+
+
+    def write(
+        self,
+        path: str,
+        tables: Mapping[str, Frame],
+        *,
+        bundle: ConventionBundle | Iterable[ConventionBundle] | None = None,
+        writer: Writer | None = None,
+    ) -> None:
+        """Write canonical tables, built anywhere, to `path`.
+
+        `tables` maps a canonical table's name to its rows, as pandas,
+        polars or Arrow, every column canonical and the required ones
+        there. They are spelled as the destination's conventions write
+        them, a related table the format has no place for joined into the
+        rows that point at it, and a column the format cannot spell left
+        out. The writer and the conventions come from the extension unless
+        `writer` or `bundle` names them.
+        """
+        bundles = as_bundles(bundle)
+        if bundles is None:
+            bundles = self.bundles_for(path)
+        if writer is None:
+            writer = self.writer_for(path)
+        canonical = {
+            name: canonical_frame(name, frame, self._schema)
+            for name, frame in tables.items()
+        }
+        written = written_frames(canonical, bundles, self._schema)
+        if not written:
+            raise ValueError(f"Nothing would reach {path}: no table was given")
+        replaced(
+            path, lambda temporary: writer.write_tables(temporary, written)
+        )
 
 
 def _as_extensions(extensions: str | Iterable[str]) -> tuple[str, ...]:

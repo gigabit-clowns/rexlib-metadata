@@ -5,9 +5,17 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 
 import pyarrow as pa
+
+if TYPE_CHECKING:
+    from typing import TypeAlias
+
+    import pandas as pd
+    import polars as pl
+
+    Frame: TypeAlias = pa.Table | pd.DataFrame | pl.DataFrame
 
 
 @runtime_checkable
@@ -34,3 +42,15 @@ def to_record_batches(table: pa.Table) -> list[pa.RecordBatch]:
     if batches:
         return batches
     return [pa.RecordBatch.from_pylist([], schema=table.schema)]
+
+
+def as_arrow_table(frame: Frame) -> pa.Table:
+    """Return a pandas, polars or Arrow table as an Arrow one."""
+    if isinstance(frame, pa.Table):
+        return frame
+    to_arrow = getattr(frame, "to_arrow", None)
+    if to_arrow is not None:
+        return cast("pa.Table", to_arrow())
+    return pa.Table.from_pandas(
+        cast("pd.DataFrame", frame), preserve_index=False
+    )

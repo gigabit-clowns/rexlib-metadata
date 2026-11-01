@@ -155,3 +155,14 @@ def _declarations(
         for convention in conventions
         for column in convention.target_columns
     )
+
+
+def as_bundles(
+    bundle: ConventionBundle | Iterable[ConventionBundle] | None,
+) -> tuple[ConventionBundle, ...] | None:
+    """Return the bundles a caller named, in priority order, or None."""
+    if bundle is None:
+        return None
+    if isinstance(bundle, ConventionBundle):
+        return (bundle,)
+    return tuple(bundle)
