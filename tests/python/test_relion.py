@@ -175,8 +175,9 @@ def test_a_value_that_does_not_parse_names_the_file_and_the_table(tmp_path):
         "_rlnCoordinateY\n2@a.mrcs abc 3\n"
     )
     particles = rxm.read(str(path))["particles"]
+    stream = particles.chunks(1)
 
     with pytest.raises(ValueError, match=r"broken\.star.*'particles'.*abc"):
         particles.to_pandas()
     with pytest.raises(ValueError, match="does not parse"):
-        next(particles.chunks(1))
+        next(stream)
