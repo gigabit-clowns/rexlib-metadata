@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from rexlib_metadata._arrow import to_pyarrow_table, to_record_batch
+from rexlib_metadata._arrow import to_pyarrow_table, to_record_batches
 from rexlib_metadata._rexlib import (
     _star_read_chunks,
     _star_read_tables,
@@ -25,8 +25,8 @@ class StarReader(Reader):
     def read_tables(self, path: str) -> list[RawTable]:
         """Read every data block of the file at `path`."""
         return [
-            RawTable.of(name, to_pyarrow_table(batch))
-            for name, batch in _star_read_tables(path)
+            RawTable.of(name, to_pyarrow_table(batches))
+            for name, batches in _star_read_tables(path)
         ]
 
     def read_tables_keeping(
@@ -34,8 +34,8 @@ class StarReader(Reader):
     ) -> list[RawTable]:
         """Read every data block, the parser dropping what `columns` leaves."""
         return [
-            RawTable.of(name, to_pyarrow_table(batch))
-            for name, batch in _star_read_tables(path, set(columns))
+            RawTable.of(name, to_pyarrow_table(batches))
+            for name, batches in _star_read_tables(path, set(columns))
         ]
 
 
@@ -46,7 +46,7 @@ class StarReader(Reader):
         chunks = _star_read_chunks(path, size, columns)
         try:
             for name, ordinal, batch in chunks:
-                yield ordinal, RawTable.of(name, to_pyarrow_table(batch))
+                yield ordinal, RawTable.of(name, to_pyarrow_table([batch]))
         finally:
             del chunks
 
@@ -63,7 +63,7 @@ class StarWriter(Writer):
         _star_write(
             path,
             [
-                (table.schema.table_name, to_record_batch(table.table))
+                (table.schema.table_name, to_record_batches(table.table))
                 for table in tables
             ],
             self._header,

@@ -55,12 +55,15 @@ fn tokenize_tag<'a>(
 }
 
 /// Where the scan of a line is: between values, inside a bare one that
-/// began at a byte, or inside a quoted one whose text begins at a byte.
+/// began at a byte, inside a quoted one whose text begins at a byte, or on
+/// a quote that closes that value only if whitespace or the line's end
+/// follows it, as STAR and CIF have it.
 #[derive(Clone, Copy)]
 enum Scan {
     Between,
     Bare(usize),
     Quoted(char, usize),
+    Closing(char, usize, usize),
 }
 
 fn tokenize_values<'a>(
@@ -79,19 +82,74 @@ fn scanned_values<'a>(line: &'a str, path: &str, line_num: usize) -> Result<Vec<
     let mut tokens = Vec::new();
     let mut scan = Scan::Between;
     for (at, ch) in line.char_indices() {
-        scan = match scan {
-            Scan::Quoted(quote, from) => quoted(line, quote, from, at, ch, &mut tokens),
-            Scan::Between if ch == '#' => break,
-            _ => unquoted(line, scan, at, ch, &mut tokens),
+        let Some(next) = step(line, scan, at, ch, &mut tokens) else {
+            break;
         };
+        scan = next;
     }
     match scan {
         Scan::Quoted(..) => Err(parse_error(path, line_num, "unterminated quoted value")),
+        Scan::Closing(_, from, end) => {
+            tokens.push(Token::Value(&line[from..end]));
+            Ok(tokens)
+        }
         Scan::Bare(from) => {
             tokens.push(Token::Value(&line[from..]));
             Ok(tokens)
         }
         Scan::Between => Ok(tokens),
+    }
+}
+
+/// The scan after `ch`, or None where a comment starts.
+fn step<'a>(
+    line: &'a str,
+    scan: Scan,
+    at: usize,
+    ch: char,
+    tokens: &mut Vec<Token<'a>>,
+) -> Option<Scan> {
+    Some(match scan {
+        Scan::Between if ch == '#' => return None,
+        Scan::Between => started(at, ch),
+        Scan::Bare(from) => bare(line, from, at, ch, tokens),
+        Scan::Quoted(quote, from) if ch == quote => Scan::Closing(quote, from, at),
+        Scan::Quoted(..) => scan,
+        Scan::Closing(quote, from, end) => closing(line, (quote, from, end), at, ch, tokens),
+    })
+}
+
+fn started(at: usize, ch: char) -> Scan {
+    match ch {
+        '"' | '\'' => Scan::Quoted(ch, at + ch.len_utf8()),
+        c if c.is_whitespace() => Scan::Between,
+        _ => Scan::Bare(at),
+    }
+}
+
+fn bare<'a>(line: &'a str, from: usize, at: usize, ch: char, tokens: &mut Vec<Token<'a>>) -> Scan {
+    if ch.is_whitespace() {
+        tokens.push(Token::Value(&line[from..at]));
+        Scan::Between
+    } else {
+        Scan::Bare(from)
+    }
+}
+
+fn closing<'a>(
+    line: &'a str,
+    (quote, from, end): (char, usize, usize),
+    at: usize,
+    ch: char,
+    tokens: &mut Vec<Token<'a>>,
+) -> Scan {
+    if ch.is_whitespace() {
+        tokens.push(Token::Value(&line[from..end]));
+        Scan::Between
+    } else if ch == quote {
+        Scan::Closing(quote, from, at)
+    } else {
+        Scan::Quoted(quote, from)
     }
 }
 
@@ -113,41 +171,6 @@ fn plain_values(line: &str) -> Option<Vec<Token<'_>>> {
         tokens.push(Token::Value(value));
     }
     Some(tokens)
-}
-
-fn quoted<'a>(
-    line: &'a str,
-    quote: char,
-    from: usize,
-    at: usize,
-    ch: char,
-    tokens: &mut Vec<Token<'a>>,
-) -> Scan {
-    if ch == quote {
-        tokens.push(Token::Value(&line[from..at]));
-        Scan::Between
-    } else {
-        Scan::Quoted(quote, from)
-    }
-}
-
-fn unquoted<'a>(
-    line: &'a str,
-    scan: Scan,
-    at: usize,
-    ch: char,
-    tokens: &mut Vec<Token<'a>>,
-) -> Scan {
-    let ends_bare = ch == '"' || ch == '\'' || ch.is_whitespace();
-    if let (Scan::Bare(from), true) = (scan, ends_bare) {
-        tokens.push(Token::Value(&line[from..at]));
-    }
-    match ch {
-        '"' | '\'' => Scan::Quoted(ch, at + ch.len_utf8()),
-        c if c.is_whitespace() => Scan::Between,
-        _ if matches!(scan, Scan::Bare(_)) => scan,
-        _ => Scan::Bare(at),
-    }
 }
 
 fn ensure_single_word(
@@ -202,6 +225,29 @@ mod tests {
             assert!(plain_values(line).is_none(), "{line:?}");
         }
         assert_eq!(tok("a\x0Bb"), vec![Token::Value("a"), Token::Value("b")]);
+    }
+
+    #[test]
+    fn a_quote_inside_a_bare_value_is_part_of_it() {
+        assert_eq!(
+            tok("John's_data/mic.mrc 1"),
+            vec![Token::Value("John's_data/mic.mrc"), Token::Value("1")]
+        );
+        assert_eq!(tok("5'-end"), vec![Token::Value("5'-end")]);
+    }
+
+    #[test]
+    fn a_quote_closes_only_before_whitespace_or_the_end() {
+        assert_eq!(
+            tok("'it's here' 1"),
+            vec![Token::Value("it's here"), Token::Value("1")]
+        );
+        assert_eq!(tok("'a''b'"), vec![Token::Value("a''b")]);
+    }
+
+    #[test]
+    fn a_quote_closing_nothing_is_unterminated() {
+        assert!(tokenize_line("'a'b", "test.star", 1).is_err());
     }
 
     #[test]

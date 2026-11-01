@@ -301,7 +301,7 @@ class ReadResult:
         raw: RawTable,
         related: tuple[tuple[Relation, pa.Table], ...],
     ) -> Chunk:
-        table = read_canonical([raw], self._bundles, schema)
+        table = self._filled([raw], schema)
         table = _joined_all(table, related)
         return Chunk(schema.name, self._shown(table, schema.name))
 
@@ -548,7 +548,18 @@ class ReadResult:
     def _canonical(
         self, raw_tables: tuple[RawTable, ...], name: str
     ) -> pa.Table:
-        return read_canonical(raw_tables, self._bundles, self._schema[name])
+        return self._filled(raw_tables, self._schema[name])
+
+    def _filled(
+        self, raw_tables: Iterable[RawTable], schema: TableSchema
+    ) -> pa.Table:
+        try:
+            return read_canonical(raw_tables, self._bundles, schema)
+        except pa.ArrowInvalid as error:
+            raise ValueError(
+                f"{self._raw.path}: canonical table '{schema.name}' holds a "
+                f"value that does not parse: {error}"
+            ) from error
 
     def _one(self) -> pa.Table:
         raw_tables = self._raw_tables()

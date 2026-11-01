@@ -120,6 +120,9 @@ where
                     source,
                 },
             })?;
+        if self.line_num == 1 && self.line.starts_with('\u{feff}') {
+            self.line.drain(..'\u{feff}'.len_utf8());
+        }
         if self.line.ends_with('\n') {
             self.line.pop();
             if self.line.ends_with('\r') {

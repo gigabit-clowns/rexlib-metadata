@@ -1,6 +1,17 @@
 Nothing has been released yet. This is what the first release will say.
 
 ### Fixed
+- A quote inside a bare value is part of it, and a quoted value ends only
+  at a quote followed by whitespace, as STAR and CIF have it: a path such as
+  `John's_data/mic.mrc` no longer makes a file unreadable.
+- A byte-order mark before the first line is skipped.
+- Writing refuses a value holding a line break, and a block or column name
+  holding whitespace or `#`, rather than write a file it cannot read back.
+- A column of more than 1 GiB of text is read as several batches rather
+  than overflowing Arrow's offsets into a panic; a table held in several
+  is written as it is.
+- A value that does not parse names the file, the canonical table and the
+  value, where it was a bare `ArrowInvalid`.
 - Writing a file in its own format keeps the blocks no canonical table
   covers; it dropped them, and wrote an empty file over a source such as
   `postprocess.star`. A write that would hold nothing now raises.

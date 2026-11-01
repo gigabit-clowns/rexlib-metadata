@@ -70,8 +70,8 @@ directory the file does not name, so resolving one here would be guessing.
 They are kept as written, and a `root` argument may later be offered to
 whoever knows the answer.
 
-**Missing is null**, and a value that does not parse is an error naming the
-line. A format's sentinels — Xmipp's `-999` and its kin — are translated by
+**Missing is null**, an empty value of a typed column included, and a value
+that does not parse is an error naming the file, the table and the value. A format's sentinels — Xmipp's `-999` and its kin — are translated by
 that format's conventions, never by the core.
 
 **Continuous values are `float64`.** The precision is never the bottleneck,

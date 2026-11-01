@@ -11,14 +11,34 @@ use arrow::record_batch::{RecordBatch, RecordBatchOptions};
 use super::parser::Sink;
 use crate::error::{Error, unwritable};
 
-#[derive(Default)]
+/// The bytes a column of one batch may hold before the batch is cut: an
+/// Arrow string array addresses its text with 32-bit offsets, and a column
+/// past 2 GiB would overflow them.
+const BYTE_LIMIT: usize = 1 << 30;
+
 pub(crate) struct ArrowSink {
     chunk_size: Option<NonZeroUsize>,
+    byte_limit: usize,
     keep: Option<HashSet<String>>,
     block: Option<OpenBlock>,
     blocks: usize,
     chunks: VecDeque<Chunk>,
 }
+
+impl Default for ArrowSink {
+    fn default() -> Self {
+        Self {
+            chunk_size: None,
+            byte_limit: BYTE_LIMIT,
+            keep: None,
+            block: None,
+            blocks: 0,
+            chunks: VecDeque::new(),
+        }
+    }
+}
+
+pub(crate) type Table = (String, Vec<RecordBatch>);
 
 /// A batch, the name of the block it came from, and which block that was:
 /// two blocks of one name are told apart by nothing else.
@@ -49,11 +69,21 @@ impl ArrowSink {
         self.chunks.pop_front()
     }
 
-    pub(crate) fn into_tables(self) -> Vec<(String, RecordBatch)> {
-        self.chunks
-            .into_iter()
-            .map(|(name, _, batch)| (name, batch))
-            .collect()
+    #[cfg(test)]
+    pub(crate) fn with_byte_limit(mut self, byte_limit: usize) -> Self {
+        self.byte_limit = byte_limit;
+        self
+    }
+
+    pub(crate) fn into_tables(self) -> Vec<Table> {
+        let mut tables: Vec<(usize, Table)> = Vec::new();
+        for (name, ordinal, batch) in self.chunks {
+            match tables.last_mut() {
+                Some((last, (_, batches))) if *last == ordinal => batches.push(batch),
+                _ => tables.push((ordinal, (name, vec![batch]))),
+            }
+        }
+        tables.into_iter().map(|(_, table)| table).collect()
     }
 
     fn opened(&self, name: &str, columns: &[String]) -> OpenBlock {
@@ -91,10 +121,14 @@ impl ArrowSink {
     }
 
     fn is_full(&self) -> bool {
-        match (&self.block, self.chunk_size) {
-            (Some(block), Some(size)) => block.rows >= size.get(),
-            _ => false,
-        }
+        let Some(block) = &self.block else {
+            return false;
+        };
+        self.chunk_size.is_some_and(|size| block.rows >= size.get())
+            || block
+                .builders
+                .iter()
+                .any(|builder| builder.values_slice().len() >= self.byte_limit)
     }
 }
 
@@ -162,6 +196,17 @@ fn record_batch(
 
     let options = RecordBatchOptions::new().with_row_count(Some(rows));
     Ok(RecordBatch::try_new_with_options(schema, arrays, &options)?)
+}
+
+#[cfg(test)]
+pub(crate) fn single(tables: Vec<Table>) -> Vec<(String, RecordBatch)> {
+    tables
+        .into_iter()
+        .map(|(name, mut batches)| {
+            assert_eq!(batches.len(), 1, "block '{name}' came as several batches");
+            (name, batches.remove(0))
+        })
+        .collect()
 }
 
 #[cfg(test)]

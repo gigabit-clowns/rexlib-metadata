@@ -166,3 +166,18 @@ def test_a_reference_splits_as_the_pattern_it_replaced_did(reference):
 
     assert index.to_pylist() == expected_index.to_pylist()
     assert path.to_pylist() == pc.struct_field(parts, "path").to_pylist()
+
+
+def test_a_value_that_does_not_parse_names_the_file_and_the_table(tmp_path):
+    path = tmp_path / "broken.star"
+    path.write_text(
+        "data_particles\nloop_\n_rlnImageName\n_rlnCoordinateX\n"
+        "_rlnCoordinateY\n2@a.mrcs abc 3\n"
+    )
+    particles = rxm.read(str(path))["particles"]
+    stream = particles.chunks(1)
+
+    with pytest.raises(ValueError, match=r"broken\.star.*'particles'.*abc"):
+        particles.to_pandas()
+    with pytest.raises(ValueError, match="does not parse"):
+        next(stream)
