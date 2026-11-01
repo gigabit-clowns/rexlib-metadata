@@ -21,7 +21,7 @@ What is not obvious from the manifests:
   `renovate.json` caps `arrow` at the major `pyo3-arrow` holds. `pyo3` is
   left uncapped on purpose: its failing Renovate PR is the signal to raise
   `pyo3-arrow` in the same branch.
-- Runtime ranges run from what the code needs (`pyarrow>=16`, the first
+- Every range, extras included, runs from what the code needs (`pyarrow>=16`, the first
   built for NumPy 2) to the newest version CI has passed, which Renovate
   widens. The oldest-extras cell installs each floor.
 - A pin split at `python_version == '3.10'` keeps 3.10 on the last release
