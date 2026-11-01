@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-"""Reading STAR files, and the conventions that come with them."""
+"""Reading and writing STAR files, through the Rust parser."""
 
 from __future__ import annotations
 

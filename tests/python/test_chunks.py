@@ -13,7 +13,7 @@ from rexlib_metadata.abc import Reader
 from rexlib_metadata.canonical import SCHEMA
 from rexlib_metadata.convention import ConventionBundle, RawTable
 from rexlib_metadata.conventions.relion import relion4_bundle
-from rexlib_metadata.conventions.star import StarReader
+from rexlib_metadata.formats.star import StarReader
 from rexlib_metadata.registry import MetadataRegistry
 
 FILES = Path(__file__).parent.parent / "files" / "star"

@@ -6,7 +6,7 @@ import polars as pl
 import pytest
 
 import rexlib_metadata as rxm
-from rexlib_metadata.conventions.star import StarReader
+from rexlib_metadata.formats.star import StarReader
 
 FIXTURES = Path(__file__).parent / "fixtures"
 MINI = FIXTURES / "mini.star"

@@ -11,7 +11,7 @@ import pytest
 import rexlib_metadata as rxm
 from rexlib_metadata.convention import RawTable
 from rexlib_metadata.conventions.relion import relion4_bundle
-from rexlib_metadata.conventions.sqlite import SqliteReader, SqliteWriter
+from rexlib_metadata.formats.sqlite import SqliteReader, SqliteWriter
 
 STAR = Path(__file__).parent.parent / "files" / "star"
 

@@ -8,7 +8,7 @@ import pytest
 
 import rexlib_metadata as rxm
 from rexlib_metadata.convention import RawTable
-from rexlib_metadata.conventions.star import StarWriter
+from rexlib_metadata.formats.star import StarWriter
 
 FILES = Path(__file__).parent.parent / "files" / "xmd"
 

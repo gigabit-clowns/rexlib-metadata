@@ -1,6 +1,6 @@
 # rexlib-metadata
 
-Highly performant reader and writer of CryoEM metadata formats (STAR, XMD, SQLite, HDF5), to and from Pandas or Polars DataFrames. Rust core, Python API, extensible by design.
+Highly performant reader and writer of CryoEM metadata formats (STAR, XMD, SQLite, HDF5), to and from Pandas, Polars or Arrow tables. Rust core, Python API, extensible by design.
 
 [![Build and Test](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml)
 [![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/gigabit-clowns/rexlib-metadata)
@@ -9,7 +9,7 @@ Highly performant reader and writer of CryoEM metadata formats (STAR, XMD, SQLit
 
 - **One vocabulary, whatever the file** — columns come back under canonical names, typed: `_rlnCoordinateX` and Xmipp's equivalent both arrive as `coord_x`
 - **The file's own names too** — `result.raw` is the same read as the format wrote it, every value a string
-- **Lazy I/O** — `rxm.read()` returns immediately with no file I/O, and so does naming a table; data is only loaded when you call `to_pandas()`, `to_polars()` or `chunks()`, and nothing of the file is kept once the frame is handed back
+- **Lazy I/O** — `rxm.read()` returns immediately with no file I/O, and so does naming a table; data is only loaded when you call `to_pandas()`, `to_polars()`, `to_arrow()` or `chunks()`, and nothing of the file is kept once the frame is handed back
 - **Bounded memory** — `chunks()` streams a file larger than memory, parsing only the columns asked for
 - **Lossless writes** — columns no convention covers are carried over; a conversion is a change of extension
 - **Extensible** — custom readers and conventions by subclassing Python ABCs; no Rust required
@@ -61,6 +61,7 @@ also benchmarked against `main` on
 ## Installation
 
 ```bash
+pip install rexlib-metadata           # Arrow, through pyarrow
 pip install rexlib-metadata[pandas]   # or [polars], [pandas,polars]
 pip install rexlib-metadata[hdf5]     # HDF5 files, through h5py
 ```
@@ -73,7 +74,7 @@ Requires Python ≥ 3.10.
 import rexlib_metadata as rxm
 
 result = rxm.read("particles.star")   # reader and conventions chosen by extension
-df = result.to_pandas()               # or result.to_polars()
+df = result.to_pandas()               # or .to_polars(), .to_arrow()
 
 df.columns          # ['image_path', 'image_index', 'micrograph_path', 'coord_x', 'coord_y', ...]
 df["coord_x"].dtype # float64
@@ -159,7 +160,7 @@ cover a file whose extension says nothing of its format:
 ```python
 from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.conventions.relion import relion4_bundle
-from rexlib_metadata.conventions.star import StarReader, StarWriter
+from rexlib_metadata.formats.star import StarReader, StarWriter
 
 mylab = ConventionBundle("mylab", read={"particles": [MyAngleRot()]})
 rxm.read("particles.star", bundle=[mylab, relion4_bundle()]).to_pandas()
@@ -193,6 +194,10 @@ class MyFormatReader(Reader):
 global_registry.register_reader([".myext"], MyFormatReader())
 result = rxm.read("data.myext")
 ```
+
+`rxm.new_registry(schema)` is a registry of what ships, apart from
+`rxm.read`'s, filling a schema of your own: the canonical tables with the
+columns your lab adds.
 
 ## Contributing
 
