@@ -46,9 +46,12 @@ as raising `arrow` alone does — which is what a Renovate pull request for
 in that same branch rather than merge the one half. Capping `pyo3` too would
 buy silence instead of that signal.
 
-pyarrow, the one hard runtime dependency, is a range, `pyarrow>=16`: a
+pyarrow, the one hard runtime dependency, is a range, `pyarrow>=16,<27`: a
 library that pinned it would force every environment it is installed into
-onto that one version. 14 is the first with the Arrow C capsules the Rust
+onto that one version, and one with no ceiling would claim versions nobody
+has run. The ceiling is the major after the newest CI has passed, and
+Renovate widens it: a new major opens a pull request that lifts it, and the
+pip cells, resolving the newest the range allows, decide whether it merges. 14 is the first with the Arrow C capsules the Rust
 half hands its batches over through, and 16 the first built for NumPy 2,
 which a fresh install of pandas brings; the oldest-extras cell installs 16.
 The exact pins are in the `test` and `develop` groups, where freezing is
