@@ -38,7 +38,7 @@ struct Headers(Vec<(String, Vec<String>)>);
 impl Sink for Headers {
     fn open(&mut self, _: &str, _: &[String]) {}
 
-    fn row(&mut self, _: &[&str]) -> Result<(), Error> {
+    fn row<'v>(&mut self, _: impl Iterator<Item = &'v str>) -> Result<(), Error> {
         Ok(())
     }
 

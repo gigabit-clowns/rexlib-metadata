@@ -17,6 +17,8 @@ from rexlib_metadata.convention import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from rexlib_metadata.convention import RawSchema
 
 _INDEX_WIDTH = 6
@@ -203,8 +205,8 @@ class WriteImageReference(_Spelling):
         """Count from one where the canonical form counts from zero."""
         one_based = pc.add(canonical["image_index"], pa.scalar(1, pa.int64()))
         return {
-            self.target_columns[0]: pc.binary_join_element_wise(  # type: ignore[call-overload]
-                _padded(one_based), canonical["image_path"], pa.scalar("@")
+            self.target_columns[0]: _joined(
+                _padded(one_based), canonical["image_path"], "@"
             )
         }
 
@@ -354,6 +356,13 @@ def split_reference(
     index = pc.if_else(indexed, head, pa.scalar("1"))
     path = pc.if_else(indexed, rest, reference)
     return index, path
+
+
+def _joined(
+    head: ArrowColumn, tail: ArrowColumn, separator: str
+) -> ArrowColumn:
+    join: Callable[..., ArrowColumn] = pc.binary_join_element_wise
+    return join(head, tail, pa.scalar(separator))
 
 
 def _padded(index: ArrowColumn) -> ArrowColumn:

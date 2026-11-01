@@ -4,13 +4,14 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import pyarrow as pa
 
 if TYPE_CHECKING:
-    from typing import TypeAlias
+    from typing import TypeAlias, TypeGuard
 
     import pandas as pd
     import polars as pl
@@ -48,9 +49,21 @@ def as_arrow_table(frame: Frame) -> pa.Table:
     """Return a pandas, polars or Arrow table as an Arrow one."""
     if isinstance(frame, pa.Table):
         return frame
-    to_arrow = getattr(frame, "to_arrow", None)
-    if to_arrow is not None:
-        return cast("pa.Table", to_arrow())
-    return pa.Table.from_pandas(
-        cast("pd.DataFrame", frame), preserve_index=False
+    if _is_polars(frame):
+        return frame.to_arrow()
+    if _is_pandas(frame):
+        return pa.Table.from_pandas(frame, preserve_index=False)
+    raise TypeError(
+        f"A table is a pandas or polars DataFrame or an Arrow table, not "
+        f"{type(frame).__name__}"
     )
+
+
+def _is_polars(frame: object) -> TypeGuard[pl.DataFrame]:
+    polars = sys.modules.get("polars")
+    return polars is not None and isinstance(frame, polars.DataFrame)
+
+
+def _is_pandas(frame: object) -> TypeGuard[pd.DataFrame]:
+    pandas = sys.modules.get("pandas")
+    return pandas is not None and isinstance(frame, pandas.DataFrame)

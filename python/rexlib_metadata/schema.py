@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
-from typing import Any
 
 import pyarrow as pa
 
@@ -19,7 +18,7 @@ class ColumnDescriptor:
     dtype: pa.DataType
     unit: str | None = None
     required: bool = False
-    default: Any = None
+    default: object = None
 
     def __post_init__(self) -> None:
         """Reject a column that is required and defaulted at once."""

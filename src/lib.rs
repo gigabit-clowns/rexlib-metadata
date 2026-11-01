@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
-#![cfg_attr(test, allow(clippy::indexing_slicing, clippy::unwrap_used))]
-
 mod error;
 mod star;
 mod text;
