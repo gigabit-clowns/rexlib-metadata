@@ -10,6 +10,7 @@ from rexlib_metadata.conventions.star import StarReader
 
 FIXTURES = Path(__file__).parent / "fixtures"
 MINI = FIXTURES / "mini.star"
+FILES = Path(__file__).parent.parent / "files" / "star"
 
 EXPECTED_COLUMNS = [
     "_rlnAngleRot",
@@ -115,3 +116,20 @@ def test_a_missing_file_carries_its_path(tmp_path):
         reader.read_tables(path)
 
     assert raised.value.filename == path
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        pytest.param("rln3.1_data_style.star", id="optics-and-particles"),
+        pytest.param("postprocess.star", id="tags-and-loops"),
+        pytest.param("empty_loop.star", id="empty-loop"),
+    ],
+)
+def test_schemas_are_what_a_whole_read_holds(name):
+    path = str(FILES / name)
+    reader = StarReader()
+
+    schemas = reader.read_schemas(path)
+
+    assert schemas == [table.schema for table in reader.read_tables(path)]

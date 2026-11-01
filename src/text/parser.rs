@@ -64,6 +64,24 @@ where
     Ok(())
 }
 
+/// Every block's name and columns, handing `sink` the first row of a loop
+/// and none after it: a line `is_row` says is one is not tokenized.
+pub(crate) fn parse_headers<T, S>(
+    path: &str,
+    tokenize: T,
+    is_row: fn(&str) -> bool,
+    sink: &mut S,
+) -> Result<(), Error>
+where
+    T: for<'a> Fn(&'a str, &str, usize) -> Result<Vec<Token<'a>>, Error>,
+    S: Sink,
+{
+    let mut parser = Parser::open(path, tokenize)?;
+    parser.skip_rows = Some(is_row);
+    while parser.step(sink)? {}
+    Ok(())
+}
+
 /// Reads one line at a time into a buffer it keeps, so a million lines
 /// are one allocation rather than a million.
 pub(crate) struct Parser<T> {
@@ -73,6 +91,7 @@ pub(crate) struct Parser<T> {
     line_num: usize,
     tokenize: T,
     state: State,
+    skip_rows: Option<fn(&str) -> bool>,
 }
 
 impl<T> Parser<T>
@@ -91,6 +110,7 @@ where
             line_num: 0,
             tokenize,
             state: State::Preamble,
+            skip_rows: None,
         })
     }
 
@@ -101,8 +121,17 @@ where
             state.close(sink)?;
             return Ok(false);
         }
-        self.state = self.next_state(state, sink)?;
+        self.state = if self.skips(&state) {
+            state
+        } else {
+            self.next_state(state, sink)?
+        };
         Ok(true)
+    }
+
+    fn skips(&self, state: &State) -> bool {
+        matches!(state, State::ReadingData { .. })
+            && self.skip_rows.is_some_and(|is_row| is_row(&self.line))
     }
 
     /// Reads the next line into the buffer, without its line ending, and

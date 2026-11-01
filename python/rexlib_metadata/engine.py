@@ -9,11 +9,12 @@ from typing import TYPE_CHECKING
 import pyarrow as pa
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Iterable, Iterator, Sequence
 
     from rexlib_metadata.convention import (
         ArrowColumn,
         ConventionBundle,
+        RawSchema,
         RawTable,
         ReadConvention,
         WriteConvention,
@@ -28,42 +29,75 @@ if TYPE_CHECKING:
 def read_canonical(
     raw_tables: Iterable[RawTable],
     bundles: Iterable[ConventionBundle],
-    schema: TableSchema,
+    schema: Schema,
+    name: str,
 ) -> pa.Table:
-    """Apply the bundles to the raw tables and return the canonical table.
+    """Apply the bundles to the raw tables and return canonical table `name`.
 
-    One raw table fills one canonical table: the first, in the order the
-    file holds them, whose matching conventions declare every column the
-    canonical table requires. Within it, bundles are tried in the order
-    given, which is their priority: the first one to produce a canonical
-    column owns it, and a later one cannot take it back.
+    One raw table fills it, the one `assigned` gives it. Within that table,
+    bundles are tried in the order given, which is their priority: the
+    first one to produce a canonical column owns it, and a later one cannot
+    take it back.
     """
     raw_tables = tuple(raw_tables)
     bundles = tuple(bundles)
-    _check_anything_was_understood(raw_tables, bundles, schema)
-    source = _source_of(schema, raw_tables, bundles)
-    covered = _read_from(source, bundles, schema) if source else {}
-    rows = _row_count(covered, schema)
-    _check_required(covered, schema)
-    return _assemble(covered, schema, rows)
+    table = schema[name]
+    _check_anything_was_understood(raw_tables, bundles, table)
+    source = source_table(raw_tables, bundles, schema, name)
+    covered = _read_from(source, bundles, table) if source else {}
+    rows = _row_count(covered, table)
+    _check_required(covered, table)
+    return _assemble(covered, table, rows)
 
 
-def fills(
-    raw: RawTable,
+def assigned(
+    raw: Sequence[RawSchema],
     bundles: Iterable[ConventionBundle],
-    schema: TableSchema,
-) -> bool:
-    """Say whether this one raw table can fill every required column."""
-    return _can_fill(schema, _declared_by(schema, raw, tuple(bundles)))
+    schema: Schema,
+) -> dict[str, int]:
+    """Say which raw table, by its position, fills each canonical table.
+
+    A raw table can fill a canonical one when its matching conventions
+    declare every column the canonical table requires, and the pair scores
+    the columns they declare. Best score first, then file order, then
+    schema order, a pair is taken when neither table is taken yet. A
+    canonical table left with no raw table of its own then shares the best
+    one it can fill.
+    """
+    pairs = _pairs(raw, tuple(bundles), schema)
+    chosen: dict[str, int] = {}
+    for at, name in pairs:
+        if name not in chosen and at not in chosen.values():
+            chosen[name] = at
+    for at, name in pairs:
+        chosen.setdefault(name, at)
+    return chosen
 
 
 def source_table(
-    raw_tables: Iterable[RawTable],
+    raw_tables: Sequence[RawTable],
     bundles: Iterable[ConventionBundle],
-    schema: TableSchema,
+    schema: Schema,
+    name: str,
 ) -> RawTable | None:
-    """Return the raw table a read of `schema` fills from, if there is one."""
-    return _source_of(schema, tuple(raw_tables), tuple(bundles))
+    """Return the raw table canonical table `name` fills from, if any."""
+    raw = [table.schema for table in raw_tables]
+    at = assigned(raw, bundles, schema).get(name)
+    return None if at is None else raw_tables[at]
+
+
+def _pairs(
+    raw: Sequence[RawSchema],
+    bundles: tuple[ConventionBundle, ...],
+    schema: Schema,
+) -> list[tuple[int, str]]:
+    scored = sorted(
+        (-len(declared), at, order, table.name)
+        for order, table in enumerate(schema)
+        for at, one in enumerate(raw)
+        if _can_fill(table, declared := _declared_by(table, one, bundles))
+    )
+    return [(at, name) for _, at, _, name in scored]
 
 
 def write_canonical(
@@ -168,17 +202,6 @@ def _check_anything_was_written(
     )
 
 
-def _source_of(
-    schema: TableSchema,
-    raw_tables: tuple[RawTable, ...],
-    bundles: tuple[ConventionBundle, ...],
-) -> RawTable | None:
-    return next(
-        (raw for raw in raw_tables if fills(raw, bundles, schema)),
-        None,
-    )
-
-
 def _read_from(
     source: RawTable,
     bundles: tuple[ConventionBundle, ...],
@@ -216,13 +239,8 @@ def produced_tables(
     every column it requires, which is the rule a read follows, asked of
     the schemas alone before a value is read.
     """
-    raw_tables = tuple(raw_tables)
-    bundles = tuple(bundles)
-    return tuple(
-        table.name
-        for table in schema
-        if _source_of(table, raw_tables, bundles) is not None
-    )
+    chosen = assigned([raw.schema for raw in raw_tables], bundles, schema)
+    return tuple(table.name for table in schema if table.name in chosen)
 
 
 def source_columns(
@@ -263,13 +281,13 @@ def _can_fill(table: TableSchema, declared: set[str]) -> bool:
 
 def _declared_by(
     schema: TableSchema,
-    raw: RawTable,
+    raw: RawSchema,
     bundles: tuple[ConventionBundle, ...],
 ) -> set[str]:
     return {
         name
         for _, convention in _candidates(bundles, schema)
-        if convention.matches(raw.schema)
+        if convention.matches(raw)
         for name in convention.target_columns
     }
 
@@ -281,7 +299,7 @@ def _check_anything_was_understood(
 ) -> None:
     if not any(raw.table.num_rows for raw in raw_tables):
         return
-    if any(_declared_by(schema, raw, bundles) for raw in raw_tables):
+    if any(_declared_by(schema, raw.schema, bundles) for raw in raw_tables):
         return
     raise ValueError(
         f"No convention of {_bundle_names(bundles)} understood a single "

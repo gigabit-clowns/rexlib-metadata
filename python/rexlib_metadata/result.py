@@ -11,9 +11,9 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from rexlib_metadata._arrow import as_arrow_table
-from rexlib_metadata.convention import RawTable, as_bundles
+from rexlib_metadata.convention import RawSchema, RawTable, as_bundles
 from rexlib_metadata.engine import (
-    fills,
+    assigned,
     produced_tables,
     read_canonical,
     source_columns,
@@ -104,6 +104,18 @@ class RawResult:
         """Read the file `size` rows at a time, as its reader streams it."""
         _check_size(size)
         return self._reader.read_chunks(self._path, size, columns)
+
+    def schemas(
+        self, columns: Set[str] | None = None
+    ) -> tuple[RawSchema, ...]:
+        """Name every table and what it has of `columns`, reading no row."""
+        if self._tables is None:
+            found = self._reader.read_schemas(self._path)
+        else:
+            found = [table.schema for table in self._tables]
+        if columns is None:
+            return tuple(found)
+        return tuple(_narrowed(raw, columns) for raw in found)
 
     def read_keeping(self, columns: Set[str]) -> tuple[RawTable, ...]:
         """Read the file again, keeping only the raw `columns` of it."""
@@ -268,32 +280,23 @@ class ReadResult:
         self, schema: TableSchema, size: int
     ) -> Iterator[Chunk]:
         related = self._related_whole(schema.name)
-        stream = self._raw.chunks(size, self._raw_columns())
-        ordinal, first = self._first_filling(stream, schema)
-        yield self._chunk(schema, first, related)
-        for at, raw in stream:
-            if at != ordinal:
+        ordinal = self._ordinal_of(schema)
+        for at, raw in self._raw.chunks(size, self._raw_columns()):
+            if at > ordinal:
                 return
-            yield self._chunk(schema, raw, related)
+            if at == ordinal:
+                yield self._chunk(schema, raw, related)
 
-    def _first_filling(
-        self,
-        stream: Iterator[tuple[int, RawTable]],
-        schema: TableSchema,
-    ) -> tuple[int, RawTable]:
-        wanted = (
-            (at, raw)
-            for at, raw in stream
-            if fills(raw, self._bundles, schema)
-        )
-        found = next(wanted, None)
-        if found is None:
+    def _ordinal_of(self, schema: TableSchema) -> int:
+        raw = self._raw.schemas(self._raw_columns())
+        ordinal = assigned(raw, self._bundles, self._schema).get(schema.name)
+        if ordinal is None:
             raise ValueError(
                 f"No convention fills canonical table '{schema.name}' from "
                 f"{self._raw.path}; read the file's own columns through "
                 ".raw, or pass bundle=, one bundle or several in priority order"
             )
-        return found
+        return ordinal
 
     def _chunk(
         self,
@@ -428,7 +431,7 @@ class ReadResult:
         self, source: tuple[RawTable, ...], names: tuple[str, ...]
     ) -> dict[int, str]:
         return {
-            id(source_table(source, self._bundles, self._schema[name])): name
+            id(source_table(source, self._bundles, self._schema, name)): name
             for name in names
         }
 
@@ -478,7 +481,7 @@ class ReadResult:
     def _selected(
         self, source: tuple[RawTable, ...], table: TableSchema, rows: Rows
     ) -> tuple[RawTable, ...]:
-        filling = source_table(source, self._bundles, table)
+        filling = source_table(source, self._bundles, self._schema, table.name)
         if filling is None:
             return source
         positions = _positions(rows, filling.table.num_rows, table.name)
@@ -517,7 +520,9 @@ class ReadResult:
         written: dict[str, ArrowColumn],
     ) -> dict[str, ArrowColumn]:
         """Return the columns of the table the read drew on, minus `written`."""
-        source = source_table(raw_tables, self._bundles, table)
+        source = source_table(
+            raw_tables, self._bundles, self._schema, table.name
+        )
         if source is None:
             return {}
         return {
@@ -554,7 +559,9 @@ class ReadResult:
         self, raw_tables: Iterable[RawTable], schema: TableSchema
     ) -> pa.Table:
         try:
-            return read_canonical(raw_tables, self._bundles, schema)
+            return read_canonical(
+                raw_tables, self._bundles, self._schema, schema.name
+            )
         except pa.ArrowInvalid as error:
             raise ValueError(
                 f"{self._raw.path}: canonical table '{schema.name}' holds a "
@@ -584,6 +591,11 @@ class ReadResult:
             f"{', '.join(repr(n) for n in names)}; name the one you mean, "
             "as result[name]"
         )
+
+
+def _narrowed(raw: RawSchema, columns: Set[str]) -> RawSchema:
+    kept = tuple(name for name in raw.column_names if name in columns)
+    return RawSchema(raw.table_name, kept)
 
 
 def _as_polars(table: pa.Table) -> pl.DataFrame:

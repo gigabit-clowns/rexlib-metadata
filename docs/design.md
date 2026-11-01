@@ -153,6 +153,7 @@ A reader and a writer (`abc.py`):
 ```python
 class Reader(ABC):
     def read_tables(self, path: str) -> list[RawTable]: ...            # abstract
+    def read_schemas(self, path: str) -> list[RawSchema]: ...
     def read_tables_keeping(self, path: str, columns: Set[str]) -> list[RawTable]: ...
     def read_chunks(self, path: str, size: int, columns: Set[str] | None = None
                     ) -> Iterator[tuple[int, RawTable]]: ...
@@ -161,7 +162,7 @@ class Writer(ABC):
     def write_tables(self, path: str, tables: Iterable[RawTable]) -> None: ...  # abstract
 ```
 
-`read_tables_keeping` and `read_chunks` default to reading everything and
+`read_schemas`, `read_tables_keeping` and `read_chunks` default to reading everything and
 dropping or slicing; a reader that can do better overrides them, as
 `StarReader`, `SqliteReader` and `Hdf5Reader` do. `columns` is raw names and
 may name columns the file lacks. Each chunk carries its table's ordinal,
@@ -176,8 +177,14 @@ chunk.
    bundle, matches any raw table, raise, naming the bundles and the columns
    found.
    A partial read is legitimate; an empty file reads as empty.
-2. The source is the first raw table, in file order, whose matching
-   conventions declare every required column. Only it is read.
+2. The source is the raw table `assigned` gives it, decided from the
+   raw schemas alone, so a chunked read (`read_schemas` first) and a whole
+   read choose alike. A raw table can fill a canonical one when its
+   matching conventions declare every required column, scoring the columns
+   they declare. Best score first, then file order, then schema order, a
+   pair is taken when neither side is taken yet; a canonical table left
+   without one shares the best raw table it can fill. Only the source is
+   read.
 3. Bundles in order, then their conventions: a matching convention that adds
    a column not yet covered is loaded. The first to produce a column owns it.
    A losing output is discarded unvalidated.

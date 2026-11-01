@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import pyarrow as pa
 
 from rexlib_metadata.abc import Reader, Writer
-from rexlib_metadata.convention import RawTable
+from rexlib_metadata.convention import RawSchema, RawTable
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence, Set
@@ -29,6 +29,17 @@ class SqliteReader(Reader):
     def read_tables(self, path: str) -> list[RawTable]:
         """Read every table of the file at `path`, in the order made."""
         return self._read(path, None)
+
+    def read_schemas(self, path: str) -> list[RawSchema]:
+        """Name every table and the columns it declares, reading no row."""
+        with closing(_open(path)) as connection:
+            return [
+                RawSchema(
+                    name,
+                    tuple(n for n, _ in _declared(connection, name, None)),
+                )
+                for name in _table_names(connection)
+            ]
 
     def read_tables_keeping(
         self, path: str, columns: Set[str]

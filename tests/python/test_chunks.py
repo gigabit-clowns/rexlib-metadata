@@ -203,3 +203,55 @@ def test_a_reader_that_cannot_stream_is_chunked_for_it():
 
 def test_the_star_reader_streams_rather_than_slicing():
     assert StarReader.read_chunks is not Reader.read_chunks
+
+
+PARTICLES_FIRST = (
+    "data_particles\n\nloop_\n_rlnImageName\n_rlnOpticsGroup\n"
+    "000001@a.mrcs 1\n000002@a.mrcs 1\n\n"
+    "data_optics\n\nloop_\n_rlnOpticsGroup\n_rlnImagePixelSize\n1 1.5\n"
+)
+
+
+@pytest.mark.parametrize(
+    "columns",
+    [
+        pytest.param(None, id="every-column"),
+        pytest.param(["pixel_size"], id="narrowed"),
+    ],
+)
+def test_optics_come_from_their_block_when_the_particles_come_first(
+    tmp_path, columns
+):
+    path = file_of(tmp_path, PARTICLES_FIRST)
+    optics = rxm.read(path, columns=columns)["optics"]
+
+    whole = optics.to_pandas()
+    chunked = pd.concat(chunk.to_pandas() for chunk in optics.chunks(10))
+
+    assert whole["pixel_size"].tolist() == [1.5]
+    pd.testing.assert_frame_equal(chunked, whole)
+
+
+def test_a_chunked_read_skips_the_blocks_before_its_own(tmp_path):
+    before = "data_empty\n\ndata_general\n_rlnVoltage 300\n\n"
+    path = file_of(tmp_path, before + block("particles", 3))
+    result = particles(path)
+
+    chunked = pd.concat(chunk.to_pandas() for chunk in result.chunks(2))
+
+    pd.testing.assert_frame_equal(
+        chunked.reset_index(drop=True), result.to_pandas()
+    )
+
+
+def test_a_block_holding_both_tables_fills_both(tmp_path):
+    content = (
+        "data_\n\nloop_\n_rlnImageName\n_rlnOpticsGroup\n"
+        "_rlnImagePixelSize\n000001@a.mrcs 1 1.5\n"
+    )
+    result = rxm.read(file_of(tmp_path, content))
+
+    assert result.names == ("particles", "optics")
+    (chunk,) = result["optics"].chunks(5)
+    assert chunk.to_pandas()["pixel_size"].tolist() == [1.5]
+

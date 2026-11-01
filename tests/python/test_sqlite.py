@@ -193,3 +193,12 @@ def test_two_tables_of_one_name_are_refused(tmp_path):
 
     with pytest.raises(ValueError, match="share a name"):
         writer.write_tables(str(tmp_path / "out.sqlite"), tables)
+
+
+def test_schemas_are_what_a_whole_read_holds(tmp_path):
+    path = particles(tmp_path)
+    reader = SqliteReader()
+
+    schemas = reader.read_schemas(path)
+
+    assert schemas == [table.schema for table in reader.read_tables(path)]

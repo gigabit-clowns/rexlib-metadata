@@ -7,7 +7,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from rexlib_metadata.convention import RawTable
+from rexlib_metadata.convention import RawSchema, RawTable
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Set
@@ -21,6 +21,15 @@ class Reader(ABC):
     @abstractmethod
     def read_tables(self, path: str) -> list[RawTable]:
         """Read the file at `path` into one raw table per table it holds."""
+
+    def read_schemas(self, path: str) -> list[RawSchema]:
+        """Name every table of the file at `path` and its columns, in order.
+
+        Which table fills which canonical one is decided from these alone,
+        so that a chunked read chooses as a whole read does. This reads the
+        whole file; a reader that can read its headers alone overrides it.
+        """
+        return [table.schema for table in self.read_tables(path)]
 
     def read_tables_keeping(
         self, path: str, columns: Set[str]

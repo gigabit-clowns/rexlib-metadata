@@ -8,10 +8,20 @@ pub(crate) fn tokenize_line<'a>(
     path: &str,
     line_num: usize,
 ) -> Result<Vec<Token<'a>>, Error> {
-    match line.trim_start().bytes().next() {
-        None | Some(b'#' | b'd' | b'l' | b'_') => keyword_or_values(line, path, line_num),
-        Some(_) => tokenize_values(line, path, line_num),
+    if is_row(line) {
+        tokenize_values(line, path, line_num)
+    } else {
+        keyword_or_values(line, path, line_num)
     }
+}
+
+/// Whether `line` can only be values, which is how a loop's rows are told
+/// apart without tokenizing them.
+pub(crate) fn is_row(line: &str) -> bool {
+    !matches!(
+        line.trim_start().bytes().next(),
+        None | Some(b'#' | b'd' | b'l' | b'_')
+    )
 }
 
 fn keyword_or_values<'a>(

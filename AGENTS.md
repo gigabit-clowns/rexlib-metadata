@@ -49,7 +49,8 @@ whatever it can do, a user's reader must be able to do. Built-ins are
 registered in `__init__.py`; `registry.py` names no format.
 
 A reader implements `read_tables`, returning one `RawTable` per table, and
-may override `read_tables_keeping` to skip columns while parsing. A writer
+may override `read_tables_keeping` to skip columns while parsing and
+`read_schemas` to name tables and columns without reading rows. A writer
 implements `write_tables`. Neither knows the registry.
 
 `lib.rs` keeps no logic: it wraps, releases the GIL while Rust reads, and maps

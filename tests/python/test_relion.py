@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 import rexlib_metadata as rxm
-from rexlib_metadata.canonical import PARTICLES
+from rexlib_metadata.canonical import SCHEMA
 from rexlib_metadata.convention import ConventionBundle, ReadConvention
 from rexlib_metadata.conventions.relion import relion4_bundle, split_reference
 from rexlib_metadata.engine import read_canonical
@@ -101,7 +101,7 @@ def test_a_convention_of_another_table_is_never_offered_this_one():
     )
     tables = rxm.read(str(FILES / "rln3.1_data_style.star")).raw.tables()
 
-    df = read_canonical(tables, [bundle], PARTICLES).to_pandas()
+    df = read_canonical(tables, [bundle], SCHEMA, "particles").to_pandas()
 
     assert "image_path" in df.columns
     assert "voltage" not in df.columns
@@ -128,7 +128,7 @@ def test_a_file_of_rows_that_a_bundle_misreads_is_not_an_empty_table():
     nothing = ConventionBundle("empty")
 
     with pytest.raises(ValueError, match="understood a single column"):
-        read_canonical(tables, [nothing], PARTICLES)
+        read_canonical(tables, [nothing], SCHEMA, "particles")
 
 
 def test_the_canonical_view_and_the_file_view_are_both_there():
