@@ -19,7 +19,7 @@ to the same ref cancels the run in flight.
 
 One cell of nineteen installs the **oldest** pyarrow, polars, pandas and h5py
 this package says it supports rather than the newest. The dependency and the
-extras declare a range — `pyarrow>=16`, `polars>=1.0`, `pandas>=2.2.2` on
+extras declare a range — `pyarrow>=16,<27`, `polars>=1.0`, `pandas>=2.2.2` on
 3.10, `h5py>=3.11` — and a range nobody tests at its floor
 is a claim rather than a fact; the pins in the `test` group only ever prove the
 ceiling. Testing the floor and the ceiling and not the middle is the usual
