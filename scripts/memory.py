@@ -10,7 +10,6 @@ peak resident set elsewhere.
 from __future__ import annotations
 
 import ctypes
-import importlib
 import sys
 
 
@@ -33,7 +32,8 @@ def peak_bytes() -> int:
     """Return the most memory this process has held so far, in bytes."""
     if sys.platform == "win32":
         return _windows_peak()
-    resource = importlib.import_module("resource")
+    import resource
+
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return peak if sys.platform == "darwin" else peak * 1024
 
@@ -49,7 +49,8 @@ def _windows_peak() -> int:
         ctypes.POINTER(_Counters),
         ctypes.c_ulong,
     )
-    psapi.GetProcessMemoryInfo(
+    if not psapi.GetProcessMemoryInfo(
         kernel.GetCurrentProcess(), ctypes.byref(counters), counters.cb
-    )
+    ):
+        raise ctypes.WinError()
     return counters.PeakWorkingSetSize

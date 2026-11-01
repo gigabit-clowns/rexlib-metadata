@@ -51,7 +51,8 @@ class StarReader(Reader):
         self, path: str, size: int, columns: Set[str] | None = None
     ) -> Iterator[tuple[int, RawTable]]:
         """Read the blocks of `path` `size` rows at a time, as asked for."""
-        chunks = _star_read_chunks(path, size, columns)
+        kept = None if columns is None else set(columns)
+        chunks = _star_read_chunks(path, size, kept)
         try:
             for name, ordinal, batch in chunks:
                 yield ordinal, RawTable.of(name, to_pyarrow_table([batch]))

@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -291,11 +291,7 @@ class ReadResult:
         raw = self._raw.schemas(self._raw_columns())
         ordinal = assigned(raw, self._bundles, self._schema).get(schema.name)
         if ordinal is None:
-            raise ValueError(
-                f"No convention fills canonical table '{schema.name}' from "
-                f"{self._raw.path}; read the file's own columns through "
-                ".raw, or pass bundle=, one bundle or several in priority order"
-            )
+            raise _unfilled(f"canonical table '{schema.name}'", self._raw.path)
         return ordinal
 
     def _chunk(
@@ -581,16 +577,20 @@ class ReadResult:
         if len(names) == 1:
             return names[0]
         if not names:
-            raise ValueError(
-                f"No convention fills a canonical table from "
-                f"{self._raw.path}; read the file's own columns through "
-                ".raw, or pass bundle=, one bundle or several in priority order"
-            )
+            raise _unfilled("a canonical table", self._raw.path)
         raise ValueError(
             f"{self._raw.path} fills {len(names)} canonical tables, "
             f"{', '.join(repr(n) for n in names)}; name the one you mean, "
             "as result[name]"
         )
+
+
+def _unfilled(what: str, path: str) -> ValueError:
+    return ValueError(
+        f"No convention fills {what} from {path}; read the file's own "
+        "columns through .raw, or pass bundle=, one bundle or several in "
+        "priority order"
+    )
 
 
 def _narrowed(raw: RawSchema, columns: Set[str]) -> RawSchema:
@@ -599,9 +599,9 @@ def _narrowed(raw: RawSchema, columns: Set[str]) -> RawSchema:
 
 
 def _as_polars(table: pa.Table) -> pl.DataFrame:
-    import polars as pl  # noqa: PLC0415
+    import polars as pl
 
-    return cast("pl.DataFrame", pl.from_arrow(table))
+    return pl.DataFrame(table)
 
 
 def _check_declared(columns: tuple[str, ...] | None, schema: Schema) -> None:

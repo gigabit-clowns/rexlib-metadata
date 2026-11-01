@@ -138,13 +138,12 @@ impl Sink for ArrowSink {
         self.blocks += 1;
     }
 
-    fn row(&mut self, values: &[&str]) -> Result<(), Error> {
+    fn row<'v>(&mut self, values: impl Iterator<Item = &'v str>) -> Result<(), Error> {
         let block = self
             .block
             .as_mut()
             .expect("the parser opens a block before its first row");
         let kept = values
-            .iter()
             .zip(&block.kept)
             .filter(|(_, kept)| **kept)
             .map(|(value, _)| value);
@@ -217,8 +216,7 @@ pub(crate) fn build_record_batch(
     let mut sink = ArrowSink::default();
     sink.open("", column_names);
     for row in rows {
-        let values: Vec<&str> = row.iter().map(String::as_str).collect();
-        sink.row(&values)?;
+        sink.row(row.iter().map(String::as_str))?;
     }
     sink.close(String::new(), column_names.to_vec())?;
     Ok(sink.pop().expect("a closed block is a batch").2)

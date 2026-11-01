@@ -8,7 +8,7 @@ use crate::error::{Error, parse_error};
 
 pub(crate) trait Sink {
     fn open(&mut self, name: &str, columns: &[String]);
-    fn row(&mut self, values: &[&str]) -> Result<(), Error>;
+    fn row<'v>(&mut self, values: impl Iterator<Item = &'v str>) -> Result<(), Error>;
     fn close(&mut self, name: String, columns: Vec<String>) -> Result<(), Error>;
 }
 
@@ -46,8 +46,7 @@ impl State {
                 values,
             } => {
                 sink.open(&name, &columns);
-                let values: Vec<&str> = values.iter().map(String::as_str).collect();
-                sink.row(&values)?;
+                sink.row(values.iter().map(String::as_str))?;
                 sink.close(name, columns)
             }
         }
@@ -176,7 +175,7 @@ where
             }
             Token::Loop => open_loop(state, path, line_num),
             Token::Column(_) => read_names(state, &tokens, path, line_num),
-            Token::Value(_) => read_row(state, &row_values_of(&tokens), sink, path, line_num),
+            Token::Value(_) => read_row(state, &tokens, sink, path, line_num),
         }
     }
 }
@@ -202,10 +201,7 @@ fn open_loop(state: State, path: &str, line: usize) -> Result<State, Error> {
 }
 
 fn read_names(state: State, tokens: &[Token], path: &str, line: usize) -> Result<State, Error> {
-    let values: Vec<String> = row_values_of(tokens)
-        .into_iter()
-        .map(str::to_string)
-        .collect();
+    let values: Vec<String> = values_of(tokens).map(str::to_string).collect();
     let names = column_names_of(tokens);
     if values.is_empty() {
         return declare_columns(state, names, path, line);
@@ -309,21 +305,21 @@ fn declare_column(state: State, column: String, path: &str, line: usize) -> Resu
 
 fn read_row<S: Sink>(
     state: State,
-    values: &[&str],
+    tokens: &[Token],
     sink: &mut S,
     path: &str,
     line: usize,
 ) -> Result<State, Error> {
     match state {
         State::ReadingColumns { name, columns } => {
-            check_row_width(&columns, values, path, line)?;
+            check_row_width(&columns, tokens, path, line)?;
             sink.open(&name, &columns);
-            sink.row(values)?;
+            sink.row(values_of(tokens))?;
             Ok(State::ReadingData { name, columns })
         }
         State::ReadingData { ref columns, .. } => {
-            check_row_width(columns, values, path, line)?;
-            sink.row(values)?;
+            check_row_width(columns, tokens, path, line)?;
+            sink.row(values_of(tokens))?;
             Ok(state)
         }
         State::Preamble => Err(parse_error(path, line, "data row outside a data block")),
@@ -338,17 +334,17 @@ fn read_row<S: Sink>(
 
 fn check_row_width(
     columns: &[String],
-    values: &[&str],
+    tokens: &[Token],
     path: &str,
     line: usize,
 ) -> Result<(), Error> {
-    if values.len() != columns.len() {
+    let width = values_of(tokens).count();
+    if width != columns.len() {
         return Err(parse_error(
             path,
             line,
             format!(
-                "row has {} values but {} columns are declared",
-                values.len(),
+                "row has {width} values but {} columns are declared",
                 columns.len()
             ),
         ));
@@ -366,14 +362,11 @@ fn column_names_of(tokens: &[Token]) -> Vec<String> {
         .collect()
 }
 
-fn row_values_of<'a>(tokens: &[Token<'a>]) -> Vec<&'a str> {
-    tokens
-        .iter()
-        .filter_map(|token| match token {
-            Token::Value(value) => Some(*value),
-            _ => None,
-        })
-        .collect()
+fn values_of<'a>(tokens: &[Token<'a>]) -> impl Iterator<Item = &'a str> {
+    tokens.iter().filter_map(|token| match token {
+        Token::Value(value) => Some(*value),
+        _ => None,
+    })
 }
 
 #[cfg(test)]
@@ -400,9 +393,8 @@ mod tests {
             self.rows.clear();
         }
 
-        fn row(&mut self, values: &[&str]) -> Result<(), Error> {
-            self.rows
-                .push(values.iter().map(ToString::to_string).collect());
+        fn row<'v>(&mut self, values: impl Iterator<Item = &'v str>) -> Result<(), Error> {
+            self.rows.push(values.map(ToString::to_string).collect());
             Ok(())
         }
 

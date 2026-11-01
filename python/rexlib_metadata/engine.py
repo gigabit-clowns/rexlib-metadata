@@ -172,12 +172,12 @@ def _keep_first_written(
     for name, column in stored.items():
         if name in produced:
             continue
-        _check_declared(name, convention, origin)
+        _check_target(name, convention, origin)
         produced[name] = column
 
 
-def _check_declared(
-    name: str, convention: WriteConvention, origin: str
+def _check_target(
+    name: str, convention: ReadConvention | WriteConvention, origin: str
 ) -> None:
     if name not in convention.target_columns:
         raise ValueError(
@@ -360,12 +360,7 @@ def _check_column(
     schema: TableSchema,
     origin: str,
 ) -> None:
-    if name not in convention.target_columns:
-        raise ValueError(
-            f"{origin} produced '{name}', which it does not declare in "
-            "target_columns; a bundle can only be checked for ambiguity "
-            "against what its conventions say they produce"
-        )
+    _check_target(name, convention, origin)
     if name not in schema:
         raise ValueError(
             f"{origin} produced '{name}', which table '{schema.name}' does "

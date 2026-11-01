@@ -24,6 +24,10 @@ extend-select = [
     "RUF",  # ruff-specific rules
 ]
 
+ignore = [
+    "PLC0415", # an optional dependency is imported where it is used
+]
+
 [lint.per-file-ignores]
 "tests/**/*.py" = [
     "D",       # docstrings are not required in tests

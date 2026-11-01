@@ -2,10 +2,16 @@
 
 from pathlib import Path
 
+import pandas as pd
+import polars as pl
 import pyarrow as pa
 import pytest
 
-from rexlib_metadata._arrow import ArrowArrayExportable, to_pyarrow_table
+from rexlib_metadata._arrow import (
+    ArrowArrayExportable,
+    as_arrow_table,
+    to_pyarrow_table,
+)
 from rexlib_metadata._rexlib import _star_read_chunks, _star_read_tables
 
 MINI = Path(__file__).parent / "fixtures" / "mini.star"
@@ -62,3 +68,20 @@ def test_a_chunk_of_no_rows_is_refused():
 def test_a_missing_file_is_found_missing_when_chunks_are_asked_for(tmp_path):
     with pytest.raises(FileNotFoundError):
         _star_read_chunks(str(tmp_path / "missing.star"), 10)
+
+
+@pytest.mark.parametrize(
+    "frame",
+    [
+        pytest.param(pd.DataFrame({"a": [1, 2]}), id="pandas"),
+        pytest.param(pl.DataFrame({"a": [1, 2]}), id="polars"),
+        pytest.param(pa.table({"a": [1, 2]}), id="arrow"),
+    ],
+)
+def test_every_kind_of_frame_becomes_the_same_arrow_table(frame):
+    assert as_arrow_table(frame).to_pydict() == {"a": [1, 2]}
+
+
+def test_anything_else_is_not_a_table():
+    with pytest.raises(TypeError, match="not dict"):
+        as_arrow_table({"a": [1, 2]})
