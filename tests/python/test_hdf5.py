@@ -9,7 +9,7 @@ import pytest
 
 import rexlib_metadata as rxm
 from rexlib_metadata.convention import RawTable
-from rexlib_metadata.conventions.hdf5 import Hdf5Reader, Hdf5Writer
+from rexlib_metadata.formats.hdf5 import Hdf5Reader, Hdf5Writer
 
 h5py = pytest.importorskip("h5py")
 np = pytest.importorskip("numpy")

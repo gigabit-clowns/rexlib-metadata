@@ -80,6 +80,10 @@ class RawResult:
             f"{', '.join(repr(n) for n in self.names)}"
         )
 
+    def to_arrow(self) -> pa.Table:
+        """Read the file, if it has not been read, and return it as Arrow."""
+        return self._one()
+
     def to_pandas(self) -> pd.DataFrame:
         """Read the file, if it has not been read, and return it as pandas."""
         return self._one().to_pandas()
@@ -250,6 +254,10 @@ class ReadResult:
         view = self[name]
         view._joined = True
         return view
+
+    def to_arrow(self) -> pa.Table:
+        """Read the file, if it has not been read, and return it as Arrow."""
+        return self._one()
 
     def to_pandas(self) -> pd.DataFrame:
         """Read the file, if it has not been read, and return it as pandas."""

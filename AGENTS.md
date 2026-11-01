@@ -27,7 +27,8 @@ the REX suite (gigabit-clowns), but depends on nothing else in it.
 | `…/registry.py` | `MetadataRegistry`: picks reader, writer and bundles |
 | `…/schema.py`, `canonical.py` | The canonical columns and tables, from `docs/canonical.md` |
 | `…/convention.py` | Convention interfaces and `ConventionBundle` |
-| `…/conventions/` | One module per format |
+| `…/formats/` | One reader and writer per file format |
+| `…/conventions/` | One module of conventions per dialect: Relion, Xmipp |
 | `…/engine.py` | The read and write engine |
 | `…/result.py` | `ReadResult`, `RawResult`, `Chunk` |
 | `…/writing.py`, `join.py`, `_arrow.py` | Writing frames, the optics join, Arrow conversions |

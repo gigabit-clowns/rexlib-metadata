@@ -9,19 +9,22 @@ from typing import TYPE_CHECKING
 
 from rexlib_metadata._rexlib import version as _version
 from rexlib_metadata.abc import Reader, Writer
+from rexlib_metadata.canonical import SCHEMA
 from rexlib_metadata.convention import ConventionBundle
-from rexlib_metadata.conventions.hdf5 import Hdf5Reader, Hdf5Writer
 from rexlib_metadata.conventions.relion import relion4_bundle
-from rexlib_metadata.conventions.sqlite import SqliteReader, SqliteWriter
-from rexlib_metadata.conventions.star import StarReader, StarWriter
 from rexlib_metadata.conventions.xmipp import HEADER, xmipp_bundle
-from rexlib_metadata.registry import global_registry
+from rexlib_metadata.formats.hdf5 import Hdf5Reader, Hdf5Writer
+from rexlib_metadata.formats.sqlite import SqliteReader, SqliteWriter
+from rexlib_metadata.formats.star import StarReader, StarWriter
+from rexlib_metadata.registry import MetadataRegistry, global_registry
 from rexlib_metadata.result import Chunk, RawResult, ReadResult
 
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
     import pyarrow as pa
+
+    from rexlib_metadata.schema import Schema
 
 __version__: str = _version()
 
@@ -30,16 +33,33 @@ _XMD = (".xmd",)
 _SQLITE = (".sqlite", ".db")
 _HDF5 = (".h5", ".hdf5")
 
-global_registry.register_reader(_STAR, StarReader())
-global_registry.register_writer(_STAR, StarWriter())
-global_registry.register_bundle(_STAR, relion4_bundle())
-global_registry.register_reader(_XMD, StarReader())
-global_registry.register_writer(_XMD, StarWriter(header=HEADER))
-global_registry.register_bundle(_XMD, xmipp_bundle())
-global_registry.register_reader(_SQLITE, SqliteReader())
-global_registry.register_writer(_SQLITE, SqliteWriter())
-global_registry.register_reader(_HDF5, Hdf5Reader())
-global_registry.register_writer(_HDF5, Hdf5Writer())
+
+def _register_builtins(registry: MetadataRegistry) -> None:
+    registry.register_reader(_STAR, StarReader())
+    registry.register_writer(_STAR, StarWriter())
+    registry.register_bundle(_STAR, relion4_bundle())
+    registry.register_reader(_XMD, StarReader())
+    registry.register_writer(_XMD, StarWriter(header=HEADER))
+    registry.register_bundle(_XMD, xmipp_bundle())
+    registry.register_reader(_SQLITE, SqliteReader())
+    registry.register_writer(_SQLITE, SqliteWriter())
+    registry.register_reader(_HDF5, Hdf5Reader())
+    registry.register_writer(_HDF5, Hdf5Writer())
+
+
+_register_builtins(global_registry)
+
+
+def new_registry(schema: Schema = SCHEMA) -> MetadataRegistry:
+    """Return a registry of what ships, reading and writing `schema`.
+
+    What is registered on it, and the schema it fills, stay its own:
+    `rxm.read` and `rxm.write` go on as they were. A schema of your own
+    keeps the canonical tables you build on and adds what your lab needs.
+    """
+    registry = MetadataRegistry(schema)
+    _register_builtins(registry)
+    return registry
 
 
 def read(
@@ -87,6 +107,7 @@ __all__ = [
     "RawResult",
     "ReadResult",
     "__version__",
+    "new_registry",
     "read",
     "write",
 ]

@@ -9,7 +9,7 @@ import pytest
 import rexlib_metadata as rxm
 from rexlib_metadata.abc import Writer
 from rexlib_metadata.conventions.relion import relion4_bundle
-from rexlib_metadata.conventions.star import StarReader, StarWriter
+from rexlib_metadata.formats.star import StarReader, StarWriter
 
 FILES = Path(__file__).parent.parent / "files" / "star"
 

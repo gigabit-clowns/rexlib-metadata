@@ -13,7 +13,7 @@ from rexlib_metadata.conventions.relion import (
     WriteImageReference,
     relion4_bundle,
 )
-from rexlib_metadata.conventions.star import StarWriter
+from rexlib_metadata.formats.star import StarWriter
 
 STAR = Path(__file__).parent.parent / "files" / "star"
 

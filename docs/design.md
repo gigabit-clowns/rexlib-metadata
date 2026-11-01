@@ -251,7 +251,8 @@ global_registry.register_bundle(".star", bundle, prepend=True)
 `MetadataRegistry` (`registry.py`) maps a lower-cased extension to a reader,
 a writer and an ordered list of bundles (`register_reader`,
 `register_writer`, `register_bundle(..., prepend=False)`).
-`global_registry` holds what ships; a local instance isolates a test.
+`global_registry` holds what ships; `rxm.new_registry(schema)` builds
+another holding the same, over a schema of the caller's.
 
 Overrides at the call site, each an instance: `reader=` and `bundle=` on
 `read`, `writer=` and `bundle=` on `write`; `bundle=` takes one bundle or
