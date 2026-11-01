@@ -53,6 +53,14 @@ Nothing has been released yet. This is what the first release will say.
   first and held it.
 
 ### New
+- `rxm.write(path, {"particles": df, ...})` writes canonical tables built
+  anywhere, in pandas, polars or Arrow, through the destination's
+  conventions.
+- `bundle=` takes several bundles in priority order, so a convention of
+  your own goes in front of Relion's: `bundle=[mine, relion4_bundle()]`.
+- A joined view writes back: `result.joined("particles").write(path,
+  updates=flat)` takes the particles' columns and refuses a changed optics
+  column.
 - `write(path, rows=...)` keeps only some rows, by position or by mask:
   read, filter the particles, write them back with every column they had.
 - Benchmarks, run in CI through CodSpeed, and a comparison with starfile and

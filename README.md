@@ -171,15 +171,17 @@ what the type is.
 ### Conventions of your own
 
 A `ConventionBundle` is every convention of one format, grouped by the
-canonical table it fills. Pass one to read a file through it instead of
-through the registered ones:
+canonical table it fills. `bundle=` takes one bundle, or several in priority
+order, so a convention of your own goes in front of Relion's and Relion's
+fill the rest:
 
 ```python
 from rexlib_metadata.convention import ConventionBundle
+from rexlib_metadata.conventions.relion import relion4_bundle
 
-mylab = ConventionBundle("mylab", read={"particles": [MyEulerAngles()]})
+mylab = ConventionBundle("mylab", read={"particles": [MyAngleRot()]})
 
-rxm.read("particles.star", bundle=mylab).to_pandas()
+rxm.read("particles.star", bundle=[mylab, relion4_bundle()]).to_pandas()
 ```
 
 A reader and a writer are named the same way, which is what a file needs
@@ -268,6 +270,18 @@ df = result.to_pandas()
 df["angle_rot"] += 10
 result.write("rotated.star", updates=df)   # every other column, untouched
 ```
+
+Tables built anywhere — picked by a program of yours, assembled from
+several files — write the same way, through `rxm.write`, which takes each
+canonical table by name:
+
+```python
+rxm.write("picked.star", {"particles": df})   # pandas, polars or Arrow
+```
+
+A joined view writes back too: the particles' own columns are taken from
+the flat frame, and a change to an optics column is refused, since it
+belongs to the optics table — write that through `result["optics"]`.
 
 Keep only some particles with `rows=`, their positions or a mask. A filtered
 pandas frame hands its own index over, and `updates` then holds the rows

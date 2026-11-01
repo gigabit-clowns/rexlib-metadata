@@ -4,16 +4,14 @@
 
 from __future__ import annotations
 
-import os
-import tempfile
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from rexlib_metadata.convention import RawTable
+from rexlib_metadata._arrow import as_arrow_table
+from rexlib_metadata.convention import RawTable, as_bundles
 from rexlib_metadata.engine import (
     fills,
     produced_tables,
@@ -23,11 +21,11 @@ from rexlib_metadata.engine import (
     write_canonical,
     written_from,
 )
-from rexlib_metadata.join import joined
+from rexlib_metadata.join import joined_all
+from rexlib_metadata.writing import folded, folds, replaced
 
 if TYPE_CHECKING:
     from collections.abc import (
-        Callable,
         Collection,
         Iterable,
         Iterator,
@@ -121,7 +119,7 @@ class RawResult:
         tables = self.tables()
         if writer is None:
             writer = self._registry.writer_for(path)
-        _replace(path, lambda temporary: writer.write_tables(temporary, tables))
+        replaced(path, lambda temporary: writer.write_tables(temporary, tables))
 
     def _one(self) -> pa.Table:
         tables = self.tables()
@@ -293,7 +291,7 @@ class ReadResult:
             raise ValueError(
                 f"No convention fills canonical table '{schema.name}' from "
                 f"{self._raw.path}; read the file's own columns through "
-                ".raw, or pass a bundle of your own as bundle="
+                ".raw, or pass bundle=, one bundle or several in priority order"
             )
         return found
 
@@ -304,7 +302,7 @@ class ReadResult:
         related: tuple[tuple[Relation, pa.Table], ...],
     ) -> Chunk:
         table = self._filled([raw], schema)
-        table = _joined_all(table, related)
+        table = joined_all(table, related)
         return Chunk(schema.name, self._shown(table, schema.name))
 
     def _related_whole(
@@ -360,7 +358,7 @@ class ReadResult:
         self,
         path: str,
         *,
-        bundle: ConventionBundle | None = None,
+        bundle: ConventionBundle | Iterable[ConventionBundle] | None = None,
         writer: Writer | None = None,
         updates: pa.Table | pd.DataFrame | pl.DataFrame | None = None,
         rows: Rows | None = None,
@@ -381,7 +379,8 @@ class ReadResult:
 
         The writer and the conventions come from the destination's
         extension, the way a read takes them from the source's, unless
-        `writer` or `bundle` names the one to write through. The source is
+        `writer` or `bundle` names the one to write through, `bundle` being
+        one bundle or several in priority order. The source is
         read again by the reader it was read with. A column of the file
         that no convention writes, and a block no canonical table covers,
         are carried over untouched when the destination's writer is the
@@ -393,9 +392,9 @@ class ReadResult:
         registry = self._raw.registry
         if writer is None:
             writer = registry.writer_for(path)
-        bundles = (
-            (bundle,) if bundle is not None else registry.bundles_for(path)
-        )
+        bundles = as_bundles(bundle)
+        if bundles is None:
+            bundles = registry.bundles_for(path)
         same_format = _same_writer(writer, _writer_of(registry, self._raw.path))
         source, changed = self._source(updates, rows)
         tables = self._written(source, bundles, changed, same_format)
@@ -404,7 +403,7 @@ class ReadResult:
                 f"Nothing of {self._raw.path} would reach {path}: no "
                 "convention of the destination writes any of its tables"
             )
-        _replace(path, lambda temporary: writer.write_tables(temporary, tables))
+        replaced(path, lambda temporary: writer.write_tables(temporary, tables))
 
     def _written(
         self,
@@ -414,14 +413,14 @@ class ReadResult:
         same_format: bool,
     ) -> list[RawTable]:
         names = produced_tables(source, self._bundles, self._schema)
-        folds = self._folds(names, bundles)
-        plan = _Plan(source, bundles, changed, same_format, folds)
+        plan_folds = folds(names, bundles, self._schema)
+        plan = _Plan(source, bundles, changed, same_format, plan_folds)
         filling = self._filling(source, names)
-        folded = _folded(folds)
+        skipped = folded(plan_folds)
         blocks = (
             self._block(raw, filling.get(id(raw)), plan)
             for raw in source
-            if filling.get(id(raw)) not in folded
+            if filling.get(id(raw)) not in skipped
         )
         return [block for block in blocks if block is not None]
 
@@ -456,7 +455,25 @@ class ReadResult:
         shown = self._one_name(source)
         if rows is not None:
             source = self._selected(source, self._schema[shown], rows)
-        return source, {} if updates is None else {shown: updates}
+        if updates is None:
+            return source, {}
+        return source, {shown: self._own(source, shown, updates)}
+
+    def _own(
+        self,
+        source: tuple[RawTable, ...],
+        name: str,
+        updates: pa.Table | pd.DataFrame | pl.DataFrame,
+    ) -> pa.Table | pd.DataFrame | pl.DataFrame:
+        if not self._joined:
+            return updates
+        frame = as_arrow_table(updates)
+        own = [c for c in frame.column_names if c in self._schema[name]]
+        current = joined_all(
+            self._canonical(source, name), self._related(source, name)
+        )
+        _check_unchanged(frame, current, own, name)
+        return frame.select(own)
 
     def _selected(
         self, source: tuple[RawTable, ...], table: TableSchema, rows: Rows
@@ -491,26 +508,7 @@ class ReadResult:
             (relation, self._canonical(source, relation.related))
             for relation in folds[name]
         )
-        return _joined_all(table, related)
-
-    def _folds(
-        self, names: tuple[str, ...], bundles: tuple[ConventionBundle, ...]
-    ) -> dict[str, tuple[Relation, ...]]:
-        """Say, per table, which tables it points at that go in its rows.
-
-        A related table the destination's conventions do not write is
-        joined into the table that points at it, so that a format with no
-        table for it, as XMD has none for the optics, still gets them.
-        """
-        return {
-            name: tuple(
-                relation
-                for relation in self._schema.relations_of(name)
-                if relation.related in names
-                and not _writes(bundles, relation.related)
-            )
-            for name in names
-        }
+        return joined_all(table, related)
 
     def _carried_over(
         self,
@@ -568,7 +566,7 @@ class ReadResult:
         name = self._one_name(raw_tables)
         table = self._canonical(raw_tables, name)
         if self._joined:
-            table = _joined_all(table, self._related(raw_tables, name))
+            table = joined_all(table, self._related(raw_tables, name))
         return self._shown(table, name)
 
     def _one_name(self, raw_tables: tuple[RawTable, ...]) -> str:
@@ -579,7 +577,7 @@ class ReadResult:
             raise ValueError(
                 f"No convention fills a canonical table from "
                 f"{self._raw.path}; read the file's own columns through "
-                ".raw, or pass a bundle of your own as bundle="
+                ".raw, or pass bundle=, one bundle or several in priority order"
             )
         raise ValueError(
             f"{self._raw.path} fills {len(names)} canonical tables, "
@@ -607,18 +605,6 @@ def _check_declared(columns: tuple[str, ...] | None, schema: Schema) -> None:
         )
 
 
-def _writes(bundles: tuple[ConventionBundle, ...], table: str) -> bool:
-    return any(bundle.write_conventions(table) for bundle in bundles)
-
-
-def _joined_all(
-    table: pa.Table, related: tuple[tuple[Relation, pa.Table], ...]
-) -> pa.Table:
-    for relation, other in related:
-        table = joined(table, other, relation.key)
-    return table
-
-
 def _projected(
     table: pa.Table, columns: tuple[str, ...], name: str, declared: Set[str]
 ) -> pa.Table:
@@ -640,7 +626,7 @@ def _merged(
     """Return `canonical` with the columns of `updates` in place of its own."""
     if updates is None:
         return canonical
-    changed = _as_arrow(updates)
+    changed = as_arrow_table(updates)
     if changed.num_rows != canonical.num_rows:
         raise ValueError(
             f"updates holds {changed.num_rows} rows where {canonical.num_rows}"
@@ -658,8 +644,23 @@ def _merged(
     return canonical
 
 
-def _folded(folds: dict[str, tuple[Relation, ...]]) -> set[str]:
-    return {r.related for relations in folds.values() for r in relations}
+def _check_unchanged(
+    frame: pa.Table, current: pa.Table, own: list[str], name: str
+) -> None:
+    changed = [
+        column
+        for column in frame.column_names
+        if column not in own
+        and not frame.column(column)
+        .cast(current.column(column).type)
+        .equals(current.column(column))
+    ]
+    if changed:
+        raise ValueError(
+            f"updates changes {', '.join(repr(c) for c in changed)}, which "
+            f"table '{name}' does not hold but points at; write them through "
+            "the table that holds them, as result[name].write(updates=...)"
+        )
 
 
 def _check_size(size: int) -> None:
@@ -689,7 +690,7 @@ def _check_written(
     if updates is None:
         return
     consumed = written_from(canonical.column_names, bundles, schema)
-    given = _as_arrow(updates).column_names
+    given = as_arrow_table(updates).column_names
     lost = [name for name in given if name not in consumed]
     if lost:
         raise ValueError(
@@ -731,29 +732,3 @@ def _as_array(rows: Rows) -> pa.Array:
     if isinstance(found, pa.Array):
         return found
     return pa.array(found)
-
-
-def _as_arrow(frame: pa.Table | pd.DataFrame | pl.DataFrame) -> pa.Table:
-    if isinstance(frame, pa.Table):
-        return frame
-    to_arrow = getattr(frame, "to_arrow", None)
-    if to_arrow is not None:
-        return cast("pa.Table", to_arrow())
-    return pa.Table.from_pandas(
-        cast("pd.DataFrame", frame), preserve_index=False
-    )
-
-
-def _replace(path: str, write: Callable[[str], None]) -> None:
-    """Write through a file beside `path`, moved over it once written."""
-    destination = Path(path)
-    descriptor, temporary = tempfile.mkstemp(
-        dir=destination.parent, suffix=destination.suffix
-    )
-    os.close(descriptor)
-    try:
-        write(temporary)
-        Path(temporary).replace(destination)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
