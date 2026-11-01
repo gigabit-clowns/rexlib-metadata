@@ -26,7 +26,7 @@
     },
     {
       "description": [
-        "The runtime dependency's range has a ceiling, the major after the newest that CI has passed. When a new major comes out, widen opens a pull request lifting the ceiling to admit it, and CI, whose pip cells resolve the newest the range allows, is what decides whether it merges."
+        "The runtime dependency's range has a ceiling, the exact newest version CI has passed. Any release after it, a patch included, makes widen open a pull request that lifts the ceiling to that release, and CI, whose pip cells resolve the newest the range allows, decides whether it merges."
       ],
       "matchDepTypes": ["project.dependencies"],
       "rangeStrategy": "widen"

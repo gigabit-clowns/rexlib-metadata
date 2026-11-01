@@ -42,7 +42,7 @@ Nothing has been released yet. This is what the first release will say.
   where everything used to be a `RuntimeError`.
 
 ### Changed
-- pyarrow is declared as `pyarrow>=16,<27` rather than pinned to one version,
+- pyarrow is declared as `pyarrow>=16,<=26.0.0` rather than pinned to one version,
   so the package installs beside the pyarrow an environment already has.
 - A canonical read keeps nothing of the file once its frame is handed back;
   it held a text copy of every row for as long as the result lived.
