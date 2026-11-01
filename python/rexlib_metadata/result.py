@@ -104,6 +104,7 @@ class RawResult:
         self, size: int, columns: Set[str] | None = None
     ) -> Iterator[tuple[int, RawTable]]:
         """Read the file `size` rows at a time, as its reader streams it."""
+        _check_size(size)
         return self._reader.read_chunks(self._path, size, columns)
 
     def read_keeping(self, columns: Set[str]) -> tuple[RawTable, ...]:
@@ -262,6 +263,7 @@ class ReadResult:
                 "saying which canonical table to read; name it, as "
                 "result[name]"
             )
+        _check_size(size)
         return self._chunks_of(self._schema[self._table], size)
 
     def _chunks_of(
@@ -658,6 +660,11 @@ def _merged(
 
 def _folded(folds: dict[str, tuple[Relation, ...]]) -> set[str]:
     return {r.related for relations in folds.values() for r in relations}
+
+
+def _check_size(size: int) -> None:
+    if size < 1:
+        raise ValueError(f"A chunk has to hold at least one row, not {size}")
 
 
 def _writer_of(registry: MetadataRegistry, path: str) -> Writer | None:

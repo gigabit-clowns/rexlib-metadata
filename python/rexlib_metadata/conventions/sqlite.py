@@ -61,6 +61,12 @@ class SqliteWriter(Writer):
     def write_tables(self, path: str, tables: Iterable[RawTable]) -> None:
         """Write `tables` to a new file at `path`, replacing what was there."""
         tables = list(tables)
+        names = [table.schema.table_name for table in tables]
+        if len(set(names)) != len(names):
+            raise ValueError(
+                "Two tables share a name, and an SQLite file has one table "
+                "per name"
+            )
         for table in tables:
             _create_statement(table)
         Path(path).write_bytes(b"")
@@ -149,6 +155,9 @@ def _raw_table(
     declared: Sequence[tuple[str, pa.DataType]],
     rows: list[tuple],
 ) -> RawTable:
+    if not declared:
+        counted = pa.table({"_": pa.nulls(len(rows))}).drop_columns(["_"])
+        return RawTable.of(name, counted)
     values = list(zip(*rows, strict=True)) if rows else [()] * len(declared)
     arrays = [
         _array(name, column, kind, column_values)

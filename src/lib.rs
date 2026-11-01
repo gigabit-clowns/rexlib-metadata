@@ -108,11 +108,14 @@ fn _star_write(
 fn to_python_error(error: Error) -> PyErr {
     let message = error.to_string();
     match error {
-        Error::Io { source, .. } => match source.kind() {
-            ErrorKind::NotFound => PyFileNotFoundError::new_err(message),
-            ErrorKind::PermissionDenied => PyPermissionError::new_err(message),
-            _ => PyOSError::new_err(message),
-        },
+        Error::Io { path, source } => {
+            let arguments = (source.raw_os_error(), message, path);
+            match source.kind() {
+                ErrorKind::NotFound => PyFileNotFoundError::new_err(arguments),
+                ErrorKind::PermissionDenied => PyPermissionError::new_err(arguments),
+                _ => PyOSError::new_err(arguments),
+            }
+        }
         Error::Parse { .. } | Error::Unwritable { .. } => PyValueError::new_err(message),
         Error::Arrow(_) => PyRuntimeError::new_err(message),
     }

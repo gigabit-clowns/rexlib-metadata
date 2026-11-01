@@ -6,6 +6,7 @@ import polars as pl
 import pytest
 
 import rexlib_metadata as rxm
+from rexlib_metadata.conventions.star import StarReader
 
 FIXTURES = Path(__file__).parent / "fixtures"
 MINI = FIXTURES / "mini.star"
@@ -105,3 +106,12 @@ def test_trailing_comment_is_not_a_value():
     assert df.shape == (3, 3)
     assert list(df["_rlnCoordinateX"]) == ["1024.0", "2048.0", "3072.0"]
 
+
+def test_a_missing_file_carries_its_path(tmp_path):
+    path = str(tmp_path / "nothing.star")
+    reader = StarReader()
+
+    with pytest.raises(FileNotFoundError) as raised:
+        reader.read_tables(path)
+
+    assert raised.value.filename == path

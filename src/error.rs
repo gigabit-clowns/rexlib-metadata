@@ -2,7 +2,7 @@
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
-    #[error("cannot open '{path}': {source}")]
+    #[error("'{path}': {source}")]
     Io {
         path: String,
         #[source]

@@ -1,6 +1,16 @@
 Nothing has been released yet. This is what the first release will say.
 
 ### Fixed
+- An SQLite read of some columns no longer fails on a table that holds none
+  of them: the table comes back with its rows and no columns.
+- `chunks(0)` and below raise for every format; SQLite read every row as one
+  chunk, or never returned on an empty table.
+- HDF5 refuses a table inside another (`a` with `a/b`) and a table of no
+  columns, either of which it wrote and then could not read back.
+- SQLite refuses two tables of one name with a `ValueError`.
+- A STAR write that cannot open its file leaves the file there as it was;
+  an I/O error names its path without claiming the file could not be opened,
+  and Python's exception carries it as `filename`.
 - A quote inside a bare value is part of it, and a quoted value ends only
   at a quote followed by whitespace, as STAR and CIF have it: a path such as
   `John's_data/mic.mrc` no longer makes a file unreadable.
