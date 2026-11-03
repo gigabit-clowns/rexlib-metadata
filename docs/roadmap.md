@@ -28,7 +28,7 @@ over several lines, and more than one `loop_` in a block.
 
 ## Phase 7 — Xmipp XMD
 
-Done: `.xmd` read and write, Xmipp bundle (image reference, angles),
+Done: `.xmd` read and write (also `.doc`, `.pos`, `.sel`, Xmipp's other names for it), Xmipp bundle (image reference, angles),
 canonical shifts in Ångström, optics joined per row through `result.joined()`.
 
 - [ ] Micrograph, coordinates, CTF and shifts, once a real `.xmd` holding

@@ -317,7 +317,7 @@ rxm.write("new.star", {"particles": frame})  # canonical tables from memory
 | Extension | Reader / writer | Bundle |
 |---|---|---|
 | `.star` | `StarReader` / `StarWriter` | `relion4` |
-| `.xmd` | `StarReader` / `StarWriter(header=HEADER)` | `xmipp` |
+| `.xmd`, `.doc`, `.pos`, `.sel` | `StarReader` / `StarWriter(header=HEADER)` | `xmipp` |
 | `.sqlite`, `.db` | `SqliteReader` / `SqliteWriter` | — |
 | `.h5`, `.hdf5` | `Hdf5Reader` / `Hdf5Writer` | — |
 
