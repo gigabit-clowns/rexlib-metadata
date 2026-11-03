@@ -60,9 +60,10 @@ def test_relions_angles_and_origin_come_back():
     ],
 )
 def test_without_a_tilt_the_turn_is_psis(angles, expected):
-    rot, tilt, psi = pose.euler_angles(pose.euler_matrix(*_one(angles)))
+    turned = pose.euler_angles(pose.euler_matrix(*_one(angles)))
 
-    assert (rot[0], tilt[0], psi[0]) == pytest.approx(expected, abs=1e-6)
+    got = [angle[0] for angle in turned]
+    assert got == pytest.approx(expected, abs=1e-6)
 
 
 @pytest.mark.parametrize(

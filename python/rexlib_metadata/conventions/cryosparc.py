@@ -204,7 +204,7 @@ def _rows(column: ArrowColumn, width: int) -> np.ndarray:
 def _origin(table: pa.Table) -> tuple[np.ndarray, ...]:
     import numpy as np
 
-    shift, size = (name for name in Pose.source_columns[1:])
+    shift, size = Pose.source_columns[1:]
     if not {shift, size}.issubset(table.column_names):
         return tuple(np.zeros(table.num_rows) for _ in range(_AXES))
     pixels = _rows(table.column(shift), 2)
