@@ -128,9 +128,7 @@ class RawResult:
             found = self._reader.read_schemas(self._path)
         else:
             found = [table.schema for table in self._tables]
-        if columns is None:
-            return tuple(found)
-        return tuple(_narrowed(raw, columns) for raw in found)
+        return _narrowed_all(tuple(found), columns)
 
     def read_keeping(self, columns: Set[str]) -> tuple[RawTable, ...]:
         """Read the file again, keeping only the raw `columns` of it."""
@@ -289,39 +287,45 @@ class ReadResult:
     def _chunks_of(
         self, schema: TableSchema, size: int
     ) -> Iterator[Chunk]:
-        related = self._related_whole(schema.name)
+        found = self._raw.schemas()
+        related = self._related_whole(schema.name, found)
         columns = self._raw_columns()
-        ordinal = self._ordinal_of(schema)
+        raw = _narrowed_all(found, columns)
+        ordinal = self._ordinal_of(schema, raw)
         if self._schema.related_to(schema.name):
-            whole = self._built(schema, ordinal, columns)
+            whole = self._built(schema, raw[ordinal], ordinal, columns)
             for start in range(0, max(whole.num_rows, 1), size):
                 yield self._chunk(schema, whole.slice(start, size), related)
             return
-        bound = self._bound(schema, ordinal, columns)
-        for raw in _block_chunks(self._raw, size, ordinal, columns):
-            table = self._filled([raw], schema, bound)
+        bound = self._bound(schema, raw[ordinal], ordinal)
+        for piece in _block_chunks(self._raw, size, ordinal, columns):
+            table = self._filled([piece], schema, bound)
             yield self._chunk(schema, table, related)
 
-    def _ordinal_of(self, schema: TableSchema) -> int:
-        raw = self._raw.schemas(self._raw_columns())
+    def _ordinal_of(
+        self, schema: TableSchema, raw: tuple[RawSchema, ...]
+    ) -> int:
         ordinal = assigned(raw, self._bundles, self._schema).get(schema.name)
         if ordinal is None:
             raise _unfilled(f"canonical table '{schema.name}'", self._raw.path)
         return ordinal
 
     def _bound(
-        self, schema: TableSchema, at: int, columns: Set[str] | None
+        self, schema: TableSchema, raw: RawSchema, at: int
     ) -> dict[int, ReadConvention]:
         """Bind the conventions of `schema` to the whole raw table `at`."""
-        raw = self._raw.schemas(columns)[at]
         chunks = partial(_block_tables, self._raw, at)
         return in_context(raw, self._bundles, schema, chunks)
 
     def _built(
-        self, schema: TableSchema, at: int, columns: Set[str] | None
+        self,
+        schema: TableSchema,
+        raw: RawSchema,
+        at: int,
+        columns: Set[str] | None,
     ) -> pa.Table:
         """Build a table others point at a chunk at a time, keyed all along."""
-        bound = self._bound(schema, at, columns)
+        bound = self._bound(schema, raw, at)
         pieces = (
             self._filled([raw], schema, bound)
             for raw in _block_chunks(self._raw, _ROWS, at, columns)
@@ -343,7 +347,7 @@ class ReadResult:
         return Chunk(schema.name, self._shown(table, schema.name))
 
     def _related_whole(
-        self, name: str
+        self, name: str, found: tuple[RawSchema, ...]
     ) -> tuple[tuple[Relation, pa.Table], ...]:
         """Read whole, before a chunked read, the tables `name` points at."""
         if not self._joined:
@@ -354,13 +358,14 @@ class ReadResult:
             for column in self._schema[relation.related].columns
         }
         columns = source_columns(wanted, self._bundles, self._schema)
-        raw = self._raw.schemas(columns)
+        raw = _narrowed_all(found, columns)
         chosen = assigned(raw, self._bundles, self._schema)
         return tuple(
             (
                 relation,
                 self._built(
                     self._schema[relation.related],
+                    raw[chosen[relation.related]],
                     chosen[relation.related],
                     columns,
                 ),
@@ -532,7 +537,7 @@ class ReadResult:
             for name in needed
         }
         bound = {
-            name: self._bound(self._schema[name], at, None)
+            name: self._bound(self._schema[name], plan.raw[at], at)
             for name, at in plan.chosen.items()
             if at not in raw
         }
@@ -922,6 +927,14 @@ def _unfilled(what: str, path: str) -> ValueError:
 def _narrowed(raw: RawSchema, columns: Set[str]) -> RawSchema:
     kept = tuple(name for name in raw.column_names if name in columns)
     return RawSchema(raw.table_name, kept)
+
+
+def _narrowed_all(
+    found: tuple[RawSchema, ...], columns: Set[str] | None
+) -> tuple[RawSchema, ...]:
+    if columns is None:
+        return found
+    return tuple(_narrowed(raw, columns) for raw in found)
 
 
 def _as_polars(table: pa.Table) -> pl.DataFrame:
