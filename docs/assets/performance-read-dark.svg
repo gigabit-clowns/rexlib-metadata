@@ -1,34 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="760" height="324" viewBox="0 0 760 324" role="img" aria-label="Reading 10 million Relion particles to pandas">
-<rect width="760" height="324" rx="8" fill="#1a1a19"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="368" viewBox="0 0 760 368" role="img" aria-label="Reading 10 million Relion particles to pandas">
+<rect width="760" height="368" rx="8" fill="#1a1a19"/>
 <text x="24.0" y="36.0" fill="#f0efec" font-size="17" font-weight="600" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">Reading 10 million Relion particles to pandas</text>
 <text x="24.0" y="60.0" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">Seconds, lower is better</text>
-<line x1="312.0" y1="86" x2="312.0" y2="258.0" stroke="#2c2c2a" stroke-width="1"/>
-<text x="312.0" y="276.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">0</text>
-<line x1="366.0" y1="86" x2="366.0" y2="258.0" stroke="#2c2c2a" stroke-width="1"/>
-<text x="366.0" y="276.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">10</text>
-<line x1="420.0" y1="86" x2="420.0" y2="258.0" stroke="#2c2c2a" stroke-width="1"/>
-<text x="420.0" y="276.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">20</text>
-<line x1="474.0" y1="86" x2="474.0" y2="258.0" stroke="#2c2c2a" stroke-width="1"/>
-<text x="474.0" y="276.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">30</text>
-<line x1="528.0" y1="86" x2="528.0" y2="258.0" stroke="#2c2c2a" stroke-width="1"/>
-<text x="528.0" y="276.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">40</text>
-<line x1="582.0" y1="86" x2="582.0" y2="258.0" stroke="#2c2c2a" stroke-width="1"/>
-<text x="582.0" y="276.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">50</text>
-<line x1="636.0" y1="86" x2="636.0" y2="258.0" stroke="#2c2c2a" stroke-width="1"/>
-<text x="636.0" y="276.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">60</text>
-<line x1="690.0" y1="86" x2="690.0" y2="258.0" stroke="#2c2c2a" stroke-width="1"/>
-<text x="690.0" y="276.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">70</text>
+<line x1="312.0" y1="86" x2="312.0" y2="302.0" stroke="#2c2c2a" stroke-width="1"/>
+<text x="312.0" y="320.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">0</text>
+<line x1="366.0" y1="86" x2="366.0" y2="302.0" stroke="#2c2c2a" stroke-width="1"/>
+<text x="366.0" y="320.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">10</text>
+<line x1="420.0" y1="86" x2="420.0" y2="302.0" stroke="#2c2c2a" stroke-width="1"/>
+<text x="420.0" y="320.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">20</text>
+<line x1="474.0" y1="86" x2="474.0" y2="302.0" stroke="#2c2c2a" stroke-width="1"/>
+<text x="474.0" y="320.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">30</text>
+<line x1="528.0" y1="86" x2="528.0" y2="302.0" stroke="#2c2c2a" stroke-width="1"/>
+<text x="528.0" y="320.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">40</text>
+<line x1="582.0" y1="86" x2="582.0" y2="302.0" stroke="#2c2c2a" stroke-width="1"/>
+<text x="582.0" y="320.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">50</text>
+<line x1="636.0" y1="86" x2="636.0" y2="302.0" stroke="#2c2c2a" stroke-width="1"/>
+<text x="636.0" y="320.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">60</text>
+<line x1="690.0" y1="86" x2="690.0" y2="302.0" stroke="#2c2c2a" stroke-width="1"/>
+<text x="690.0" y="320.0" fill="#898781" font-size="12" font-weight="400" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">70</text>
 <text x="300.0" y="108.5" fill="#f0efec" font-size="14" font-weight="600" text-anchor="end" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">rexlib-metadata, raw (all text)</text>
-<path d="M312.0,92.0 H379.0 Q383.0,92.0 383.0,96.0 V112.0 Q383.0,116.0 379.0,116.0 H312.0 Z" fill="#3987e5"/>
-<text x="391.0" y="108.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">13.15 s</text>
+<path d="M312.0,92.0 H365.5 Q369.5,92.0 369.5,96.0 V112.0 Q369.5,116.0 365.5,116.0 H312.0 Z" fill="#3987e5"/>
+<text x="377.5" y="108.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">10.66 s</text>
 <text x="300.0" y="152.5" fill="#f0efec" font-size="14" font-weight="600" text-anchor="end" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">rexlib-metadata, canonical</text>
-<path d="M312.0,136.0 H407.4 Q411.4,136.0 411.4,140.0 V156.0 Q411.4,160.0 407.4,160.0 H312.0 Z" fill="#3987e5"/>
-<text x="419.4" y="152.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">18.40 s</text>
-<text x="300.0" y="196.5" fill="#f0efec" font-size="14" font-weight="400" text-anchor="end" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">starfile-rs</text>
-<path d="M312.0,180.0 H464.6 Q468.6,180.0 468.6,184.0 V200.0 Q468.6,204.0 464.6,204.0 H312.0 Z" fill="#6f6d66"/>
-<text x="476.6" y="196.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">29.00 s</text>
-<text x="300.0" y="240.5" fill="#f0efec" font-size="14" font-weight="400" text-anchor="end" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">starfile</text>
-<path d="M312.0,224.0 H673.6 Q677.6,224.0 677.6,228.0 V244.0 Q677.6,248.0 673.6,248.0 H312.0 Z" fill="#6f6d66"/>
-<text x="685.6" y="240.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">67.70 s</text>
-<text x="24.0" y="304.0" fill="#898781" font-size="12" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">10,000,000 rows, 2434 MiB, best of 3 · python -m scripts.compare · 2026-10-31 · Windows, Python 3.14.0</text>
+<path d="M312.0,136.0 H409.8 Q413.8,136.0 413.8,140.0 V156.0 Q413.8,160.0 409.8,160.0 H312.0 Z" fill="#3987e5"/>
+<text x="421.8" y="152.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">18.86 s</text>
+<text x="300.0" y="196.5" fill="#f0efec" font-size="14" font-weight="600" text-anchor="end" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">rexlib-metadata, chunks of 100k</text>
+<path d="M312.0,180.0 H413.9 Q417.9,180.0 417.9,184.0 V200.0 Q417.9,204.0 413.9,204.0 H312.0 Z" fill="#3987e5"/>
+<text x="425.9" y="196.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">19.62 s</text>
+<text x="300.0" y="240.5" fill="#f0efec" font-size="14" font-weight="400" text-anchor="end" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">starfile-rs</text>
+<path d="M312.0,224.0 H471.6 Q475.6,224.0 475.6,228.0 V244.0 Q475.6,248.0 471.6,248.0 H312.0 Z" fill="#6f6d66"/>
+<text x="483.6" y="240.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">30.29 s</text>
+<text x="300.0" y="284.5" fill="#f0efec" font-size="14" font-weight="400" text-anchor="end" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">starfile</text>
+<path d="M312.0,268.0 H669.7 Q673.7,268.0 673.7,272.0 V288.0 Q673.7,292.0 669.7,292.0 H312.0 Z" fill="#6f6d66"/>
+<text x="681.7" y="284.5" fill="#c3c2b7" font-size="13" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">66.98 s</text>
+<text x="24.0" y="348.0" fill="#898781" font-size="12" font-weight="400" text-anchor="start" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">10,000,000 rows, 2434 MiB, best of 3 · python -m scripts.compare · 2026-11-03 · Windows, Python 3.14.0</text>
 </svg>

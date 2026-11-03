@@ -20,38 +20,38 @@ STAR works through Relion's conventions. XMD reads and writes its image referenc
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/performance-read-dark.svg">
-  <img alt="Reading 10 million Relion particles to pandas, best of three: rexlib-metadata raw 13.15 s, canonical 18.40 s, starfile-rs 29.00 s, starfile 67.70 s" src="docs/assets/performance-read-light.svg">
+  <img alt="Reading 10 million Relion particles to pandas, best of three: rexlib-metadata raw 10.66 s, canonical 18.86 s, starfile-rs 30.29 s, starfile 66.98 s" src="docs/assets/performance-read-light.svg">
 </picture>
 
 The canonical read hands back numbers, as starfile and
-[starfile-rs](https://github.com/hanjinliu/starfile-rs) do, 3.7× and 1.6×
-faster: 49 s and 11 s less per read of ten million particles. The raw read
+[starfile-rs](https://github.com/hanjinliu/starfile-rs) do, 3.6× and 1.6×
+faster: 48 s and 11 s less per read of ten million particles. The raw read
 keeps every value as text, so part of its lead is work it skips.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/performance-write-dark.svg">
-  <img alt="Writing 10 million Relion particles, best of three: rexlib-metadata raw as read 3.86 s, starfile-rs as read 15.39 s, rexlib-metadata canonical rereading the source 29.65 s, starfile-rs from pandas 180.96 s, starfile from pandas 247.69 s" src="docs/assets/performance-write-light.svg">
+  <img alt="Writing 10 million Relion particles, best of three: rexlib-metadata raw as read 4.72 s, starfile-rs as read 15.78 s, rexlib-metadata canonical rereading the source 34.21 s, starfile-rs from pandas 186.50 s, starfile from pandas 256.11 s" src="docs/assets/performance-write-light.svg">
 </picture>
 
 Each write starts from what its library's read left in memory. Written as
-read, the raw write is 4× faster than starfile-rs's. From typed columns, the
-canonical write is 6× faster than starfile-rs and 8× faster than starfile,
+read, the raw write is 3× faster than starfile-rs's. From typed columns, the
+canonical write is 5× faster than starfile-rs and 7× faster than starfile,
 and rereads the source so that every column reaches the destination.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/performance-read-memory-dark.svg">
-  <img alt="Peak memory reading 10 million Relion particles to pandas: rexlib-metadata in chunks of 100k 0.17 GiB, raw 4.53 GiB, canonical 4.96 GiB, starfile-rs 8.60 GiB, starfile 18.74 GiB" src="docs/assets/performance-read-memory-light.svg">
+  <img alt="Peak memory reading 10 million Relion particles to pandas: rexlib-metadata in chunks of 100k 0.17 GiB, raw 4.53 GiB, canonical 4.84 GiB, starfile-rs 8.47 GiB, starfile 18.48 GiB" src="docs/assets/performance-read-memory-light.svg">
 </picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/performance-write-memory-dark.svg">
-  <img alt="Peak memory writing 10 million Relion particles: rexlib-metadata canonical rereading the source 0.14 GiB, raw as read 2.97 GiB, starfile-rs as read 9.60 GiB, starfile-rs from pandas 11.33 GiB, starfile from pandas 18.67 GiB" src="docs/assets/performance-write-memory-light.svg">
+  <img alt="Peak memory writing 10 million Relion particles: rexlib-metadata canonical rereading the source 0.17 GiB, raw as read 2.97 GiB, starfile-rs as read 9.60 GiB, starfile-rs from pandas 11.33 GiB, starfile from pandas 18.61 GiB" src="docs/assets/performance-write-memory-light.svg">
 </picture>
 
-A canonical read holds 3.8× less than starfile and 1.7× less than
+A canonical read holds 3.8× less than starfile and 1.8× less than
 starfile-rs. Read in chunks, the same ten million particles take 0.17 GiB in
 about the time of a whole read. A write's peak includes the read it starts
-from; the canonical write rereads its source a chunk at a time, in 0.14 GiB.
+from; the canonical write rereads its source a chunk at a time, in 0.17 GiB.
 
 Measured with `python -m scripts.compare --rows 10000000 --svg`, and with
 `--measure memory`, each operation in its own process. Every pull request is
