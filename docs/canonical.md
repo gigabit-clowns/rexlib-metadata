@@ -26,7 +26,8 @@ no name carries a dialect (`rln`, `cs`, `xmipp`).
 particle's frame into the reference's: Scipion's projection alignment, with
 `t` in Ångström rather than pixels. `R` is the transpose of the matrix `A`
 Relion builds from its ZYZ angles, and `t = R · origin`. A 2D alignment is a
-turn about z with no z shift. `rexlib_metadata.pose` converts it:
+turn about z with no z shift. pandas holds it as `pd.ArrowDtype`, not as
+one object per row. `rexlib_metadata.pose` converts it:
 
 | Function | Gives |
 |---|---|

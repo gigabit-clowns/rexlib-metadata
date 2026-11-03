@@ -45,6 +45,18 @@ def to_record_batches(table: pa.Table) -> list[pa.RecordBatch]:
     return [pa.RecordBatch.from_pylist([], schema=table.schema)]
 
 
+def to_pandas(table: pa.Table) -> pd.DataFrame:
+    """Return `table` as pandas, a fixed-size list kept as Arrow holds it."""
+    import pandas as pd
+
+    def kept(dtype: pa.DataType) -> pd.ArrowDtype | None:
+        if pa.types.is_fixed_size_list(dtype):
+            return pd.ArrowDtype(dtype)
+        return None
+
+    return table.to_pandas(types_mapper=kept)
+
+
 def as_arrow_table(frame: Frame) -> pa.Table:
     """Return a pandas, polars or Arrow table as an Arrow one."""
     if isinstance(frame, pa.Table):

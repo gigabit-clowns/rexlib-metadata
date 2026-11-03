@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import pandas as pd
 import pyarrow as pa
 import pyarrow.compute as pc
 import pytest
@@ -138,7 +137,7 @@ def test_a_registry_of_your_own_reads_into_a_schema_of_your_own():
 def test_results_hand_back_arrow_too():
     result = rxm.read(SUBTOMO)["particles"]
 
-    pd.testing.assert_frame_equal(
-        result.to_arrow().to_pandas(), result.to_pandas()
-    )
+    arrow = result.to_arrow()
+    frame = pa.Table.from_pandas(result.to_pandas(), preserve_index=False)
+    assert frame.cast(arrow.schema).equals(arrow)
     assert result.raw["particles"].to_arrow().num_rows == 57

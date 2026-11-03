@@ -10,6 +10,7 @@ import pytest
 from rexlib_metadata._arrow import (
     ArrowArrayExportable,
     as_arrow_table,
+    to_pandas,
     to_pyarrow_table,
 )
 from rexlib_metadata._rexlib import _star_read_chunks, _star_read_tables
@@ -85,3 +86,13 @@ def test_every_kind_of_frame_becomes_the_same_arrow_table(frame):
 def test_anything_else_is_not_a_table():
     with pytest.raises(TypeError, match="not dict"):
         as_arrow_table({"a": [1, 2]})
+
+
+def test_a_fixed_size_list_reaches_pandas_as_arrow_holds_it():
+    lists = pa.array([[1.0, 2.0]], pa.list_(pa.float32(), 2))
+    table = pa.table({"lists": lists, "x": [1.0]})
+
+    frame = to_pandas(table)
+
+    assert frame["lists"].dtype == pd.ArrowDtype(lists.type)
+    assert frame["x"].dtype == "float64"
