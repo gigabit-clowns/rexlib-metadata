@@ -141,6 +141,22 @@ def test_a_cs_file_converts_to_relion(tmp_path):
         )
 
 
+@pytest.mark.parametrize(
+    "view",
+    [
+        pytest.param(lambda r: r["particles"], id="particles"),
+        pytest.param(lambda r: r["optics"], id="optics"),
+        pytest.param(lambda r: r.joined("particles"), id="joined"),
+    ],
+)
+def test_a_cs_file_reads_in_chunks_as_it_reads_whole(view):
+    table = view(rxm.read(str(CS)))
+
+    chunks = [chunk.to_arrow() for chunk in table.chunks(3)]
+
+    assert pa.concat_tables(chunks).equals(table.to_arrow())
+
+
 def test_a_file_that_is_not_a_cs_says_so(tmp_path):
     path = tmp_path / "not.cs"
     path.write_text("data_\n")

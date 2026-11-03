@@ -4,7 +4,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
+from functools import partial, reduce
 from itertools import takewhile
 from typing import TYPE_CHECKING
 
@@ -15,10 +16,11 @@ from rexlib_metadata._arrow import as_arrow_table
 from rexlib_metadata.convention import RawSchema, RawTable, as_bundles
 from rexlib_metadata.engine import (
     assigned,
+    in_context,
+    keyed,
     owned,
     produced_tables,
     read_canonical,
-    shared,
     source_columns,
     source_table,
     superseded,
@@ -41,7 +43,11 @@ if TYPE_CHECKING:
     import polars as pl
 
     from rexlib_metadata.abc import Reader, Writer
-    from rexlib_metadata.convention import ArrowColumn, ConventionBundle
+    from rexlib_metadata.convention import (
+        ArrowColumn,
+        ConventionBundle,
+        ReadConvention,
+    )
     from rexlib_metadata.registry import MetadataRegistry
     from rexlib_metadata.schema import Relation, Schema, TableSchema
 
@@ -122,9 +128,7 @@ class RawResult:
             found = self._reader.read_schemas(self._path)
         else:
             found = [table.schema for table in self._tables]
-        if columns is None:
-            return tuple(found)
-        return tuple(_narrowed(raw, columns) for raw in found)
+        return _narrowed_all(tuple(found), columns)
 
     def read_keeping(self, columns: Set[str]) -> tuple[RawTable, ...]:
         """Read the file again, keeping only the raw `columns` of it."""
@@ -283,40 +287,67 @@ class ReadResult:
     def _chunks_of(
         self, schema: TableSchema, size: int
     ) -> Iterator[Chunk]:
-        related = self._related_whole(schema.name)
-        ordinal = self._ordinal_of(schema)
-        for at, raw in self._raw.chunks(size, self._raw_columns()):
-            if at > ordinal:
-                return
-            if at == ordinal:
-                yield self._chunk(schema, raw, related)
+        found = self._raw.schemas()
+        related = self._related_whole(schema.name, found)
+        columns = self._raw_columns()
+        raw = _narrowed_all(found, columns)
+        ordinal = self._ordinal_of(schema, raw)
+        if self._schema.related_to(schema.name):
+            whole = self._built(schema, raw[ordinal], ordinal, columns)
+            for start in range(0, max(whole.num_rows, 1), size):
+                yield self._chunk(schema, whole.slice(start, size), related)
+            return
+        bound = self._bound(schema, raw[ordinal], ordinal)
+        for piece in _block_chunks(self._raw, size, ordinal, columns):
+            table = self._filled([piece], schema, bound)
+            yield self._chunk(schema, table, related)
 
-    def _ordinal_of(self, schema: TableSchema) -> int:
-        raw = self._raw.schemas(self._raw_columns())
+    def _ordinal_of(
+        self, schema: TableSchema, raw: tuple[RawSchema, ...]
+    ) -> int:
         ordinal = assigned(raw, self._bundles, self._schema).get(schema.name)
         if ordinal is None:
             raise _unfilled(f"canonical table '{schema.name}'", self._raw.path)
-        if shared(raw, self._bundles, self._schema, schema.name):
-            raise ValueError(
-                f"Canonical table '{schema.name}' of {self._raw.path} shares "
-                "its rows with another table, as in a Relion 3.0 file with "
-                "no optics table, and what it holds depends on every row; "
-                "read it whole rather than a chunk at a time"
-            )
         return ordinal
+
+    def _bound(
+        self, schema: TableSchema, raw: RawSchema, at: int
+    ) -> dict[int, ReadConvention]:
+        """Bind the conventions of `schema` to the whole raw table `at`."""
+        chunks = partial(_block_tables, self._raw, at)
+        return in_context(raw, self._bundles, schema, chunks)
+
+    def _built(
+        self,
+        schema: TableSchema,
+        raw: RawSchema,
+        at: int,
+        columns: Set[str] | None,
+    ) -> pa.Table:
+        """Build a table others point at a chunk at a time, keyed all along."""
+        bound = self._bound(schema, raw, at)
+        pieces = (
+            self._filled([raw], schema, bound)
+            for raw in _block_chunks(self._raw, _ROWS, at, columns)
+        )
+        return reduce(
+            lambda built, piece: keyed(
+                pa.concat_tables([built, piece]), self._schema, schema.name
+            ),
+            pieces,
+        )
 
     def _chunk(
         self,
         schema: TableSchema,
-        raw: RawTable,
+        table: pa.Table,
         related: tuple[tuple[Relation, pa.Table], ...],
     ) -> Chunk:
-        table = self._filled([raw], schema)
         table = joined_all(table, related)
         return Chunk(schema.name, self._shown(table, schema.name))
 
     def _related_whole(
-        self, name: str
+        self, name: str, found: tuple[RawSchema, ...]
     ) -> tuple[tuple[Relation, pa.Table], ...]:
         """Read whole, before a chunked read, the tables `name` points at."""
         if not self._joined:
@@ -326,10 +357,22 @@ class ReadResult:
             for relation in self._schema.relations_of(name)
             for column in self._schema[relation.related].columns
         }
-        raw_tables = self._raw.read_keeping(
-            source_columns(wanted, self._bundles, self._schema)
+        columns = source_columns(wanted, self._bundles, self._schema)
+        raw = _narrowed_all(found, columns)
+        chosen = assigned(raw, self._bundles, self._schema)
+        return tuple(
+            (
+                relation,
+                self._built(
+                    self._schema[relation.related],
+                    raw[chosen[relation.related]],
+                    chosen[relation.related],
+                    columns,
+                ),
+            )
+            for relation in self._schema.relations_of(name)
+            if relation.related in chosen
         )
-        return self._related(raw_tables, name)
 
     def _related(
         self, raw_tables: tuple[RawTable, ...], name: str
@@ -417,7 +460,7 @@ class ReadResult:
                 "convention of the destination writes any of its tables"
             )
         edit = self._edit(plan, updates, rows)
-        chunks, related = self._sources(plan, edit, rows)
+        chunks, related, plan = self._sources(plan, edit, rows)
         written = self._rewritten(plan, chunks, related, edit)
         replaced(
             path, lambda temporary: writer.write_chunks(temporary, written)
@@ -468,21 +511,21 @@ class ReadResult:
 
     def _sources(
         self, plan: _Plan, edit: _Edit | None, rows: Rows | None
-    ) -> tuple[Iterable[tuple[int, RawTable]], dict[str, pa.Table]]:
-        """Return the chunks to rewrite, and the tables needed whole."""
+    ) -> tuple[Iterable[tuple[int, RawTable]], dict[str, pa.Table], _Plan]:
+        """Return the chunks to rewrite, the tables needed whole, the plan."""
         needed = self._needed(plan, edit)
         kept = self._kept(edit, rows)
         if plan.shares() or (rows is not None and kept is None):
             source = self._source(edit, rows)
             whole = {name: self._canonical(source, name) for name in needed}
-            return enumerate(source), whole
+            return enumerate(source), whole, plan
         if edit is not None:
             edit.kept = kept
         return self._streamed(plan, needed)
 
     def _streamed(
         self, plan: _Plan, needed: set[str]
-    ) -> tuple[Iterable[tuple[int, RawTable]], dict[str, pa.Table]]:
+    ) -> tuple[Iterable[tuple[int, RawTable]], dict[str, pa.Table], _Plan]:
         """Return the source in chunks, tables others point at read whole."""
         raw = {
             at: self._read_whole(at)
@@ -493,7 +536,13 @@ class ReadResult:
             name: self._filled([raw[plan.chosen[name]]], self._schema[name])
             for name in needed
         }
-        return _whole_where(self._raw.chunks(_WRITTEN_ROWS), raw), whole
+        bound = {
+            name: self._bound(self._schema[name], plan.raw[at], at)
+            for name, at in plan.chosen.items()
+            if at not in raw
+        }
+        chunks = _whole_where(self._raw.chunks(_ROWS), raw)
+        return chunks, whole, replace(plan, bound=bound)
 
     def _needed(self, plan: _Plan, edit: _Edit | None) -> set[str]:
         """Name the tables a write needs whole: folded or joined in."""
@@ -576,7 +625,7 @@ class ReadResult:
     ) -> pa.Table:
         """Return canonical table `name` as written: updated, folds joined."""
         schema = self._schema[name]
-        canonical = self._filled([raw], schema)
+        canonical = self._filled([raw], schema, plan.bound.get(name))
         updates = (
             None
             if editing is None
@@ -640,11 +689,14 @@ class ReadResult:
         return self._filled(raw_tables, self._schema[name])
 
     def _filled(
-        self, raw_tables: Iterable[RawTable], schema: TableSchema
+        self,
+        raw_tables: Iterable[RawTable],
+        schema: TableSchema,
+        bound: dict[int, ReadConvention] | None = None,
     ) -> pa.Table:
         try:
             return read_canonical(
-                raw_tables, self._bundles, self._schema, schema.name
+                raw_tables, self._bundles, self._schema, schema.name, bound
             )
         except pa.ArrowInvalid as error:
             raise ValueError(
@@ -673,7 +725,7 @@ class ReadResult:
         )
 
 
-_WRITTEN_ROWS = 100_000
+_ROWS = 100_000
 _POINTED_AT_ROWS = 1_000
 
 
@@ -693,6 +745,7 @@ class _Plan:
     bundles: tuple[ConventionBundle, ...]
     folds: dict[str, tuple[Relation, ...]]
     blocks: tuple[_Block, ...]
+    bound: dict[str, dict[int, ReadConvention]] = field(default_factory=dict)
 
     def shares(self) -> bool:
         """Say whether two canonical tables fill from one raw table."""
@@ -814,6 +867,22 @@ def _carrying(
     return anew.get(at)
 
 
+def _block_chunks(
+    raw: RawResult, size: int, at: int, columns: Set[str] | None
+) -> Iterator[RawTable]:
+    """Yield raw table `at` a chunk at a time, reading no block after it."""
+    chunks = takewhile(lambda chunk: chunk[0] <= at, raw.chunks(size, columns))
+    yield from (chunk for ordinal, chunk in chunks if ordinal == at)
+
+
+def _block_tables(
+    raw: RawResult, at: int, columns: tuple[str, ...]
+) -> Iterator[pa.Table]:
+    yield from (
+        chunk.table for chunk in _block_chunks(raw, _ROWS, at, set(columns))
+    )
+
+
 def _whole_where(
     chunks: Iterable[tuple[int, RawTable]], whole: dict[int, RawTable]
 ) -> Iterator[tuple[int, RawTable]]:
@@ -858,6 +927,14 @@ def _unfilled(what: str, path: str) -> ValueError:
 def _narrowed(raw: RawSchema, columns: Set[str]) -> RawSchema:
     kept = tuple(name for name in raw.column_names if name in columns)
     return RawSchema(raw.table_name, kept)
+
+
+def _narrowed_all(
+    found: tuple[RawSchema, ...], columns: Set[str] | None
+) -> tuple[RawSchema, ...]:
+    if columns is None:
+        return found
+    return tuple(_narrowed(raw, columns) for raw in found)
 
 
 def _as_polars(table: pa.Table) -> pl.DataFrame:

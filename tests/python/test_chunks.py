@@ -257,9 +257,7 @@ def test_a_block_holding_both_tables_fills_both_one_row_per_group(tmp_path):
 
     assert result.names == ("particles", "optics")
     assert result["optics"].to_pandas()["pixel_size"].tolist() == [1.5]
-    stream = result["optics"].chunks(5)
-    with pytest.raises(ValueError, match="read it whole"):
-        next(stream)
+    assert [len(c) for c in result["optics"].chunks(1)] == [1]
 
 
 def test_rows_of_one_group_that_disagree_are_refused(tmp_path):
