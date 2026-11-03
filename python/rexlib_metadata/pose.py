@@ -12,13 +12,13 @@ it.
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING, cast
 
 import pyarrow as pa
+import pyarrow.compute as pc
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Sequence
+    from collections.abc import Iterable, Sequence
 
     import numpy as np
     import pandas as pd
@@ -104,22 +104,22 @@ def euler_angles(a: Matrix) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     import numpy as np
 
-    sin_tilt = each(math.hypot, a[0][2], a[1][2])
+    sin_tilt = np.sqrt(a[0][2] * a[0][2] + a[1][2] * a[1][2])
     general = sin_tilt > 16 * np.finfo(np.float64).eps
     upright = a[2][2] > 0
     psi = np.where(
         general,
-        each(math.atan2, a[1][2], -a[0][2]),
+        each("atan2", a[1][2], -a[0][2]),
         np.where(
             upright,
-            each(math.atan2, -a[1][0], a[0][0]),
-            each(math.atan2, a[1][0], -a[0][0]),
+            each("atan2", -a[1][0], a[0][0]),
+            each("atan2", a[1][0], -a[0][0]),
         ),
     )
-    rot = np.where(general, each(math.atan2, a[2][1], a[2][0]), 0.0)
+    rot = np.where(general, each("atan2", a[2][1], a[2][0]), 0.0)
     tilt = np.where(
         general,
-        each(math.atan2, sin_tilt, a[2][2]),
+        each("atan2", sin_tilt, a[2][2]),
         np.where(upright, 0.0, np.pi),
     )
     return np.degrees(rot), np.degrees(tilt), np.degrees(psi)
@@ -142,20 +142,20 @@ def check_rotation(a: Matrix) -> None:
         )
 
 
-def each(function: Callable[..., float], *arrays: np.ndarray) -> np.ndarray:
-    """Apply a function of `math` row by row, the same on every CPU."""
+def each(function: str, *arrays: np.ndarray) -> np.ndarray:
+    """Apply an Arrow compute function, which takes one row at a time."""
     import numpy as np
 
-    one = np.frompyfunc(function, len(arrays), 1)
-    with np.errstate(invalid="ignore"):
-        return np.asarray(one(*arrays), dtype=np.float64)
+    columns = [pa.array(array, pa.float64()) for array in arrays]
+    result = pc.call_function(function, columns)
+    return np.asarray(result.to_numpy(zero_copy_only=False), np.float64)
 
 
 def _cos_sin(degrees: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     import numpy as np
 
     radians = np.radians(degrees)
-    return each(math.cos, radians), each(math.sin, radians)
+    return each("cos", radians), each("sin", radians)
 
 
 def _dot(xs: Iterable[np.ndarray], ys: Vector) -> np.ndarray:

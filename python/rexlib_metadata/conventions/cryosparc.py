@@ -14,7 +14,6 @@ is read as the shortest decimal that names it, 2.7 rather than
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
 import pyarrow as pa
@@ -222,8 +221,8 @@ def _matrices(vectors: np.ndarray) -> Matrix:
     angle = np.sqrt(x * x + y * y + z * z)
     length = np.where(angle > 0, angle, 1.0)
     x, y, z = x / length, y / length, z / length
-    sin = pose.each(math.sin, angle)
-    turn = 1 - pose.each(math.cos, angle)
+    sin = pose.each("sin", angle)
+    turn = 1 - pose.each("cos", angle)
     return (
         (
             1 - turn * (y * y + z * z),
