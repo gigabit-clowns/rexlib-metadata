@@ -10,11 +10,12 @@ from rexlib_metadata import result as result_module
 from rexlib_metadata.abc import Writer
 from rexlib_metadata.convention import RawTable
 from rexlib_metadata.formats.star import StarWriter
-from rexlib_metadata.result import RawResult
+from rexlib_metadata.result import RawResult, ReadResult
 
 FILES = Path(__file__).parent.parent / "files"
 SUBTOMO = FILES / "star" / "relion3.1_subtomo.star"
 POLISHED = FILES / "star" / "relion3.0_polished.star"
+CS = FILES / "cs" / "J114_particles_exported.cs"
 
 
 def _plain(_):
@@ -54,7 +55,12 @@ CASES = [
     pytest.param(SUBTOMO, ".star", "particles", _kept_and_shifted, id="both"),
     pytest.param(SUBTOMO, ".star", "particles", _backwards, id="backwards"),
     pytest.param(SUBTOMO, ".star", "optics", _plain, id="optics"),
-    pytest.param(POLISHED, ".star", "particles", _plain, id="shared"),
+    pytest.param(POLISHED, ".star", "particles", _plain, id="relion30"),
+    pytest.param(POLISHED, ".xmd", "particles", _a_mask, id="relion30-xmd"),
+    pytest.param(POLISHED, ".star", "optics", _plain, id="relion30-optics"),
+    pytest.param(CS, ".star", "particles", _plain, id="cs"),
+    pytest.param(CS, ".xmd", "particles", _a_mask, id="cs-xmd"),
+    pytest.param(CS, ".star", "particles", _kept_and_shifted, id="cs-both"),
 ]
 
 
@@ -74,24 +80,27 @@ def test_a_file_written_in_chunks_is_the_file_written_whole(
 
     chunked = _written(view, tmp_path / f"c{suffix}", write, 2, monkeypatch)
     monkeypatch.setattr(StarWriter, "write_chunks", Writer.write_chunks)
+    monkeypatch.setattr(ReadResult, "_whole_needed", lambda *_: True)
     whole = _written(view, tmp_path / f"w{suffix}", write, 10**9, monkeypatch)
 
     assert chunked == whole
 
 
 @pytest.mark.parametrize(
-    "edit",
+    ("source", "edit"),
     [
-        pytest.param(_plain, id="plain"),
-        pytest.param(_shifted, id="updates"),
-        pytest.param(_a_mask, id="mask"),
-        pytest.param(_every_third, id="positions"),
+        pytest.param(SUBTOMO, _plain, id="plain"),
+        pytest.param(SUBTOMO, _shifted, id="updates"),
+        pytest.param(SUBTOMO, _a_mask, id="mask"),
+        pytest.param(SUBTOMO, _every_third, id="positions"),
+        pytest.param(POLISHED, _shifted, id="relion30"),
+        pytest.param(CS, _every_third, id="cs"),
     ],
 )
 def test_a_streamed_write_never_reads_the_source_whole(
-    tmp_path, monkeypatch, edit
+    tmp_path, monkeypatch, source, edit
 ):
-    view = rxm.read(str(SUBTOMO))["particles"]
+    view = rxm.read(str(source))["particles"]
     write = edit(view)
 
     with monkeypatch.context() as patched:

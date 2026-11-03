@@ -424,7 +424,7 @@ class ReadResult:
         columns of `updates` take the place of their namesakes in the one
         canonical table this result shows. It is read and written a chunk
         at a time, the tables others point at read whole first, unless a
-        canonical table shares its raw table with another or `rows` holds
+        table others do not point at shares its raw table or `rows` holds
         positions out of order.
 
         `rows` keeps only some rows of that table, in the order given:
@@ -485,7 +485,7 @@ class ReadResult:
             for name in _filled_by(chosen, own, at)
             if name not in skipped and (name is not None or same_format)
         )
-        return _Plan(raw, chosen, bundles, plan_folds, blocks)
+        return _Plan(raw, chosen, own, bundles, plan_folds, blocks)
 
     def _spelled_anew(
         self,
@@ -515,7 +515,7 @@ class ReadResult:
         """Return the chunks to rewrite, the tables needed whole, the plan."""
         needed = self._needed(plan, edit)
         kept = self._kept(edit, rows)
-        if plan.shares() or (rows is not None and kept is None):
+        if self._whole_needed(plan) or (rows is not None and kept is None):
             source = self._source(edit, rows)
             whole = {name: self._canonical(source, name) for name in needed}
             return enumerate(source), whole, plan
@@ -527,22 +527,56 @@ class ReadResult:
         self, plan: _Plan, needed: set[str]
     ) -> tuple[Iterable[tuple[int, RawTable]], dict[str, pa.Table], _Plan]:
         """Return the source in chunks, tables others point at read whole."""
-        raw = {
-            at: self._read_whole(at)
-            for name, at in plan.chosen.items()
-            if self._schema.related_to(name)
-        }
+        sharers = plan.sharers()
+        raw = self._pointed_at_whole(plan, sharers)
+        built = {name: self._shared_whole(plan, name) for name in sharers}
         whole = {
-            name: self._filled([raw[plan.chosen[name]]], self._schema[name])
-            for name in needed
+            name: self._whole_of(plan, name, raw, built) for name in needed
         }
         bound = {
             name: self._bound(self._schema[name], plan.raw[at], at)
             for name, at in plan.chosen.items()
-            if at not in raw
+            if at not in raw and name not in built
         }
         chunks = _whole_where(self._raw.chunks(_ROWS), raw)
-        return chunks, whole, replace(plan, bound=bound)
+        return chunks, whole, replace(plan, bound=bound, built=built)
+
+    def _pointed_at_whole(
+        self, plan: _Plan, sharers: set[str]
+    ) -> dict[int, RawTable]:
+        """Read whole the raw tables that tables others point at own."""
+        return {
+            at: self._read_whole(at)
+            for name, at in plan.chosen.items()
+            if self._schema.related_to(name) and name not in sharers
+        }
+
+    def _whole_of(
+        self,
+        plan: _Plan,
+        name: str,
+        raw: dict[int, RawTable],
+        built: dict[str, pa.Table],
+    ) -> pa.Table:
+        if name in built:
+            return built[name]
+        return self._filled([raw[plan.chosen[name]]], self._schema[name])
+
+    def _whole_needed(self, plan: _Plan) -> bool:
+        """Say whether a table shares a raw table it is not built from."""
+        return any(not self._schema.related_to(n) for n in plan.sharers())
+
+    def _shared_whole(self, plan: _Plan, name: str) -> pa.Table:
+        """Build a table others point at from the raw table it shares."""
+        schema = self._schema[name]
+        at = plan.chosen[name]
+        columns = source_columns(
+            [column.name for column in schema.columns],
+            self._bundles,
+            self._schema,
+        )
+        raw = _narrowed(plan.raw[at], columns)
+        return self._built(schema, raw, at, columns)
 
     def _needed(self, plan: _Plan, edit: _Edit | None) -> set[str]:
         """Name the tables a write needs whole: folded or joined in."""
@@ -586,8 +620,11 @@ class ReadResult:
         related: dict[str, pa.Table],
         edit: _Edit | None,
     ) -> Iterator[tuple[int, RawTable]]:
+        seen: set[int] = set()
         for at, raw in chunks:
-            for ordinal, block in plan.at(at):
+            blocks = plan.at(at, again=at in seen)
+            seen.add(at)
+            for ordinal, block in blocks:
                 yield ordinal, self._block(raw, block, plan, related, edit)
         if edit is not None:
             edit.check()
@@ -625,7 +662,9 @@ class ReadResult:
     ) -> pa.Table:
         """Return canonical table `name` as written: updated, folds joined."""
         schema = self._schema[name]
-        canonical = self._filled([raw], schema, plan.bound.get(name))
+        canonical = plan.built.get(name)
+        if canonical is None:
+            canonical = self._filled([raw], schema, plan.bound.get(name))
         updates = (
             None
             if editing is None
@@ -742,19 +781,30 @@ class _Block:
 class _Plan:
     raw: tuple[RawSchema, ...]
     chosen: dict[str, int]
+    own: dict[str, int]
     bundles: tuple[ConventionBundle, ...]
     folds: dict[str, tuple[Relation, ...]]
     blocks: tuple[_Block, ...]
     bound: dict[str, dict[int, ReadConvention]] = field(default_factory=dict)
+    built: dict[str, pa.Table] = field(default_factory=dict)
 
-    def shares(self) -> bool:
-        """Say whether two canonical tables fill from one raw table."""
-        return len(set(self.chosen.values())) < len(self.chosen)
+    def sharers(self) -> set[str]:
+        """Name the tables filled from a raw table another owns."""
+        return {
+            name
+            for name, at in self.chosen.items()
+            if self.own.get(name) != at
+        }
 
-    def at(self, at: int) -> list[tuple[int, _Block]]:
-        """Return the blocks raw table `at` is written as, by ordinal."""
+    def at(self, at: int, again: bool) -> list[tuple[int, _Block]]:
+        """Return the blocks raw table `at` is written as, by ordinal.
+
+        `again` leaves out, after its first chunk, the blocks built whole.
+        """
         return [
-            (n, block) for n, block in enumerate(self.blocks) if block.at == at
+            (n, block)
+            for n, block in enumerate(self.blocks)
+            if block.at == at and not (again and block.name in self.built)
         ]
 
 

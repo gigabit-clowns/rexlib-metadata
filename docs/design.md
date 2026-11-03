@@ -246,9 +246,10 @@ undeclared output raises, and a table nothing writes raises.
   `write_chunks` one converted chunk per chunk read. What depends on the
   whole file (which block fills which table, what is carried over or spelled
   anew) is decided once from `read_schemas`. A table others point at is read
-  whole first. The source is read whole instead when a canonical table shares
-  its raw table, or `rows=` holds positions out of order or selects a table
-  others point at.
+  whole first, or built a chunk at a time from the raw table it shares, and
+  written ahead of that table's chunks. The source is read whole instead when
+  a table others do not point at shares its raw table, or `rows=` holds
+  positions out of order or selects a table others point at.
 
 ### Writing a convention
 
