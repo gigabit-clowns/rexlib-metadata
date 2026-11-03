@@ -109,6 +109,72 @@ fn _star_write(
         .map_err(to_python_error)
 }
 
+#[pyfunction]
+#[pyo3(signature = (path, header=None))]
+fn _star_stream(path: &str, header: Option<&str>) -> PyResult<StarStream> {
+    let stream = star::writer::Stream::create(path, header).map_err(to_python_error)?;
+    Ok(StarStream {
+        stream: Some(stream),
+    })
+}
+
+#[pyclass(module = "rexlib_metadata._rexlib")]
+struct StarStream {
+    stream: Option<star::writer::Stream>,
+}
+
+impl StarStream {
+    fn open(&mut self) -> PyResult<&mut star::writer::Stream> {
+        self.stream
+            .as_mut()
+            .ok_or_else(|| PyValueError::new_err("the STAR file is already closed"))
+    }
+}
+
+#[pymethods]
+impl StarStream {
+    fn begin(&mut self, py: Python<'_>, name: &str, columns: Vec<String>) -> PyResult<()> {
+        let stream = self.open()?;
+        py.detach(|| stream.begin(name, columns))
+            .map_err(to_python_error)
+    }
+
+    fn write(&mut self, py: Python<'_>, batch: PyRecordBatch) -> PyResult<()> {
+        let stream = self.open()?;
+        let batch = batch.into_inner();
+        py.detach(|| stream.write(&batch)).map_err(to_python_error)
+    }
+
+    fn close(&mut self, py: Python<'_>) -> PyResult<()> {
+        match self.stream.take() {
+            Some(stream) => py.detach(|| stream.finish()).map_err(to_python_error),
+            None => Ok(()),
+        }
+    }
+
+    fn abandon(&mut self) {
+        self.stream = None;
+    }
+
+    fn __enter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __exit__(
+        &mut self,
+        py: Python<'_>,
+        kind: Option<&Bound<'_, PyAny>>,
+        _value: Option<&Bound<'_, PyAny>>,
+        _traceback: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<bool> {
+        match kind {
+            None => self.close(py)?,
+            Some(_) => self.abandon(),
+        }
+        Ok(false)
+    }
+}
+
 fn to_python_error(error: Error) -> PyErr {
     let message = error.to_string();
     match error {
@@ -132,6 +198,8 @@ fn _rexlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_star_read_chunks, m)?)?;
     m.add_function(wrap_pyfunction!(_star_read_headers, m)?)?;
     m.add_function(wrap_pyfunction!(_star_write, m)?)?;
+    m.add_function(wrap_pyfunction!(_star_stream, m)?)?;
     m.add_class::<StarChunks>()?;
+    m.add_class::<StarStream>()?;
     Ok(())
 }

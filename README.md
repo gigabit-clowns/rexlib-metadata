@@ -10,7 +10,7 @@ Highly performant reader and writer of CryoEM metadata formats (STAR, XMD, SQLit
 - **One vocabulary, whatever the file** — columns come back under canonical names, typed: `_rlnCoordinateX` and Xmipp's equivalent both arrive as `coord_x`
 - **The file's own names too** — `result.raw` is the same read as the format wrote it, every value a string
 - **Lazy I/O** — `rxm.read()` returns immediately with no file I/O, and so does naming a table; data is only loaded when you call `to_pandas()`, `to_polars()`, `to_arrow()` or `chunks()`, and nothing of the file is kept once the frame is handed back
-- **Bounded memory** — `chunks()` streams a file larger than memory, parsing only the columns asked for
+- **Bounded memory** — `chunks()` streams a file larger than memory, parsing only the columns asked for, and `write()` rereads and writes it a chunk at a time
 - **Lossless writes** — columns no convention covers are carried over; a conversion is a change of extension
 - **Extensible** — custom readers and conventions by subclassing Python ABCs; no Rust required
 
@@ -40,18 +40,18 @@ and rereads the source so that every column reaches the destination.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/performance-read-memory-dark.svg">
-  <img alt="Peak memory reading 10 million Relion particles to pandas: rexlib-metadata in chunks of 100k 0.19 GiB, raw 4.53 GiB, canonical 4.93 GiB, starfile-rs 8.60 GiB, starfile 18.74 GiB" src="docs/assets/performance-read-memory-light.svg">
+  <img alt="Peak memory reading 10 million Relion particles to pandas: rexlib-metadata in chunks of 100k 0.17 GiB, raw 4.53 GiB, canonical 4.96 GiB, starfile-rs 8.60 GiB, starfile 18.74 GiB" src="docs/assets/performance-read-memory-light.svg">
 </picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/performance-write-memory-dark.svg">
-  <img alt="Peak memory writing 10 million Relion particles: rexlib-metadata raw as read 2.97 GiB, canonical rereading the source 5.87 GiB, starfile-rs as read 9.60 GiB, starfile-rs from pandas 11.33 GiB, starfile from pandas 18.61 GiB" src="docs/assets/performance-write-memory-light.svg">
+  <img alt="Peak memory writing 10 million Relion particles: rexlib-metadata canonical rereading the source 0.14 GiB, raw as read 2.97 GiB, starfile-rs as read 9.60 GiB, starfile-rs from pandas 11.33 GiB, starfile from pandas 18.67 GiB" src="docs/assets/performance-write-memory-light.svg">
 </picture>
 
 A canonical read holds 3.8× less than starfile and 1.7× less than
-starfile-rs. Read in chunks, the same ten million particles take 0.19 GiB in
+starfile-rs. Read in chunks, the same ten million particles take 0.17 GiB in
 about the time of a whole read. A write's peak includes the read it starts
-from.
+from; the canonical write rereads its source a chunk at a time, in 0.14 GiB.
 
 Measured with `python -m scripts.compare --rows 10000000 --svg`, and with
 `--measure memory`, each operation in its own process. Every pull request is

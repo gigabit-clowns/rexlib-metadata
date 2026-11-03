@@ -88,3 +88,28 @@ class Writer(ABC):
     def write_tables(self, path: str, tables: Iterable[RawTable]) -> None:
         """Write `tables` to `path`, one table of the file per raw table."""
 
+    def write_chunks(
+        self, path: str, chunks: Iterable[tuple[int, RawTable]]
+    ) -> None:
+        """Write `chunks` to `path`, one table of the file per ordinal.
+
+        The chunks of one ordinal come together and in order, as
+        `read_chunks` yields them, and carry the table's name and columns.
+        This gathers every chunk and calls `write_tables`; a writer that
+        can stream overrides it.
+        """
+        import pyarrow as pa
+
+        gathered: dict[int, list[RawTable]] = {}
+        for ordinal, chunk in chunks:
+            gathered.setdefault(ordinal, []).append(chunk)
+        self.write_tables(
+            path,
+            [
+                RawTable(
+                    pieces[0].schema,
+                    pa.concat_tables([piece.table for piece in pieces]),
+                )
+                for pieces in gathered.values()
+            ],
+        )

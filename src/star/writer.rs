@@ -17,33 +17,123 @@ pub(crate) fn write_tables(
     header: Option<&str>,
     tables: &[Table],
 ) -> Result<(), Error> {
-    if let Some(header) = header {
-        check_header(header)?;
-    }
+    let mut stream = Stream::create(path, header)?;
     for (name, batches) in tables {
-        check_names(name, first(name, batches)?)?;
+        let columns = first(name, batches)?
+            .schema()
+            .fields()
+            .iter()
+            .map(|field| field.name().clone())
+            .collect();
+        stream.begin(name, columns)?;
         for batch in batches {
-            string_columns(batch)?;
+            stream.write(batch)?;
         }
     }
-    let file = File::create(path).map_err(|source| io_error(path, source))?;
-    let written = write_file(file, path, header, tables);
-    if written.is_err() {
-        let _ = std::fs::remove_file(path);
-    }
-    written
+    stream.finish()
 }
 
-fn write_file(file: File, path: &str, header: Option<&str>, tables: &[Table]) -> Result<(), Error> {
-    let io = |source| io_error(path, source);
-    let mut out = BufWriter::with_capacity(BUFFER, file);
-    if let Some(header) = header {
-        writeln!(out, "{header}").map_err(io)?;
+/// A STAR file written a block at a time and a batch at a time. Until
+/// `finish` succeeds, a failure or a drop removes what was written.
+pub(crate) struct Stream {
+    path: String,
+    out: Option<BufWriter<File>>,
+    block: Option<(String, Vec<String>)>,
+}
+
+impl Stream {
+    pub(crate) fn create(path: &str, header: Option<&str>) -> Result<Self, Error> {
+        if let Some(header) = header {
+            check_header(header)?;
+        }
+        let file = File::create(path).map_err(|source| io_error(path, source))?;
+        let mut stream = Self {
+            path: path.to_string(),
+            out: Some(BufWriter::with_capacity(BUFFER, file)),
+            block: None,
+        };
+        if let Some(header) = header {
+            stream.guarded(|out, path| writeln!(out, "{header}").map_err(|s| io_error(path, s)))?;
+        }
+        Ok(stream)
     }
-    for (name, batches) in tables {
-        write_block(&mut out, path, name, batches)?;
+
+    pub(crate) fn begin(&mut self, name: &str, columns: Vec<String>) -> Result<(), Error> {
+        let ended = self.block.is_some();
+        self.guarded(|out, path| {
+            check_names(name, &columns)?;
+            let io = |source| io_error(path, source);
+            if ended {
+                writeln!(out).map_err(io)?;
+            }
+            writeln!(out, "data_{name}\n\nloop_").map_err(io)?;
+            for (index, column) in columns.iter().enumerate() {
+                writeln!(out, "{column} #{}", index + 1).map_err(io)?;
+            }
+            Ok(())
+        })?;
+        self.block = Some((name.to_string(), columns));
+        Ok(())
     }
-    out.flush().map_err(io)
+
+    pub(crate) fn write(&mut self, batch: &RecordBatch) -> Result<(), Error> {
+        let block = self.block.take();
+        let written = self.guarded(|out, path| {
+            let (name, columns) = block
+                .as_ref()
+                .ok_or_else(|| unwritable("rows came before the block they belong to was begun"))?;
+            check_columns(name, columns, batch)?;
+            let values = string_columns(batch)?;
+            for row in 0..batch.num_rows() {
+                write_row(out, path, &values, row)?;
+            }
+            Ok(())
+        });
+        self.block = block;
+        written
+    }
+
+    pub(crate) fn finish(mut self) -> Result<(), Error> {
+        let ended = self.block.is_some();
+        self.guarded(|out, path| {
+            let io = |source| io_error(path, source);
+            if ended {
+                writeln!(out).map_err(io)?;
+            }
+            out.flush().map_err(io)
+        })?;
+        self.out = None;
+        Ok(())
+    }
+
+    pub(crate) fn abandon(&mut self) {
+        if self.out.take().is_some() {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+
+    fn guarded(
+        &mut self,
+        step: impl FnOnce(&mut BufWriter<File>, &str) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        let Some(out) = self.out.as_mut() else {
+            return Err(unwritable(format!(
+                "{} was already closed, or abandoned after a failure",
+                self.path
+            )));
+        };
+        let done = step(out, &self.path);
+        if done.is_err() {
+            self.abandon();
+        }
+        done
+    }
+}
+
+impl Drop for Stream {
+    fn drop(&mut self) {
+        self.abandon();
+    }
 }
 
 fn first<'a>(name: &str, batches: &'a [RecordBatch]) -> Result<&'a RecordBatch, Error> {
@@ -71,50 +161,39 @@ fn check_header(header: &str) -> Result<(), Error> {
     }
 }
 
-fn check_names(name: &str, batch: &RecordBatch) -> Result<(), Error> {
+fn check_names(name: &str, columns: &[String]) -> Result<(), Error> {
     if !is_one_word(name) {
         return Err(unwritable(format!(
             "the block name {name:?} holds whitespace or '#', and a STAR file \
              would not read it back as one name"
         )));
     }
-    let schema = batch.schema();
-    match schema
-        .fields()
+    match columns
         .iter()
-        .find(|field| !field.name().starts_with('_') || !is_one_word(field.name()))
+        .find(|column| !column.starts_with('_') || !is_one_word(column))
     {
-        Some(field) => Err(unwritable(format!(
-            "column {:?} does not start with '_' or holds whitespace or '#', \
-             and a STAR file would not read it back as that column",
-            field.name()
+        Some(column) => Err(unwritable(format!(
+            "column {column:?} does not start with '_' or holds whitespace or \
+             '#', and a STAR file would not read it back as that column"
         ))),
         None => Ok(()),
     }
 }
 
-fn is_one_word(name: &str) -> bool {
-    !name.contains(|ch: char| ch == '#' || ch.is_whitespace())
+fn check_columns(name: &str, columns: &[String], batch: &RecordBatch) -> Result<(), Error> {
+    let schema = batch.schema();
+    let found: Vec<&String> = schema.fields().iter().map(|field| field.name()).collect();
+    if found.iter().copied().eq(columns.iter()) {
+        return Ok(());
+    }
+    Err(unwritable(format!(
+        "a batch of block '{name}' holds the columns {found:?}, where the \
+         block was begun with {columns:?}"
+    )))
 }
 
-fn write_block<W: Write>(
-    out: &mut W,
-    path: &str,
-    name: &str,
-    batches: &[RecordBatch],
-) -> Result<(), Error> {
-    let io = |source| io_error(path, source);
-    writeln!(out, "data_{name}\n\nloop_").map_err(io)?;
-    for (index, field) in first(name, batches)?.schema().fields().iter().enumerate() {
-        writeln!(out, "{} #{}", field.name(), index + 1).map_err(io)?;
-    }
-    for batch in batches {
-        let columns = string_columns(batch)?;
-        for row in 0..batch.num_rows() {
-            write_row(out, path, &columns, row)?;
-        }
-    }
-    writeln!(out).map_err(io)
+fn is_one_word(name: &str) -> bool {
+    !name.contains(|ch: char| ch == '#' || ch.is_whitespace())
 }
 
 fn write_row<W: Write>(
@@ -447,6 +526,76 @@ data_",
 
         assert!(written.is_err());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "kept");
+    }
+
+    #[test]
+    fn a_block_written_a_batch_at_a_time_is_the_block_written_whole() {
+        let directory = TempDir::new().unwrap();
+        let whole = directory.path().join("whole.star");
+        let streamed = directory.path().join("streamed.star");
+        let columns = ["_rlnA", "_rlnB"];
+        let tables = vec![
+            ("optics".to_string(), vec![batch(&["_rlnV"], &[&["300"]])]),
+            (
+                "particles".to_string(),
+                vec![batch(&columns, &[&["1", "a b"]]), batch(&columns, &[])],
+            ),
+        ];
+        write_tables(whole.to_str().unwrap(), Some("# h"), &tables).unwrap();
+
+        let mut stream = Stream::create(streamed.to_str().unwrap(), Some("# h")).unwrap();
+        for (name, batches) in &tables {
+            let schema = batches[0].schema();
+            let names = schema.fields().iter().map(|f| f.name().clone());
+            stream.begin(name, names.collect()).unwrap();
+            for one in batches {
+                stream.write(one).unwrap();
+            }
+        }
+        stream.finish().unwrap();
+
+        assert_eq!(
+            std::fs::read(&whole).unwrap(),
+            std::fs::read(&streamed).unwrap()
+        );
+    }
+
+    #[test]
+    fn a_batch_of_other_columns_says_so_and_leaves_no_file() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("out.star");
+        let mut stream = Stream::create(path.to_str().unwrap(), None).unwrap();
+        stream.begin("p", vec!["_rlnA".to_string()]).unwrap();
+
+        let error = stream.write(&batch(&["_rlnB"], &[&["1"]])).unwrap_err();
+
+        assert!(error.to_string().contains("_rlnB"));
+        assert!(!path.exists());
+        assert!(stream.write(&batch(&["_rlnA"], &[&["1"]])).is_err());
+    }
+
+    #[test]
+    fn rows_before_a_block_say_so() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("out.star");
+        let mut stream = Stream::create(path.to_str().unwrap(), None).unwrap();
+
+        let error = stream.write(&batch(&["_rlnA"], &[&["1"]])).unwrap_err();
+
+        assert!(error.to_string().contains("before the block"));
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn a_stream_dropped_unfinished_leaves_no_file() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("out.star");
+        let mut stream = Stream::create(path.to_str().unwrap(), None).unwrap();
+        stream.begin("p", vec!["_rlnA".to_string()]).unwrap();
+
+        drop(stream);
+
+        assert!(!path.exists());
     }
 
     #[test]
