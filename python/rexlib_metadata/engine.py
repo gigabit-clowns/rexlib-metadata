@@ -10,7 +10,13 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Sequence
+    from collections.abc import (
+        Callable,
+        Iterable,
+        Iterator,
+        Mapping,
+        Sequence,
+    )
 
     from rexlib_metadata.convention import (
         ArrowColumn,
@@ -32,13 +38,16 @@ def read_canonical(
     bundles: Iterable[ConventionBundle],
     schema: Schema,
     name: str,
+    bound: Mapping[int, ReadConvention] | None = None,
 ) -> pa.Table:
     """Apply the bundles to the raw tables and return canonical table `name`.
 
     One raw table fills it, the one `assigned` gives it. Within that table,
     bundles are tried in the order given, which is their priority: the
     first one to produce a canonical column owns it, and a later one cannot
-    take it back. A table others point at holds one row per key: rows
+    take it back. `bound` is what `in_context` gave for the whole raw table
+    when this one is a part of it; without it the raw table is its own
+    context. A table others point at holds one row per key: rows
     repeating a key, as when it is read from the rows that point at it,
     collapse into one where they agree and raise where they do not.
     """
@@ -47,25 +56,38 @@ def read_canonical(
     table = schema[name]
     _check_anything_was_understood(raw_tables, bundles, table)
     source = source_table(raw_tables, bundles, schema, name)
-    covered = _read_from(source, bundles, table) if source else {}
+    covered = _read_from(source, bundles, table, bound) if source else {}
     rows = _row_count(covered, table)
     _check_required(covered, table)
-    assembled = _assemble(covered, table, rows)
+    return keyed(_assemble(covered, table, rows), schema, name)
+
+
+def keyed(table: pa.Table, schema: Schema, name: str) -> pa.Table:
+    """Collapse the rows of `table` that repeat a key others point at."""
     for relation in schema.related_to(name):
-        assembled = _one_row_per_key(assembled, relation.key, name)
-    return assembled
+        table = _one_row_per_key(table, relation.key, name)
+    return table
 
 
-def shared(
-    raw: Sequence[RawSchema],
+def in_context(
+    raw: RawSchema,
     bundles: Iterable[ConventionBundle],
-    schema: Schema,
-    name: str,
-) -> bool:
-    """Say whether canonical table `name` shares its raw table with another."""
-    chosen = assigned(raw, bundles, schema)
-    at = chosen.get(name)
-    return at is not None and list(chosen.values()).count(at) > 1
+    table: TableSchema,
+    chunks: Callable[[tuple[str, ...]], Iterable[pa.Table]],
+) -> dict[int, ReadConvention]:
+    """Bind each convention matching `raw` to the whole raw table.
+
+    `chunks(columns)` is that table a chunk at a time, holding `columns`; it
+    is read only by a convention that needs every row. The result is keyed
+    by the `id` of each convention, as `read_canonical` takes it.
+    """
+    return {
+        id(convention): convention.in_context(
+            chunks(convention.source_columns)
+        )
+        for _, convention in _candidates(bundles, table)
+        if convention.matches(raw)
+    }
 
 
 def assigned(
@@ -281,12 +303,16 @@ def _read_from(
     source: RawTable,
     bundles: tuple[ConventionBundle, ...],
     schema: TableSchema,
+    bound: Mapping[int, ReadConvention] | None,
 ) -> dict[str, ArrowColumn]:
+    if bound is None:
+        whole = (source.table,)
+        bound = in_context(source.schema, bundles, schema, lambda _: whole)
     covered: dict[str, ArrowColumn] = {}
     for bundle, convention in _candidates(bundles, schema):
         if not _has_something_to_add(convention, source, covered):
             continue
-        produced = convention.load(source.table)
+        produced = bound.get(id(convention), convention).load(source.table)
         _keep_first(
             covered, produced, convention, schema, _origin(bundle, convention)
         )

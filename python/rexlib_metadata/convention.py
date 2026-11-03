@@ -56,6 +56,17 @@ class ReadConvention(ABC):
     def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
         """Return the canonical columns, keyed by canonical name."""
 
+    def in_context(self, chunks: Iterable[pa.Table]) -> ReadConvention:
+        """Return this convention as it loads any part of one raw table.
+
+        `chunks` is the whole raw table a chunk at a time, holding at least
+        `source_columns`. A convention whose value for a row depends on the
+        other rows, as a group numbered as first held does, gathers what it
+        needs from them and returns a convention holding it. The default
+        reads nothing and returns this one.
+        """
+        return self
+
 
 class WriteConvention(ABC):
     """Turns canonical columns into the columns of one file format."""

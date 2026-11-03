@@ -118,6 +118,7 @@ class ReadConvention(ABC):
     target_columns: tuple[str, ...]   # canonical columns produced
     def matches(self, raw: RawSchema) -> bool: ...
     def load(self, table: pa.Table) -> dict[str, ArrowColumn]: ...
+    def in_context(self, chunks: Iterable[pa.Table]) -> ReadConvention: ...
 
 class WriteConvention(ABC):
     source_columns: tuple[str, ...]   # canonical columns consumed
@@ -197,9 +198,16 @@ them into `write_tables`; `StarWriter` streams them.
    its default; any other is absent, not nulls.
 7. A table others point at holds one row per key: rows repeating a key, as
    when it is read from the rows that point at it (Relion 3.0's optics),
-   collapse into one where they agree and raise where they do not. Such a
-   table, and one sharing its raw table, is not read a chunk at a time: it
-   depends on every row, and `chunks()` says to read it whole.
+   collapse into one where they agree and raise where they do not.
+
+A convention whose value for a row depends on the other rows (Relion 3.0's
+optics group, numbered as first held) overrides `in_context`: it gathers
+what it needs from the whole raw table and returns a convention holding it.
+A whole read gives it the table; a chunked read or write first passes over
+the block reading only that convention's `source_columns`, in memory bound
+by what it keeps, and binds it once (`in_context` in `engine.py`). The
+default reads nothing. A table others point at is built a chunk at a time,
+collapsed by key all along, before its first chunk is handed out.
 
 A narrowed read (`columns=`) keeps a set of raw names computed from the
 conventions alone, before the file is opened (`source_columns` in
@@ -287,8 +295,8 @@ registered. A write rereads its source through the reader it was read with.
   declaring one; an undeclared name raises before any I/O.
 - `chunks(size)` needs one canonical table (`result[name]`), yields `Chunk`s
   (`name`, `len()`, `to_arrow()`, `to_pandas()`, `to_polars()`), and stops
-  where the filling block ends. Tables a joined view points at are read
-  whole first.
+  where the filling block ends. Tables a joined view points at are built
+  first, as a table others point at is (see the read engine).
 - `result.joined(name)` gives each row the columns of the row it points at.
   `updates` through it may not change the related table's columns.
 - A view never narrows a write: `write` writes every canonical table the

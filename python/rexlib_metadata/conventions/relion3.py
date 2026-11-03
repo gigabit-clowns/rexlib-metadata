@@ -10,7 +10,7 @@ same rows, one per group.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -19,7 +19,7 @@ from rexlib_metadata.convention import ConventionBundle, ReadConvention
 from rexlib_metadata.conventions.relion import parsed
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
 
     from rexlib_metadata.convention import ArrowColumn, RawSchema
 
@@ -49,7 +49,29 @@ class OpticsGroup(_Relion30):
 
     def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
         """Return each distinct setting numbered from one, as first held."""
-        return {"optics_group": _groups(table, _SETTING)}
+        return self.in_context([table]).load(table)
+
+    def in_context(self, chunks: Iterable[pa.Table]) -> ReadConvention:
+        """Return the groups numbered as the whole table first holds them."""
+        held: pa.Array = pa.array([], pa.string())
+        for chunk in chunks:
+            found = cast("pa.Array", pc.unique(_setting(chunk)))
+            fresh = found.filter(pc.invert(pc.is_in(found, value_set=held)))
+            held = pa.concat_arrays([held, fresh])
+        return _Numbered(held)
+
+
+class _Numbered(OpticsGroup):
+    """Groups numbered by their place among the settings of a whole table."""
+
+    def __init__(self, held: pa.Array) -> None:
+        self._held = held
+
+    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
+        """Return each setting's place among those held, from one."""
+        place = pc.index_in(_setting(table), value_set=self._held)
+        group = pc.add(place, pa.scalar(1, pa.int32()))
+        return {"optics_group": pc.cast(group, pa.int32())}
 
 
 class PixelSize(_Relion30):
@@ -90,12 +112,9 @@ class OriginZ(_Relion30):
         return {"shift_z": _in_angstrom(table, "_rlnOriginZ", size)}
 
 
-def _groups(table: pa.Table, columns: tuple[str, ...]) -> ArrowColumn:
+def _setting(table: pa.Table) -> ArrowColumn:
     join: Callable[..., ArrowColumn] = pc.binary_join_element_wise
-    setting = join(*(table.column(c) for c in columns), pa.scalar("\x1f"))
-    first_held = pc.unique(setting)
-    group = pc.add(pc.index_in(setting, value_set=first_held), 1)
-    return pc.cast(group, pa.int32())
+    return join(*(table.column(c) for c in _SETTING), pa.scalar("\x1f"))
 
 
 def _pixel_size(table: pa.Table) -> ArrowColumn:

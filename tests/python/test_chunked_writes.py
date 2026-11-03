@@ -60,7 +60,7 @@ CASES = [
 
 def _written(view, out, write, rows_per_chunk, monkeypatch):
     with monkeypatch.context() as patched:
-        patched.setattr(result_module, "_WRITTEN_ROWS", rows_per_chunk)
+        patched.setattr(result_module, "_ROWS", rows_per_chunk)
         view.write(str(out), **write)
     return out.read_bytes()
 
