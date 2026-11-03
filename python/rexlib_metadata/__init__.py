@@ -12,6 +12,7 @@ from rexlib_metadata.abc import Reader, Writer
 from rexlib_metadata.canonical import SCHEMA
 from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.conventions.relion import relion4_bundle
+from rexlib_metadata.conventions.relion3 import relion3_bundle
 from rexlib_metadata.conventions.xmipp import HEADER, xmipp_bundle
 from rexlib_metadata.formats.sqlite import SqliteReader, SqliteWriter
 from rexlib_metadata.formats.star import StarReader, StarWriter
@@ -36,6 +37,7 @@ def _register_builtins(registry: MetadataRegistry) -> None:
     registry.register_reader(_STAR, StarReader())
     registry.register_writer(_STAR, StarWriter())
     registry.register_bundle(_STAR, relion4_bundle())
+    registry.register_bundle(_STAR, relion3_bundle())
     registry.register_reader(_XMD, StarReader())
     registry.register_writer(_XMD, StarWriter(header=HEADER))
     registry.register_bundle(_XMD, xmipp_bundle())
