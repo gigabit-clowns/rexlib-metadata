@@ -3,6 +3,7 @@ First release: read and write CryoEM metadata as pandas, polars or Arrow.
 ### New
 - `rxm.read(path)`: STAR, Xmipp XMD (`.xmd`, `.doc`, `.pos`, `.sel`) and SQLite, under canonical column names, typed.
 - cryoSPARC `.cs` read (`cryosparc` extra): poses as Relion's angles, shifts in Ångström, exposure groups as optics; converts to Relion.
+- A `micrographs` table (path, defocus, CTF resolution, optics group): Relion 4 read and written, Relion 3.0 read and written back as Relion 4.
 - Relion 3.0 files read: each particle's microscope becomes an optics group, offsets come back in Ångström, and a write gives Relion 4. Each microscope setting is read on its own, so one the file lacks no longer drops the rest.
 - `result.raw`: the same file under its own names, every block of it.
 - `result["particles"]`, `result.joined("particles")` (optics on each row), `columns=` to read only some columns.

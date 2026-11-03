@@ -62,11 +62,14 @@ def test_a_relation_between_tables_sharing_another_column_is_refused():
         Schema(a, b, relations=relations)
 
 
-def test_the_canonical_particles_point_at_their_optics():
+def test_the_canonical_particles_and_micrographs_point_at_their_optics():
     assert SCHEMA.relations_of("particles") == (
         Relation("particles", "optics", "optics_group"),
     )
-    assert SCHEMA.related_to("optics") == SCHEMA.relations_of("particles")
+    assert SCHEMA.related_to("optics") == (
+        *SCHEMA.relations_of("particles"),
+        *SCHEMA.relations_of("micrographs"),
+    )
 
 
 def test_a_joined_view_carries_the_optics_on_every_particle():

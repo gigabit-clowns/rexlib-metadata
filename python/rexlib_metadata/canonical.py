@@ -59,6 +59,15 @@ CTF_QUALITY = SchemaTrait(
     (ColumnDescriptor("ctf_max_resolution", pa.float64(), unit="A"),),
 )
 
+DEFOCUS = SchemaTrait(
+    "defocus",
+    (
+        ColumnDescriptor("defocus_u", pa.float64(), unit="A"),
+        ColumnDescriptor("defocus_v", pa.float64(), unit="A"),
+        ColumnDescriptor("defocus_angle", pa.float64(), unit="degrees"),
+    ),
+)
+
 OPTICS_KEY = SchemaTrait(
     "optics_key",
     (ColumnDescriptor("optics_group", pa.int32()),),
@@ -100,8 +109,20 @@ OPTICS = TableSchema(
     SAMPLING,
 )
 
+MICROGRAPHS = TableSchema(
+    "micrographs",
+    ColumnDescriptor("micrograph_path", pa.string(), required=True),
+    DEFOCUS,
+    CTF_QUALITY,
+    OPTICS_KEY,
+)
+
 SCHEMA = Schema(
     PARTICLES,
     OPTICS,
-    relations=(Relation("particles", "optics", "optics_group"),),
+    MICROGRAPHS,
+    relations=(
+        Relation("particles", "optics", "optics_group"),
+        Relation("micrographs", "optics", "optics_group"),
+    ),
 )

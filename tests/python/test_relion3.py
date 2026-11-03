@@ -48,6 +48,44 @@ def test_relion30_micrographs_are_one_optics_row():
     assert len(optics) == 1
 
 
+def test_relion30_micrographs_are_a_micrographs_table():
+    result = rxm.read(MICROGRAPHS)
+    raw = result.raw.to_pandas()
+
+    micrographs = result["micrographs"].to_pandas()
+
+    assert result.names == ("optics", "micrographs")
+    assert micrographs["micrograph_path"].tolist() == (
+        raw["_rlnMicrographName"].tolist()
+    )
+    assert micrographs["defocus_u"].tolist() == pytest.approx(
+        raw["_rlnDefocusU"].astype(float).tolist()
+    )
+    assert set(micrographs["optics_group"]) == {1}
+
+
+def test_a_particles_file_fills_no_micrographs_table():
+    assert "micrographs" not in rxm.read(POLISHED).names
+
+
+def test_relion30_micrographs_write_back_as_relion4(tmp_path):
+    source = rxm.read(MICROGRAPHS)
+    out = str(tmp_path / "out.star")
+
+    source.write(out)
+    again = rxm.read(out)
+
+    assert again.raw.names == ("optics", "micrographs")
+    written = again.raw["micrographs"].to_arrow().column_names
+    assert "_rlnOpticsGroup" in written
+    assert "_rlnCtfImage" in written
+    assert "_rlnVoltage" not in written
+    for name in source.names:
+        pd.testing.assert_frame_equal(
+            again[name].to_pandas(), source[name].to_pandas()
+        )
+
+
 def test_a_relion30_file_writes_back_as_relion4(tmp_path):
     source = rxm.read(POLISHED)
     out = str(tmp_path / "out.star")
@@ -75,6 +113,21 @@ def test_a_relion30_file_writes_back_as_relion4(tmp_path):
 )
 def test_a_relion30_file_reads_in_chunks_as_it_reads_whole(view):
     table = view(rxm.read(POLISHED))
+
+    chunks = [chunk.to_arrow() for chunk in table.chunks(2)]
+
+    assert pa.concat_tables(chunks).equals(table.to_arrow())
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        pytest.param("micrographs", id="micrographs"),
+        pytest.param("optics", id="optics"),
+    ],
+)
+def test_relion30_micrographs_read_in_chunks_as_they_read_whole(name):
+    table = rxm.read(MICROGRAPHS)[name]
 
     chunks = [chunk.to_arrow() for chunk in table.chunks(2)]
 

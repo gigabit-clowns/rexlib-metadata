@@ -67,6 +67,21 @@ class MicrographName(_Renaming):
     dtype = pa.string()
 
 
+class Micrograph(MicrographName):
+    """A row of a micrographs table: a micrograph, and no particle in it."""
+
+    def matches(self, raw: RawSchema) -> bool:
+        """Apply to a table naming micrographs and no particle image."""
+        return super().matches(raw) and not raw.has("_rlnImageName")
+
+
+class Defocus(_Renaming):
+    """The CTF's two defocus values, in Ångström, and their angle."""
+
+    source_columns = ("_rlnDefocusU", "_rlnDefocusV", "_rlnDefocusAngle")
+    target_columns = ("defocus_u", "defocus_v", "defocus_angle")
+
+
 class Coordinates(_Renaming):
     """Where on the micrograph a particle sits, in pixels."""
 
@@ -226,6 +241,13 @@ class WriteMicrographName(_Spelling):
 
     source_columns = ("micrograph_path",)
     target_columns = ("_rlnMicrographName",)
+
+
+class WriteDefocus(_Spelling):
+    """The CTF's two defocus values, in Ångström, and their angle."""
+
+    source_columns = ("defocus_u", "defocus_v", "defocus_angle")
+    target_columns = ("_rlnDefocusU", "_rlnDefocusV", "_rlnDefocusAngle")
 
 
 class WriteCoordinates(_Spelling):
@@ -411,6 +433,12 @@ def relion4_bundle() -> ConventionBundle:
                 PixelSize(),
                 ImageSize(),
             ],
+            "micrographs": [
+                Micrograph(),
+                Defocus(),
+                CtfMaxResolution(),
+                ParticleOpticsGroup(),
+            ],
         },
         write={
             "particles": [
@@ -433,6 +461,12 @@ def relion4_bundle() -> ConventionBundle:
                 WriteAmplitudeContrast(),
                 WritePixelSize(),
                 WriteImageSize(),
+            ],
+            "micrographs": [
+                WriteMicrographName(),
+                WriteDefocus(),
+                WriteCtfMaxResolution(),
+                WriteParticleOpticsGroup(),
             ],
         },
     )
