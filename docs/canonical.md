@@ -96,6 +96,25 @@ where a block has no `_rlnOpticsGroup`.
 | `shift_x`, `shift_y`, `shift_z` | `_rlnOriginX`, `…Y`, `…Z` (px) | times the row's pixel size |
 | `optics` | the particles' own rows | one row per group |
 
+## cryoSPARC
+
+Read only (`conventions/cryosparc.py`).
+
+| Canonical | cryoSPARC | Note |
+|---|---|---|
+| `image_path`, `image_index` | `blob/path`, `blob/idx` | zero-based; a leading `>` (project-relative) dropped |
+| `micrograph_path` | `location/micrograph_path` | the same |
+| `coord_x`, `coord_y` | `location/center_x_frac`, `…_y_frac`, `location/micrograph_shape` | fraction times columns, rows |
+| `angle_rot`, `angle_tilt`, `angle_psi` | `alignments3D/pose` | rotation vector (rad) → matrix → Relion ZYZ (deg) |
+| `shift_x`, `shift_y` | `alignments3D/shift`, `alignments3D/psize_A` | pixels times that pixel size |
+| `optics_group` | `ctf/exp_group_id` | plus one |
+| `voltage`, `spherical_aberration`, `amplitude_contrast` | `ctf/accel_kv`, `ctf/cs_mm`, `ctf/amp_contrast` | |
+| `pixel_size`, `image_size`, `image_dimensionality` | `blob/psize_A`, `blob/shape` | |
+| `optics` | the particles' own rows | one row per group |
+
+A single-precision field is read as its shortest decimal (2.7, not
+2.700000047683716).
+
 ## Xmipp
 
 `conventions/xmipp.py` reads and writes `_image` (`index@path`, one-based, as

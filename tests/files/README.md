@@ -1,7 +1,8 @@
 # Files from EMPIAR
 
-Three formats no reader here reads yet, each trimmed from a real deposition
-so that the reader written for it meets the file before it meets us.
+Three formats, each trimmed from a real deposition so that the reader
+written for it meets the file before it meets us; `.cs` is read, `.par` and
+CSV not yet.
 `star/` has a README of its own.
 
 All three come from `ftp.ebi.ac.uk/empiar/world_availability/`, fetched on

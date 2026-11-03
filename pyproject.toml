@@ -32,6 +32,7 @@ pandas = [
     "pandas>=3.0,<=3.1.0; python_version >= '3.11'",
 ]
 polars = ["polars>=1.0,<=2.1.0"]
+cryosparc = ["numpy>=2.0,<=2.5.4"]
 
 [dependency-groups]
 test = [
@@ -40,6 +41,9 @@ test = [
     "pandas==3.1.0; python_version >= '3.11'",
     "polars==2.0.0; python_version == '3.10'",
     "polars==2.1.0; python_version >= '3.11'",
+    "numpy==2.2.6; python_version == '3.10'",
+    "numpy==2.4.6; python_version == '3.11'",
+    "numpy==2.5.4; python_version >= '3.12'",
 ]
 develop = [
     "maturin==1.15.0",
@@ -53,6 +57,7 @@ lint = [
     "pyarrow-stubs==20.0.0.20260819",
     "pandas-stubs==3.0.5.260914",
     "polars==2.1.0",
+    "numpy==2.5.4",
 ]
 sdist = ["build==1.6.1"]
 bench = [

@@ -54,6 +54,20 @@
       "constraintsFiltering": "strict"
     },
     {
+      "description": "The numpy test pin for python_version == '3.10'; 2.3.0 raised requires-python to >=3.11.",
+      "matchDepNames": ["numpy"],
+      "matchCurrentVersion": "<2.3",
+      "constraints": { "python": "3.10" },
+      "constraintsFiltering": "strict"
+    },
+    {
+      "description": "The numpy test pin for python_version == '3.11'; 2.5.0 raised requires-python to >=3.12.",
+      "matchDepNames": ["numpy"],
+      "matchCurrentVersion": ">=2.3,<2.5",
+      "constraints": { "python": "3.11" },
+      "constraintsFiltering": "strict"
+    },
+    {
       "description": "The pandas test pin for python_version == '3.10'; 3.0.0 raised requires-python to >=3.11.",
       "matchDepNames": ["pandas"],
       "matchCurrentVersion": "<3",

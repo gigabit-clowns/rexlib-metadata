@@ -325,17 +325,13 @@ rxm.write("new.star", {"particles": frame})  # canonical tables from memory
 | `.star` | `StarReader` / `StarWriter` | `relion4`, then `relion3` (read only) |
 | `.xmd`, `.doc`, `.pos`, `.sel` | `StarReader` / `StarWriter(header=HEADER)` | `xmipp` |
 | `.sqlite`, `.db` | `SqliteReader` / `SqliteWriter` | — |
+| `.cs` | `CsReader` (the `cryosparc` extra) / — | `cryosparc` (read only) |
 
-Order: Relion 4/5 STAR, Xmipp XMD, cryoSPARC, then the stored formats.
-cryoSPARC `.cs` (a NumPy structured array, one `pose` column feeding three
-angles), FREALIGN `.par` and the cryoSPARC CSV are in
+FREALIGN `.par` and the cryoSPARC CSV, not read yet, are in
 [formats.md](formats.md).
 
 ## Open questions
 
-- **The M:N column relation.** The convention is the unit of mapping, with
-  `matches()` deciding; no hard case has tested it yet (cryoSPARC's `pose`
-  will).
 - **Convention lookup cost.** Every convention of every bundle is walked in
   order, linear in their number; unmeasured at the Relion bundle's full size.
 - **Content-based detection.** Which bytes decide, and how far a sniff may
