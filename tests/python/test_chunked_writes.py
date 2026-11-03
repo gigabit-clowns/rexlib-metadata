@@ -115,10 +115,11 @@ def _refused(_):
 def test_rows_that_do_not_fit_a_streamed_table_leave_no_file(
     tmp_path, rows, message
 ):
-    out = tmp_path / "out.star"
+    out = str(tmp_path / "out.star")
+    view = rxm.read(str(SUBTOMO))["particles"]
 
     with pytest.raises(ValueError, match=message):
-        rxm.read(str(SUBTOMO))["particles"].write(str(out), rows=rows)
+        view.write(out, rows=rows)
 
     assert list(tmp_path.iterdir()) == []
 
@@ -172,7 +173,10 @@ def test_a_star_write_failing_midway_leaves_no_file(tmp_path):
         yield 0, RawTable.of("a", pa.table({"_rlnA": ["1"]}))
         raise RuntimeError("the source went away")
 
+    writer = StarWriter()
+    failing = chunks()
+
     with pytest.raises(RuntimeError, match="went away"):
-        StarWriter().write_chunks(str(out), chunks())
+        writer.write_chunks(str(out), failing)
 
     assert not out.exists()

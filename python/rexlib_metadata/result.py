@@ -524,7 +524,7 @@ class ReadResult:
 
     def _read_whole(self, at: int) -> RawTable:
         chunks = takewhile(
-            lambda chunk: chunk[0] <= at, self._raw.chunks(_WRITTEN_ROWS)
+            lambda chunk: chunk[0] <= at, self._raw.chunks(_POINTED_AT_ROWS)
         )
         pieces = [raw for ordinal, raw in chunks if ordinal == at]
         table = pa.concat_tables([piece.table for piece in pieces])
@@ -674,6 +674,7 @@ class ReadResult:
 
 
 _WRITTEN_ROWS = 100_000
+_POINTED_AT_ROWS = 1_000
 
 
 @dataclass(frozen=True)
@@ -745,27 +746,27 @@ class _Edit:
 
 class _Mask:
     def __init__(self, mask: pa.Array, table: str) -> None:
-        self._mask = mask
+        self._kept = mask
         self._table = table
 
     def picked(self, start: int, count: int) -> pa.Array:
         return pc.indices_nonzero(
-            self._mask.slice(start, count).fill_null(False)
+            self._kept.slice(start, count).fill_null(False)
         )
 
     def check(self, rows: int) -> None:
-        if len(self._mask) != rows:
-            raise _mask_mismatch(len(self._mask), rows, self._table)
+        if len(self._kept) != rows:
+            raise _mask_mismatch(len(self._kept), rows, self._table)
 
 
 class _Positions:
     def __init__(self, positions: pa.Array, table: str) -> None:
-        self._positions = positions
+        self._kept = positions
         self._table = table
         self._taken = 0
 
     def picked(self, start: int, count: int) -> pa.Array:
-        window = self._positions.slice(self._taken, count)
+        window = self._kept.slice(self._taken, count)
         inside = len(
             pc.indices_nonzero(pc.less(window, pa.scalar(start + count)))
         )
@@ -773,7 +774,7 @@ class _Positions:
         return pc.subtract(window.slice(0, inside), start)
 
     def check(self, rows: int) -> None:
-        if self._taken < len(self._positions):
+        if self._taken < len(self._kept):
             raise _outside(self._table, rows)
 
 
