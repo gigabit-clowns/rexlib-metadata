@@ -9,7 +9,6 @@
 | `tempfile` (dev) | Files for the parser tests |
 | `pyarrow` | The Python half of the bridge; the only hard runtime dependency |
 | `pandas`, `polars` | Extras, one per output backend |
-| `h5py` | The `hdf5` extra, imported only when an HDF5 file is opened |
 
 What is not obvious from the manifests:
 
@@ -26,4 +25,3 @@ What is not obvious from the manifests:
   widens. The oldest-extras cell installs each floor.
 - A pin split at `python_version == '3.10'` keeps 3.10 on the last release
   that supports it; `renovate.json` caps only that half.
-- `h5py` has no 3.15 wheel yet, so the 3.15 cells skip HDF5.

@@ -1,6 +1,6 @@
 # rexlib-metadata
 
-Highly performant reader and writer of CryoEM metadata formats (STAR, XMD, SQLite, HDF5), to and from Pandas, Polars or Arrow tables. Rust core, Python API, extensible by design.
+Highly performant reader and writer of CryoEM metadata formats (STAR, XMD, SQLite), to and from Pandas, Polars or Arrow tables. Rust core, Python API, extensible by design.
 
 [![Build and Test](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml)
 [![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/gigabit-clowns/rexlib-metadata)
@@ -14,7 +14,7 @@ Highly performant reader and writer of CryoEM metadata formats (STAR, XMD, SQLit
 - **Lossless writes** — columns no convention covers are carried over; a conversion is a change of extension
 - **Extensible** — custom readers and conventions by subclassing Python ABCs; no Rust required
 
-STAR works through Relion's conventions. XMD reads and writes its image reference and angles; SQLite and HDF5 every table as the file declares it. More of XMD and Scipion's SQLite: see the [roadmap](docs/roadmap.md).
+STAR works through Relion's conventions. XMD reads and writes its image reference and angles; SQLite every table as the file declares it. More of XMD and Scipion's SQLite: see the [roadmap](docs/roadmap.md).
 
 ## Performance
 
@@ -63,7 +63,6 @@ also benchmarked against `main` on
 ```bash
 pip install rexlib-metadata           # Arrow, through pyarrow
 pip install rexlib-metadata[pandas]   # or [polars], [pandas,polars]
-pip install rexlib-metadata[hdf5]     # HDF5 files, through h5py
 ```
 
 Requires Python ≥ 3.10.

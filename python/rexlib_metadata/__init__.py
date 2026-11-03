@@ -13,7 +13,6 @@ from rexlib_metadata.canonical import SCHEMA
 from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.conventions.relion import relion4_bundle
 from rexlib_metadata.conventions.xmipp import HEADER, xmipp_bundle
-from rexlib_metadata.formats.hdf5 import Hdf5Reader, Hdf5Writer
 from rexlib_metadata.formats.sqlite import SqliteReader, SqliteWriter
 from rexlib_metadata.formats.star import StarReader, StarWriter
 from rexlib_metadata.registry import MetadataRegistry, global_registry
@@ -31,7 +30,6 @@ __version__: str = _version()
 _STAR = (".star",)
 _XMD = (".xmd", ".doc", ".pos", ".sel")
 _SQLITE = (".sqlite", ".db")
-_HDF5 = (".h5", ".hdf5")
 
 
 def _register_builtins(registry: MetadataRegistry) -> None:
@@ -43,8 +41,6 @@ def _register_builtins(registry: MetadataRegistry) -> None:
     registry.register_bundle(_XMD, xmipp_bundle())
     registry.register_reader(_SQLITE, SqliteReader())
     registry.register_writer(_SQLITE, SqliteWriter())
-    registry.register_reader(_HDF5, Hdf5Reader())
-    registry.register_writer(_HDF5, Hdf5Writer())
 
 
 _register_builtins(global_registry)

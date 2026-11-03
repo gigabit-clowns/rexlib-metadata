@@ -16,13 +16,12 @@ A second push to the same ref cancels the run in flight.
 |---|---|
 | `lint` | `ruff check .`, complexipy (≤ 7) and `mypy`, once, from the `lint` group without building the crate |
 | `build_with_cargo` | `cargo fmt --check`, clippy at `-D warnings`, `cargo build`, `cargo test`, `--locked`, on Linux, macOS and Windows |
-| `build_with_pip` | `pip install .[hdf5] --group test` and `pytest`, three platforms × Python 3.10–3.15 |
+| `build_with_pip` | `pip install . --group test` and `pytest`, three platforms × Python 3.10–3.15 |
 | `coverage` | `cargo llvm-cov` over the Rust tests, clippy as JSON, `pytest --cov` over an editable install |
 | `sonar-scan` | hands the three reports to SonarQube Cloud |
 
 - One extra cell, Linux on 3.10, installs the **floor** of every range
-  (pyarrow, polars, pandas, h5py) instead of the newest.
-- 3.15 installs no `hdf5` extra: h5py has no wheel for it.
+  (pyarrow, polars, pandas) instead of the newest.
 - `fail-fast` is off. The Rust build is cached per platform, written only by
   `main`; the pip job sets `CARGO_TARGET_DIR` so maturin's build is cached.
 - Actions are pinned by digest except the organisation's own, taken from

@@ -105,7 +105,6 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.cargo/bin:$PATH"
           CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=11.0
           CIBW_TEST_GROUPS: test
-          CIBW_TEST_EXTRAS: hdf5
           CIBW_TEST_COMMAND: pytest {project}/tests/python
 
       - name: Keep the wheels

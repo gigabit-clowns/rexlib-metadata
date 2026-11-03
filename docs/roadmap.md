@@ -47,10 +47,7 @@ paginated through one cursor per table.
 
 ## Phase 9 — HDF5
 
-Done: generic `Hdf5Reader` / `Hdf5Writer` for `.h5` and `.hdf5` (the `hdf5`
-extra), paginated by slicing.
-
-- [ ] A real CryoEM HDF5 file under `tests/files/`
+Dropped: no cryo-EM program in use exchanges particle tables as HDF5.
 
 ## Phase 10 — open
 
