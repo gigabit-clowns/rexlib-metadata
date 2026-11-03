@@ -89,39 +89,35 @@ def assigned(
     return chosen
 
 
-def owned_table(
-    raw_tables: Sequence[RawTable],
+def owned(
+    raw: Sequence[RawSchema],
     bundles: Iterable[ConventionBundle],
     schema: Schema,
-    name: str,
-) -> RawTable | None:
-    """Return the raw table `name` took for its own, not one it shares."""
-    raw = [table.schema for table in raw_tables]
-    at = _owned(_pairs(raw, tuple(bundles), schema)).get(name)
-    return None if at is None else raw_tables[at]
+) -> dict[str, int]:
+    """Say which raw table each canonical table took for its own."""
+    return _owned(_pairs(raw, tuple(bundles), schema))
 
 
 def superseded(
-    raw_tables: Sequence[RawTable],
+    raw: Sequence[RawSchema],
     bundles: tuple[ConventionBundle, ...],
     writing: tuple[ConventionBundle, ...],
     schema: Schema,
-    raw: RawTable,
-) -> set[str]:
-    """Name the columns of `raw` a write spells anew from what they read into.
+    at: int,
+) -> frozenset[str]:
+    """Name the columns of raw table `at` a write spells anew.
 
     A column is superseded where everything its read convention produced
     is consumed by `writing`, as Relion 3.0's offset in pixels is by
     Relion 4's in Ångström; anything else stays the source's to carry over.
     """
-    at = raw_tables.index(raw)
-    chosen = assigned([t.schema for t in raw_tables], bundles, schema)
-    return {
+    chosen = assigned(raw, bundles, schema)
+    return frozenset(
         column
         for name, where in chosen.items()
         if where == at
-        for column in _rewritten(raw.schema, bundles, writing, schema[name])
-    }
+        for column in _rewritten(raw[at], bundles, writing, schema[name])
+    )
 
 
 def _rewritten(
@@ -308,7 +304,7 @@ def _candidates(
 
 
 def produced_tables(
-    raw_tables: Iterable[RawTable],
+    raw: Sequence[RawSchema],
     bundles: Iterable[ConventionBundle],
     schema: Schema,
 ) -> tuple[str, ...]:
@@ -318,7 +314,7 @@ def produced_tables(
     every column it requires, which is the rule a read follows, asked of
     the schemas alone before a value is read.
     """
-    chosen = assigned([raw.schema for raw in raw_tables], bundles, schema)
+    chosen = assigned(raw, bundles, schema)
     return tuple(table.name for table in schema if table.name in chosen)
 
 

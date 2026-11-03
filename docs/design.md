@@ -158,6 +158,7 @@ class Reader(ABC):
 
 class Writer(ABC):
     def write_tables(self, path: str, tables: Iterable[RawTable]) -> None: ...  # abstract
+    def write_chunks(self, path: str, chunks: Iterable[tuple[int, RawTable]]) -> None: ...
 ```
 
 `read_schemas`, `read_tables_keeping` and `read_chunks` default to reading everything and
@@ -165,7 +166,8 @@ dropping or slicing; a reader that can do better overrides them, as
 `StarReader` and `SqliteReader` do. `columns` is raw names and
 may name columns the file lacks. Each chunk carries its table's ordinal,
 which tells two tables of one name apart; a table of no rows is one empty
-chunk.
+chunk. `write_chunks` takes chunks in that shape and defaults to gathering
+them into `write_tables`; `StarWriter` streams them.
 
 ### The read engine
 
@@ -232,6 +234,13 @@ undeclared output raises, and a table nothing writes raises.
   would hold nothing raises.
 - Every write goes to a temporary file in the destination's directory,
   renamed over it at the end.
+- `result.write` rereads the source through `read_chunks` and hands
+  `write_chunks` one converted chunk per chunk read. What depends on the
+  whole file (which block fills which table, what is carried over or spelled
+  anew) is decided once from `read_schemas`. A table others point at is read
+  whole first. The source is read whole instead when a canonical table shares
+  its raw table, or `rows=` holds positions out of order or selects a table
+  others point at.
 
 ### Writing a convention
 

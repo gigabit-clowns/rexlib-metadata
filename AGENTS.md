@@ -52,7 +52,8 @@ registered in `__init__.py`; `registry.py` names no format.
 A reader implements `read_tables`, returning one `RawTable` per table, and
 may override `read_tables_keeping` to skip columns while parsing and
 `read_schemas` to name tables and columns without reading rows. A writer
-implements `write_tables`. Neither knows the registry.
+implements `write_tables`, and may override `write_chunks` to stream. Neither
+knows the registry.
 
 `lib.rs` keeps no logic: it wraps, releases the GIL while Rust reads, and maps
 `Error` to `FileNotFoundError` (missing), `ValueError` (malformed) or

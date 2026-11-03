@@ -11,6 +11,7 @@ from rexlib_metadata._rexlib import (
     _star_read_chunks,
     _star_read_headers,
     _star_read_tables,
+    _star_stream,
     _star_write,
 )
 from rexlib_metadata.abc import Reader, Writer
@@ -46,7 +47,6 @@ class StarReader(Reader):
             for name, batches in _star_read_tables(path, set(columns))
         ]
 
-
     def read_chunks(
         self, path: str, size: int, columns: Set[str] | None = None
     ) -> Iterator[tuple[int, RawTable]]:
@@ -77,3 +77,17 @@ class StarWriter(Writer):
             ],
             self._header,
         )
+
+    def write_chunks(
+        self, path: str, chunks: Iterable[tuple[int, RawTable]]
+    ) -> None:
+        """Write one data block per ordinal, a chunk at a time."""
+        with _star_stream(path, self._header) as out:
+            current = None
+            for ordinal, chunk in chunks:
+                if ordinal != current:
+                    schema = chunk.schema
+                    out.begin(schema.table_name, schema.column_names)
+                    current = ordinal
+                for batch in chunk.table.to_batches():
+                    out.write(batch)
