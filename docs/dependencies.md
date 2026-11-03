@@ -24,5 +24,5 @@ What is not obvious from the manifests:
 - Every range, extras included, runs from what the code needs (`pyarrow>=16`, the first
   built for NumPy 2) to the newest version CI has passed, which Renovate
   widens. The oldest-extras cell installs each floor.
-- A pin split at `python_version == '3.10'` keeps 3.10 on the last release
-  that supports it; `renovate.json` caps only that half.
+- A pin split by `python_version` keeps an older Python on the last release
+  that supports it; `renovate.json` caps only the older halves.

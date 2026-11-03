@@ -144,6 +144,7 @@ def test_a_cs_file_converts_to_relion(tmp_path):
 def test_a_file_that_is_not_a_cs_says_so(tmp_path):
     path = tmp_path / "not.cs"
     path.write_text("data_\n")
+    reader = CsReader()
 
     with pytest.raises(ValueError, match="not a cryoSPARC file"):
-        CsReader().read_tables(str(path))
+        reader.read_tables(str(path))
