@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from rexlib_metadata.convention import RawSchema
 
 _INDEX_WIDTH = 6
+_POSE_ROWS = 1 << 20
 PIXEL_ORIGIN = ("_rlnOriginX", "_rlnOriginY", "_rlnOriginZ")
 
 
@@ -127,10 +128,19 @@ class Pose(ReadConvention):
         )
 
     def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
-        """Return the transform of each row's angles and origin."""
+        """Return the transform of each row's angles and origin.
+
+        A slice at a time, so that what the conversion holds stays small.
+        """
+        starts = range(0, max(table.num_rows, 1), _POSE_ROWS)
+        slices = (table.slice(start, _POSE_ROWS) for start in starts)
+        parts = [self._transforms(part) for part in slices]
+        return {"transform": pa.chunked_array(parts)}
+
+    def _transforms(self, table: pa.Table) -> pa.Array:
         rot, tilt, psi = (numbers(table, name) for name in self.angles)
         a = pose.euler_matrix(rot, tilt, psi)
-        return {"transform": pose.transforms(a, self.offsets(table))}
+        return pose.transforms(a, self.offsets(table))
 
     def offsets(self, table: pa.Table) -> tuple[np.ndarray, ...]:
         """Return each row's origin in Ångström."""

@@ -43,9 +43,11 @@ def transforms(a: Matrix, origin: Vector) -> pa.Array:
 
     rows = len(origin[0])
     r = [[a[k][i] for k in range(_SIDE)] for i in range(_SIDE)]
-    entries = [_full(x, rows) for row in r for x in (*row, _dot(row, origin))]
-    flat = np.stack(entries, axis=1).astype(np.float32).ravel()
-    values = pa.array(flat)
+    flat = np.empty((rows, _SIDE * (_SIDE + 1)), np.float32)
+    entries = (x for row in r for x in (*row, _dot(row, origin)))
+    for column, entry in enumerate(entries):
+        flat[:, column] = entry
+    values = pa.array(flat.ravel())
     return pa.FixedSizeListArray.from_arrays(values, _SIDE * (_SIDE + 1))
 
 
@@ -173,12 +175,6 @@ def _determinant(a: Matrix) -> np.ndarray:
         - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
         + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0])
     )
-
-
-def _full(entry: np.ndarray, rows: int) -> np.ndarray:
-    import numpy as np
-
-    return np.broadcast_to(np.asarray(entry, dtype=np.float64), (rows,))
 
 
 def _combined(column: Transforms) -> pa.FixedSizeListArray:

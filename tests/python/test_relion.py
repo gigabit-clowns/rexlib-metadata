@@ -11,6 +11,7 @@ import rexlib_metadata as rxm
 from rexlib_metadata import pose
 from rexlib_metadata.canonical import SCHEMA
 from rexlib_metadata.convention import ConventionBundle, ReadConvention
+from rexlib_metadata.conventions import relion
 from rexlib_metadata.conventions.relion import (
     Pose,
     relion4_bundle,
@@ -228,3 +229,15 @@ def test_a_microscope_setting_missing_from_the_file_leaves_the_rest():
     assert optics["spherical_aberration"].tolist() == [
         float(raw["_rlnSphericalAberration"][0])
     ]
+
+
+def test_a_pose_read_a_slice_at_a_time_is_the_pose_read_whole(monkeypatch):
+    raw = rxm.read(str(FILES / "relion3.1_subtomo.star")).raw["particles"]
+    table = pa.Table.from_pandas(raw.to_pandas(), preserve_index=False)
+    (whole,) = Pose().load(table).values()
+
+    monkeypatch.setattr(relion, "_POSE_ROWS", 5)
+    (sliced,) = Pose().load(table).values()
+
+    assert sliced.num_chunks == 12
+    assert sliced.to_pylist() == whole.to_pylist()
