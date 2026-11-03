@@ -2,11 +2,12 @@
 
 from pathlib import Path
 
-import pandas as pd
 import polars as pl
 import pytest
 
 import rexlib_metadata as rxm
+
+from .frames import assert_same
 
 FILES = Path(__file__).parent.parent / "files" / "star"
 FILE = FILES / "relion3.1_subtomo.star"
@@ -27,23 +28,21 @@ def test_rows_by_position_keep_those_rows_in_that_order(tmp_path):
 
     again = written(tmp_path, rows=[10, 0, 5])["particles"].to_pandas()
 
-    pd.testing.assert_frame_equal(
-        again, source.iloc[[10, 0, 5]].reset_index(drop=True)
-    )
+    assert_same(again, source.iloc[[10, 0, 5]].reset_index(drop=True))
 
 
 def test_a_filtered_frame_hands_its_index_over(tmp_path):
     source = particles().to_pandas()
-    kept = source[source["shift_x"] > 0]
+    kept = source[source["coord_x"] > source["coord_x"].median()]
 
     again = written(tmp_path, rows=kept.index)["particles"].to_pandas()
 
-    pd.testing.assert_frame_equal(again, kept.reset_index(drop=True))
+    assert_same(again, kept.reset_index(drop=True))
 
 
 def test_a_mask_keeps_the_rows_it_marks(tmp_path):
     source = particles().to_pandas()
-    mask = (source["shift_x"] > 0).to_numpy()
+    mask = (source["coord_x"] > source["coord_x"].median()).to_numpy()
 
     again = written(tmp_path, rows=mask)["particles"].to_pandas()
 
@@ -70,12 +69,12 @@ def test_the_other_tables_are_written_whole(tmp_path):
 def test_updates_hold_one_row_per_row_kept(tmp_path):
     source = particles().to_pandas()
     kept = source.iloc[[2, 4]].copy()
-    kept["shift_x"] += 1.5
+    kept["coord_x"] += 1.5
 
-    again = written(tmp_path, rows=kept.index, updates=kept[["shift_x"]])
+    again = written(tmp_path, rows=kept.index, updates=kept[["coord_x"]])
 
-    assert again["particles"].to_pandas()["shift_x"].tolist() == pytest.approx(
-        (source["shift_x"].iloc[[2, 4]] + 1.5).tolist()
+    assert again["particles"].to_pandas()["coord_x"].tolist() == pytest.approx(
+        (source["coord_x"].iloc[[2, 4]] + 1.5).tolist()
     )
 
 
@@ -83,7 +82,7 @@ def test_updates_of_another_length_say_what_they_should_hold(tmp_path):
     source = particles().to_pandas()
     view = particles()
     out = str(tmp_path / "out.star")
-    updates = source[["shift_x"]]
+    updates = source[["coord_x"]]
 
     with pytest.raises(ValueError, match="one per row rows= keeps"):
         view.write(out, rows=[0, 1], updates=updates)

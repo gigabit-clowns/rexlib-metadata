@@ -26,6 +26,7 @@ the REX suite (gigabit-clowns), but depends on nothing else in it.
 | `python/rexlib_metadata/abc.py` | `Reader` and `Writer` |
 | `…/registry.py` | `MetadataRegistry`: picks reader, writer and bundles |
 | `…/schema.py`, `canonical.py` | The canonical columns and tables, from `docs/canonical.md` |
+| `…/pose.py` | The canonical transform, and Relion's angles to and from it |
 | `…/convention.py` | Convention interfaces and `ConventionBundle` |
 | `…/formats/` | One reader and writer per file format |
 | `…/conventions/` | One module of conventions per dialect: Relion, Xmipp |

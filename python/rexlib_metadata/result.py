@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from rexlib_metadata._arrow import as_arrow_table
+from rexlib_metadata._arrow import as_arrow_table, to_pandas
 from rexlib_metadata.convention import RawSchema, RawTable, as_bundles
 from rexlib_metadata.engine import (
     assigned,
@@ -97,7 +97,7 @@ class RawResult:
 
     def to_pandas(self) -> pd.DataFrame:
         """Read the file, if it has not been read, and return it as pandas."""
-        return self._one().to_pandas()
+        return to_pandas(self._one())
 
     def to_polars(self) -> pl.DataFrame:
         """Read the file, if it has not been read, and return it as polars."""
@@ -185,7 +185,7 @@ class Chunk:
 
     def to_pandas(self) -> pd.DataFrame:
         """Return the rows as pandas."""
-        return self._table.to_pandas()
+        return to_pandas(self._table)
 
     def to_polars(self) -> pl.DataFrame:
         """Return the rows as polars."""
@@ -261,7 +261,7 @@ class ReadResult:
 
     def to_pandas(self) -> pd.DataFrame:
         """Read the file, if it has not been read, and return it as pandas."""
-        return self._one().to_pandas()
+        return to_pandas(self._one())
 
     def to_polars(self) -> pl.DataFrame:
         """Read the file, if it has not been read, and return it as polars."""

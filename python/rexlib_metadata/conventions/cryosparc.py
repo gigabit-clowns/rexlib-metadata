@@ -3,31 +3,30 @@
 """What cryoSPARC's field names mean in canonical terms, read only.
 
 A pose is a rotation vector in radians, its direction the axis and its
-length the angle; it becomes Relion's ZYZ angles in degrees through the
-rotation matrix. A shift is in pixels of the alignment's `psize_A`, and
-the image index counts from zero, as the canonical form does. A path that
-starts with `>` is relative to the cryoSPARC project; the mark is dropped.
-An exposure group counts from zero and an optics group from one. A
-single-precision number is read as the shortest decimal that names it,
-2.7 rather than 2.700000047683716.
+length the angle; its rotation matrix is Relion's `A`. A shift is in
+pixels of the alignment's `psize_A`, and the image index counts from
+zero, as the canonical form does. A path that starts with `>` is
+relative to the cryoSPARC project; the mark is dropped. An exposure group
+counts from zero and an optics group from one. A single-precision number
+is read as the shortest decimal that names it, 2.7 rather than
+2.700000047683716.
 """
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
 import pyarrow as pa
 import pyarrow.compute as pc
 
+from rexlib_metadata import pose
 from rexlib_metadata.convention import ConventionBundle, ReadConvention
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     import numpy as np
 
     from rexlib_metadata.convention import ArrowColumn, RawSchema
+    from rexlib_metadata.pose import Matrix
 
 _AXES = 3
 
@@ -101,38 +100,28 @@ class Coordinates(_Fields):
 
 
 class Pose(_Fields):
-    """A 3D alignment's rotation vector, as Relion's three angles."""
+    """A 3D alignment's rotation vector and shift, as one transform.
 
-    source_columns = ("alignments3D/pose",)
-    target_columns = ("angle_rot", "angle_tilt", "angle_psi")
+    The shift is in pixels of the alignment's own size, and is zero where
+    the file has none.
+    """
 
-    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
-        """Return the rotation as ZYZ angles in degrees."""
-        vectors = _rows(table.column("alignments3D/pose"), _AXES)
-        rot, tilt, psi = _angles(_matrices(vectors))
-        return {
-            "angle_rot": pa.array(rot),
-            "angle_tilt": pa.array(tilt),
-            "angle_psi": pa.array(psi),
-        }
+    source_columns = (
+        "alignments3D/pose",
+        "alignments3D/shift",
+        "alignments3D/psize_A",
+    )
+    target_columns = ("transform",)
 
-
-class Shift(_Fields):
-    """A 3D alignment's shift, in pixels of its own size."""
-
-    source_columns = ("alignments3D/shift", "alignments3D/psize_A")
-    target_columns = ("shift_x", "shift_y")
+    def matches(self, raw: RawSchema) -> bool:
+        """Apply where the rotation vector is there."""
+        return raw.has(self.source_columns[0])
 
     def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
-        """Return the shift in Ångström."""
-        shift = table.column(self.source_columns[0])
-        x = _double(pc.list_element(shift, 0))
-        y = _double(pc.list_element(shift, 1))
-        size = _double(table.column(self.source_columns[1]))
-        return {
-            "shift_x": pc.multiply(x, size),
-            "shift_y": pc.multiply(y, size),
-        }
+        """Return the rotation as Relion's `A`, the shift in Ångström."""
+        vectors = _rows(table.column(self.source_columns[0]), _AXES)
+        a = _matrices(vectors)
+        return {"transform": pose.transforms(a, _origin(table))}
 
 
 class ParticleOpticsGroup(_Fields):
@@ -212,70 +201,45 @@ def _rows(column: ArrowColumn, width: int) -> np.ndarray:
     return np.asarray(flat, dtype=np.float64).reshape(-1, width)
 
 
-def _matrices(vectors: np.ndarray) -> dict[str, np.ndarray]:
-    """Return the entries of each vector's rotation, by Rodrigues' formula.
+def _origin(table: pa.Table) -> tuple[np.ndarray, ...]:
+    import numpy as np
 
-    Only the entries `_angles` reads, keyed by row and column. Every step
-    is one element at a time, so a row's angles do not depend on how many
-    rows are converted with it.
-    """
+    shift, size = Pose.source_columns[1:]
+    if not {shift, size}.issubset(table.column_names):
+        return tuple(np.zeros(table.num_rows) for _ in range(_AXES))
+    pixels = _rows(table.column(shift), 2)
+    angstrom = _double(table.column(size)).to_numpy()
+    x, y = (np.ascontiguousarray(pixels[:, i]) * angstrom for i in range(2))
+    return x, y, np.zeros(table.num_rows)
+
+
+def _matrices(vectors: np.ndarray) -> Matrix:
+    """Return each vector's rotation, by Rodrigues' formula."""
     import numpy as np
 
     x, y, z = (np.ascontiguousarray(vectors[:, i]) for i in range(_AXES))
     angle = np.sqrt(x * x + y * y + z * z)
     length = np.where(angle > 0, angle, 1.0)
     x, y, z = x / length, y / length, z / length
-    sin = _each(math.sin, angle)
-    turn = 1 - _each(math.cos, angle)
-    return {
-        "00": 1 - turn * (y * y + z * z),
-        "02": sin * y + turn * (x * z),
-        "10": sin * z + turn * (x * y),
-        "12": turn * (y * z) - sin * x,
-        "20": turn * (x * z) - sin * y,
-        "21": sin * x + turn * (y * z),
-        "22": 1 - turn * (x * x + y * y),
-    }
-
-
-def _each(
-    function: Callable[..., float], *arrays: np.ndarray
-) -> np.ndarray:
-    import numpy as np
-
-    each = np.frompyfunc(function, len(arrays), 1)
-    return np.asarray(each(*arrays), dtype=np.float64)
-
-
-def _angles(
-    a: dict[str, np.ndarray],
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return Relion's rot, tilt and psi of each rotation, in degrees.
-
-    As Relion's `Euler_matrix2angles`: where the tilt is 0 or 180 the
-    in-plane rotation is psi's and rot is 0.
-    """
-    import numpy as np
-
-    sin_tilt = _each(math.hypot, a["02"], a["12"])
-    general = sin_tilt > 16 * np.finfo(np.float64).eps
-    upright = a["22"] > 0
-    psi = np.where(
-        general,
-        _each(math.atan2, a["12"], -a["02"]),
-        np.where(
-            upright,
-            _each(math.atan2, -a["10"], a["00"]),
-            _each(math.atan2, a["10"], -a["00"]),
+    sin = pose.each("sin", angle)
+    turn = 1 - pose.each("cos", angle)
+    return (
+        (
+            1 - turn * (y * y + z * z),
+            turn * (x * y) - sin * z,
+            sin * y + turn * (x * z),
+        ),
+        (
+            sin * z + turn * (x * y),
+            1 - turn * (x * x + z * z),
+            turn * (y * z) - sin * x,
+        ),
+        (
+            turn * (x * z) - sin * y,
+            sin * x + turn * (y * z),
+            1 - turn * (x * x + y * y),
         ),
     )
-    rot = np.where(general, _each(math.atan2, a["21"], a["20"]), 0.0)
-    tilt = np.where(
-        general,
-        _each(math.atan2, sin_tilt, a["22"]),
-        np.where(upright, 0.0, np.pi),
-    )
-    return np.degrees(rot), np.degrees(tilt), np.degrees(psi)
 
 
 def cryosparc_bundle() -> ConventionBundle:
@@ -288,7 +252,6 @@ def cryosparc_bundle() -> ConventionBundle:
                 MicrographName(),
                 Coordinates(),
                 Pose(),
-                Shift(),
                 ParticleOpticsGroup(),
             ],
             "optics": [

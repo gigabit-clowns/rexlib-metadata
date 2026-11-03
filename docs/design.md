@@ -88,7 +88,7 @@ class.
 | Type | What it is |
 |---|---|
 | `ColumnDescriptor(name, dtype, unit=None, required=False, default=None)` | One canonical column. Required and defaulted at once raises. |
-| `SchemaTrait(name, columns)` | A reusable group (`EulerAngles`), flattened into the table; no run-time identity. |
+| `SchemaTrait(name, columns)` | A reusable group (`Sampling`), flattened into the table; no run-time identity. |
 | `TableSchema(name, *parts)` | One table, composed from traits and columns in order. |
 | `Relation(table, related, key)` | Each row of `table` points by `key` at one row of `related`. |
 | `Schema(*tables, relations=())` | One or more tables by unique name, and their relations. |
@@ -254,9 +254,9 @@ undeclared output raises, and a table nothing writes raises.
 ### Writing a convention
 
 ```python
-class MyAngles(ReadConvention):
-    source_columns = ("myAngle1", "myAngle2", "myAngle3")
-    target_columns = ("angle_rot", "angle_tilt", "angle_psi")
+class MyCoordinates(ReadConvention):
+    source_columns = ("myX", "myY")
+    target_columns = ("coord_x", "coord_y")
 
     def matches(self, raw: RawSchema) -> bool:
         return raw.has(*self.source_columns)
@@ -267,7 +267,7 @@ class MyAngles(ReadConvention):
             for source, target in zip(self.source_columns, self.target_columns)
         }
 
-bundle = ConventionBundle("mylab", read={"particles": [MyAngles()]})
+bundle = ConventionBundle("mylab", read={"particles": [MyCoordinates()]})
 global_registry.register_bundle(".star", bundle, prepend=True)
 ```
 
@@ -315,7 +315,7 @@ Text formats are paginated by the parser; SQLite by a cursor per table.
 import rexlib_metadata as rxm
 
 result = rxm.read("particles.star")
-result = rxm.read("particles.star", columns=["angle_rot"],
+result = rxm.read("particles.star", columns=["coord_x"],
                   bundle=relion4_bundle(), reader=StarReader())
 df = result.to_pandas()                      # or .to_polars()
 result.names                                 # canonical tables filled
@@ -326,11 +326,11 @@ for chunk in result["particles"].chunks(10_000):
 result.raw["particles"].to_pandas()          # the file's own names
 result.write("out.xmd")                      # converts
 
-result = rxm.read("particles.star", columns=["angle_rot"])
+result = rxm.read("particles.star", columns=["coord_x"])
 df = result.to_pandas()
-df["angle_rot"] += 10
+df["coord_x"] += 10
 result.write("out.star", updates=df)         # every other column forwarded
-kept = df[df["angle_rot"] > 0]
+kept = df[df["coord_x"] > 0]
 result.write("subset.star", rows=kept.index, updates=kept)
 
 rxm.write("new.star", {"particles": frame})  # canonical tables from memory
@@ -354,7 +354,7 @@ FREALIGN `.par` and the cryoSPARC CSV, not read yet, are in
   order, linear in their number; unmeasured at the Relion bundle's full size.
 - **Content-based detection.** Which bytes decide, and how far a sniff may
   read.
-- **The rotation convention's signs**, unverified against real files (see
+- **cryoSPARC's rotation**, unverified against real files (see
   [canonical.md](canonical.md)).
 
 ## References

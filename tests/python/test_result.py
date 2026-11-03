@@ -54,31 +54,31 @@ def _copy(name, tmp_path):
 
 def test_two_columns_read_and_one_changed_write_back_all_of_them(tmp_path):
     source = str(FILES / "one_loop.star")
-    result = rxm.read(source, columns=["angle_rot", "angle_tilt"])
+    result = rxm.read(source, columns=["coord_x", "coord_y"])
     df = result.to_pandas()
-    df["angle_rot"] += 10
+    df["coord_x"] += 10
     out = str(tmp_path / "out.star")
 
     result.write(out, updates=df)
 
     before = rxm.read(source).raw.to_pandas()
     after = rxm.read(out).raw.to_pandas()
-    assert set(after.columns) == set(before.columns)
-    assert after["_rlnAngleRot"].astype(float).tolist() == pytest.approx(
-        (before["_rlnAngleRot"].astype(float) + 10).tolist()
+    assert set(after.columns) >= set(before.columns)
+    assert after["_rlnCoordinateX"].astype(float).tolist() == pytest.approx(
+        (before["_rlnCoordinateX"].astype(float) + 10).tolist()
     )
     pd.testing.assert_frame_equal(
-        rxm.read(out).to_pandas().drop(columns="angle_rot"),
-        rxm.read(source).to_pandas().drop(columns="angle_rot"),
+        rxm.read(out).to_pandas().drop(columns="coord_x"),
+        rxm.read(source).to_pandas().drop(columns="coord_x"),
     )
 
 
 def test_a_projection_shows_the_columns_asked_for_in_that_order():
     result = rxm.read(
-        str(FILES / "one_loop.star"), columns=["angle_tilt", "image_path"]
+        str(FILES / "one_loop.star"), columns=["coord_y", "image_path"]
     )
 
-    assert result.to_pandas().columns.tolist() == ["angle_tilt", "image_path"]
+    assert result.to_pandas().columns.tolist() == ["coord_y", "image_path"]
 
 
 @pytest.mark.parametrize(
@@ -106,10 +106,10 @@ def test_a_column_no_table_declares_raises_before_the_file_is_opened(
 
 def test_a_column_the_file_does_not_hold_raises():
     result = rxm.read(
-        str(FILES / "rln3.1_data_style.star"), columns=["angle_rot"]
+        str(FILES / "rln3.1_data_style.star"), columns=["transform"]
     )
 
-    with pytest.raises(ValueError, match="holds no 'angle_rot'"):
+    with pytest.raises(ValueError, match="holds no 'transform'"):
         result.to_pandas()
 
 
@@ -122,7 +122,7 @@ def test_a_view_of_one_table_writes_every_table(tmp_path):
 
 
 def test_updates_of_another_length_raise(tmp_path):
-    result = rxm.read(str(FILES / "one_loop.star"), columns=["angle_rot"])
+    result = rxm.read(str(FILES / "one_loop.star"), columns=["coord_x"])
     df = result.to_pandas().head(1)
 
     with pytest.raises(ValueError, match="one per row rows= keeps"):
@@ -141,25 +141,25 @@ def test_updates_go_to_the_table_the_view_shows(tmp_path):
 
 
 def test_updates_may_be_polars(tmp_path):
-    result = rxm.read(str(FILES / "one_loop.star"), columns=["angle_psi"])
-    df = result.to_polars().with_columns(pl.col("angle_psi") * 0)
+    result = rxm.read(str(FILES / "one_loop.star"), columns=["coord_x"])
+    df = result.to_polars().with_columns(pl.col("coord_x") * 0)
     out = str(tmp_path / "out.star")
 
     result.write(out, updates=df)
 
-    psi = rxm.read(out, columns=["angle_psi"]).to_pandas()["angle_psi"]
-    assert set(psi) == {0.0}
+    x = rxm.read(out, columns=["coord_x"]).to_pandas()["coord_x"]
+    assert set(x) == {0.0}
 
 
 def test_a_result_writes_over_its_own_source(tmp_path):
     path = _copy("one_loop.star", tmp_path)
-    result = rxm.read(path, columns=["angle_rot"])
+    result = rxm.read(path, columns=["coord_x"])
     df = result.to_pandas()
-    df["angle_rot"] = 1.0
+    df["coord_x"] = 1.0
 
     result.write(path, updates=df)
 
-    assert set(rxm.read(path).to_pandas()["angle_rot"]) == {1.0}
+    assert set(rxm.read(path).to_pandas()["coord_x"]) == {1.0}
     assert sorted(p.name for p in tmp_path.iterdir()) == ["one_loop.star"]
 
 

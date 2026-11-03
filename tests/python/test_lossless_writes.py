@@ -4,10 +4,12 @@ import math
 import shutil
 from pathlib import Path
 
+import numpy as np
 import pyarrow as pa
 import pytest
 
 import rexlib_metadata as rxm
+from rexlib_metadata import pose
 from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.conventions.relion import (
     WriteImageReference,
@@ -78,21 +80,30 @@ def test_a_write_that_would_hold_nothing_raises_and_leaves_the_file(tmp_path):
     assert out.read_text() == "kept"
 
 
+def _turned(psi):
+    zero = np.zeros(len(psi))
+    a = pose.euler_matrix(zero, zero, np.array(psi))
+    return pa.table({"transform": pose.transforms(a, (zero, zero, zero))})
+
+
 def test_an_in_plane_angle_reads_on_its_own(tmp_path):
     df = rxm.read(psi_only(tmp_path))["particles"].to_pandas()
 
-    assert df["angle_psi"].tolist() == [10.0, 20.0]
-    assert "angle_rot" not in df.columns
+    rot, tilt, psi = pose.euler(df["transform"])
+
+    assert psi.tolist() == pytest.approx([10.0, 20.0])
+    assert rot.tolist() == tilt.tolist() == [0.0, 0.0]
 
 
-def test_an_update_to_an_angle_on_its_own_reaches_the_file(tmp_path):
+def test_an_update_to_a_pose_reaches_the_file(tmp_path):
     out = tmp_path / "out.star"
     particles = rxm.read(psi_only(tmp_path))["particles"]
 
-    particles.write(str(out), updates=pa.table({"angle_psi": [99.0, 98.0]}))
+    particles.write(str(out), updates=_turned([99.0, 98.0]))
 
-    again = rxm.read(str(out))["particles"].to_pandas()
-    assert again["angle_psi"].tolist() == [99.0, 98.0]
+    again = rxm.read(str(out)).raw["particles"].to_pandas()
+    assert again["_rlnAnglePsi"].tolist() == ["99", "98"]
+    assert again["_rlnOriginXAngst"].tolist() == ["0", "0"]
 
 
 def test_an_update_no_convention_writes_raises(tmp_path):
@@ -100,10 +111,10 @@ def test_an_update_no_convention_writes_raises(tmp_path):
         "images", write={"particles": [WriteImageReference()]}
     )
     particles = rxm.read(psi_only(tmp_path))["particles"]
-    updates = pa.table({"angle_psi": [99.0, 98.0]})
     out = str(tmp_path / "out.star")
+    updates = _turned([99.0, 98.0])
 
-    with pytest.raises(ValueError, match="'angle_psi'"):
+    with pytest.raises(ValueError, match="'transform'"):
         particles.write(out, bundle=images, updates=updates)
 
 
@@ -131,21 +142,33 @@ def test_a_writer_named_as_the_registered_one_is_the_same_format(tmp_path):
 def test_a_missing_number_survives_a_round_trip(tmp_path):
     out = tmp_path / "out.star"
     particles = rxm.read(str(STAR / "relion3.1_subtomo.star"))["particles"]
-    updates = particles.to_pandas()[["shift_x"]]
-    updates.loc[0, "shift_x"] = math.nan
+    updates = particles.to_pandas()[["coord_x"]]
+    updates.loc[0, "coord_x"] = math.nan
 
     particles.write(str(out), updates=updates)
 
     again = rxm.read(str(out))["particles"].to_pandas()
-    assert math.isnan(again["shift_x"][0])
-    assert again["shift_x"][1] == updates["shift_x"][1]
+    assert math.isnan(again["coord_x"][0])
+    assert again["coord_x"][1] == updates["coord_x"][1]
 
 
-def test_an_empty_number_in_a_file_reads_as_missing(tmp_path):
+def test_an_empty_angle_in_a_file_is_no_turn(tmp_path):
     path = tmp_path / "empty.star"
     path.write_text(PSI_ONLY.replace("10.0 1.0", '"" 1.0'))
 
     df = rxm.read(str(path))["particles"].to_pandas()
 
-    assert math.isnan(df["angle_psi"][0])
-    assert df["angle_psi"][1] == 20.0
+    _, _, psi = pose.euler(df["transform"])
+    assert psi.tolist() == pytest.approx([0.0, 20.0])
+
+
+def test_a_null_pose_is_written_empty(tmp_path):
+    out = tmp_path / "out.star"
+    particles = rxm.read(psi_only(tmp_path))["particles"]
+    updates = _turned([99.0, 98.0])
+    nulled = pa.array([None, updates.column(0)[1].as_py()], pose.TRANSFORM)
+
+    particles.write(str(out), updates=pa.table({"transform": nulled}))
+
+    again = rxm.read(str(out)).raw["particles"].to_pandas()
+    assert again["_rlnAnglePsi"].tolist() == ["", "98"]

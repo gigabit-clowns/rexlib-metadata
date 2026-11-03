@@ -64,8 +64,9 @@ text. Read only. The canonical mapping is in [canonical.md](canonical.md).
 
 What it shows:
 
-- **M:N.** `alignments3D/pose` is one source column for three canonical
-  angles, which `ReadConvention` already allows.
+- **M:N.** `alignments3D/pose`, `…/shift` and `…/psize_A` are three source
+  columns for one canonical transform, which `ReadConvention` already
+  allows.
 - **Units.** Radians and pixels where the canonical form has degrees and Å;
   the CSV carries `angast_deg` and `angast_rad` both. The convention that
   reads a column converts it.

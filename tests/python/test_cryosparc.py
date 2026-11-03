@@ -3,13 +3,15 @@
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import pyarrow as pa
 import pytest
 
 import rexlib_metadata as rxm
+from rexlib_metadata import pose
 from rexlib_metadata.conventions.cryosparc import Pose
 from rexlib_metadata.formats.cryosparc import CsReader
+
+from .frames import assert_same
 
 FILES = Path(__file__).parent.parent / "files"
 CS = FILES / "cs" / "J114_particles_exported.cs"
@@ -78,32 +80,33 @@ def test_the_particles_come_back_canonical(_raw):
     assert df["coord_x"].tolist() == pytest.approx(expected_x.tolist())
 
 
-def test_a_pose_becomes_the_angles_of_the_same_rotation(_raw):
+def test_a_pose_becomes_the_transpose_of_its_rotation(_raw):
     df = rxm.read(str(CS))["particles"].to_pandas()
 
-    for row, pose in enumerate(_raw["alignments3D/pose"].astype(float)):
-        angles = df.loc[row, ["angle_rot", "angle_tilt", "angle_psi"]]
+    rotations = pose.matrices(df["transform"])[:, :, :3]
+
+    for row, vector in enumerate(_raw["alignments3D/pose"].astype(float)):
         np.testing.assert_allclose(
-            _relion_matrix(*angles), _rodrigues(pose), atol=1e-9
+            rotations[row], _rodrigues(vector).T, atol=1e-6
         )
 
 
 @pytest.mark.parametrize(
-    "pose",
+    "vector",
     [
         pytest.param([0.0, 0.0, 0.0], id="none"),
         pytest.param([0.0, 0.0, 0.7], id="in-plane-only"),
         pytest.param([np.pi, 0.0, 0.0], id="upside-down"),
     ],
 )
-def test_a_pose_with_no_tilt_or_a_half_turn_is_still_the_rotation(pose):
-    column = pa.array([pose], pa.list_(pa.float32(), 3))
+def test_a_pose_with_no_tilt_or_a_half_turn_is_still_the_rotation(vector):
+    column = pa.array([vector], pa.list_(pa.float32(), 3))
 
     out = Pose().load(pa.table({"alignments3D/pose": column}))
 
-    angles = [out[n][0].as_py() for n in Pose.target_columns]
+    angles = [angle[0] for angle in pose.euler(out["transform"])]
     np.testing.assert_allclose(
-        _relion_matrix(*angles), _rodrigues(np.array(pose)), atol=1e-6
+        _relion_matrix(*angles), _rodrigues(np.array(vector)), atol=1e-6
     )
 
 
@@ -123,9 +126,11 @@ def test_a_pose_comes_back_the_same_whatever_rows_it_is_read_with():
 def test_a_shift_comes_back_in_angstrom(_raw):
     df = rxm.read(str(CS))["particles"].to_pandas()
 
+    _, origin = pose.relion(df["transform"])
     size = _raw["alignments3D/psize_A"].astype(float)
     expected = _raw["alignments3D/shift"][:, 0].astype(float) * size
-    assert df["shift_x"].tolist() == pytest.approx(expected.tolist())
+    assert origin[0].tolist() == pytest.approx(expected.tolist(), abs=1e-4)
+    assert origin[2].tolist() == pytest.approx([0.0] * len(df), abs=1e-4)
 
 
 def test_the_optics_are_one_row_per_exposure_group_counted_from_one(_raw):
@@ -149,9 +154,7 @@ def test_a_cs_file_converts_to_relion(tmp_path):
     again = rxm.read(out)
     assert again.raw.names == ("optics", "particles")
     for name in source.names:
-        pd.testing.assert_frame_equal(
-            again[name].to_pandas(), source[name].to_pandas()
-        )
+        assert_same(again[name].to_pandas(), source[name].to_pandas())
 
 
 @pytest.mark.parametrize(

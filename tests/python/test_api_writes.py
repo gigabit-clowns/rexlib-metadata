@@ -4,26 +4,27 @@ from pathlib import Path
 
 import pandas as pd
 import polars as pl
-import pyarrow as pa
-import pyarrow.compute as pc
 import pytest
 
 import rexlib_metadata as rxm
+from rexlib_metadata import pose
 from rexlib_metadata.convention import ConventionBundle
-from rexlib_metadata.conventions.relion import AngleRot, relion4_bundle
+from rexlib_metadata.conventions.relion import Pose, relion4_bundle
+
+from .frames import assert_same
 
 FILES = Path(__file__).parent.parent / "files" / "star"
 SUBTOMO = str(FILES / "relion3.1_subtomo.star")
 
 
-class TurnedAngleRot(AngleRot):
-    def load(self, table):
-        (column,) = super().load(table).values()
-        return {"angle_rot": pc.add(column, pa.scalar(90.0))}
+class MovedPose(Pose):
+    def offsets(self, table):
+        x, y, z = super().offsets(table)
+        return x + 1.0, y, z
 
 
 def mylab():
-    return ConventionBundle("mylab", read={"particles": [TurnedAngleRot()]})
+    return ConventionBundle("mylab", read={"particles": [MovedPose()]})
 
 
 def test_a_bundle_of_your_own_goes_in_front_of_relions():
@@ -32,8 +33,11 @@ def test_a_bundle_of_your_own_goes_in_front_of_relions():
     layered = rxm.read(SUBTOMO, bundle=[mylab(), relion4_bundle()])
     df = layered["particles"].to_pandas()
 
-    assert df["angle_rot"].tolist() == (plain["angle_rot"] + 90).tolist()
-    assert df["shift_x"].tolist() == plain["shift_x"].tolist()
+    a, origin = pose.relion(df["transform"])
+    plain_a, plain_origin = pose.relion(plain["transform"])
+    assert origin[0] == pytest.approx(plain_origin[0] + 1.0, abs=1e-5)
+    assert a[0][0] == pytest.approx(plain_a[0][0])
+    assert df["coord_x"].tolist() == plain["coord_x"].tolist()
 
 
 def test_a_write_takes_several_bundles_too(tmp_path):
@@ -53,7 +57,7 @@ def test_frames_read_from_a_file_write_back_the_same(tmp_path):
 
     again = rxm.read(out)
     for name, frame in tables.items():
-        pd.testing.assert_frame_equal(again[name].to_pandas(), frame)
+        assert_same(again[name].to_pandas(), frame)
 
 
 def test_frames_built_in_memory_write_a_star_file(tmp_path):
@@ -130,13 +134,13 @@ def test_a_joined_view_writes_its_own_columns_back(tmp_path):
     out = tmp_path / "out.star"
     view = rxm.read(SUBTOMO).joined("particles")
     flat = view.to_pandas()
-    flat["angle_rot"] += 1.0
+    flat["coord_x"] += 1.0
 
     view.write(str(out), updates=flat)
 
     again = rxm.read(str(out))
-    turned = again["particles"].to_pandas()["angle_rot"].tolist()
-    assert turned == pytest.approx(flat["angle_rot"].tolist())
+    moved = again["particles"].to_pandas()["coord_x"].tolist()
+    assert moved == pytest.approx(flat["coord_x"].tolist())
     assert again["optics"].to_pandas()["pixel_size"].tolist() == [5.0]
 
 

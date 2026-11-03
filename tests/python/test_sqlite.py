@@ -179,7 +179,7 @@ def test_a_canonical_read_of_some_columns_reads_a_file_of_tables(tmp_path):
     path = str(tmp_path / "subtomo.sqlite")
     rxm.read(str(star / "relion3.1_subtomo.star")).raw.write(path)
 
-    result = rxm.read(path, columns=["angle_rot"], bundle=relion4_bundle())
+    result = rxm.read(path, columns=["transform"], bundle=relion4_bundle())
 
     assert len(result["particles"].to_pandas()) == 57
 

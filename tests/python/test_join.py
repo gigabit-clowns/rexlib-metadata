@@ -96,12 +96,12 @@ def test_particles_naming_no_optics_group_join_nothing():
 def test_naming_columns_of_both_tables_joins_them():
     result = rxm.read(
         str(STAR / "relion3.1_subtomo.star"),
-        columns=["shift_x", "pixel_size"],
+        columns=["coord_x", "pixel_size"],
     )
 
     flat = result.joined("particles").to_pandas()
 
-    assert list(flat.columns) == ["shift_x", "pixel_size"]
+    assert list(flat.columns) == ["coord_x", "pixel_size"]
     assert flat["pixel_size"].tolist() == [5.0] * 57
 
 

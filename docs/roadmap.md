@@ -49,12 +49,12 @@ Dropped: no cryo-EM program in use exchanges particle tables as HDF5.
 ## Phase 9b — cryoSPARC `.cs`
 
 Done: `CsReader` (the `cryosparc` extra) and a read-only `cryosparc` bundle:
-image, micrograph, coordinates, pose as Relion's angles, shifts, exposure
+image, micrograph, coordinates, pose and shift as one transform, exposure
 groups as optics.
 
 - [ ] Writing `.cs`, if a user asks for it
 - [ ] `alignments2D` (in-plane pose and shift): a second bundle, since one
-      bundle cannot produce `angle_psi` twice
+      bundle cannot produce `transform` twice
 
 ## Phase 10 — open
 

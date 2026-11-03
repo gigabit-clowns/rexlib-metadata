@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import pyarrow as pa
 
+from rexlib_metadata.pose import TRANSFORM
 from rexlib_metadata.schema import (
     ColumnDescriptor,
     Relation,
@@ -36,22 +37,9 @@ CARTESIAN_POSITION = SchemaTrait(
     ),
 )
 
-EULER_ANGLES = SchemaTrait(
-    "euler_angles",
-    (
-        ColumnDescriptor("angle_rot", pa.float64(), unit="degrees"),
-        ColumnDescriptor("angle_tilt", pa.float64(), unit="degrees"),
-        ColumnDescriptor("angle_psi", pa.float64(), unit="degrees"),
-    ),
-)
-
-SHIFT = SchemaTrait(
-    "shift",
-    (
-        ColumnDescriptor("shift_x", pa.float64(), unit="A"),
-        ColumnDescriptor("shift_y", pa.float64(), unit="A"),
-        ColumnDescriptor("shift_z", pa.float64(), unit="A"),
-    ),
+POSE = SchemaTrait(
+    "pose",
+    (ColumnDescriptor("transform", TRANSFORM, unit="A"),),
 )
 
 CTF_QUALITY = SchemaTrait(
@@ -96,8 +84,7 @@ PARTICLES = TableSchema(
     IMAGE_REFERENCE,
     MICROGRAPH,
     CARTESIAN_POSITION,
-    EULER_ANGLES,
-    SHIFT,
+    POSE,
     CTF_QUALITY,
     OPTICS_KEY,
 )

@@ -16,10 +16,13 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from rexlib_metadata.convention import ConventionBundle, ReadConvention
+from rexlib_metadata.conventions import relion
 from rexlib_metadata.conventions.relion import parsed
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
+
+    import numpy as np
 
     from rexlib_metadata.convention import ArrowColumn, RawSchema
 
@@ -85,31 +88,24 @@ class PixelSize(_Relion30):
         return {"pixel_size": _pixel_size(table)}
 
 
-class Origin(_Relion30):
-    """The offset from the box centre, written in pixels."""
+class Pose(relion.Pose):
+    """Relion's angles with Relion 3.0's origin, in pixels."""
 
-    source_columns = ("_rlnOriginX", "_rlnOriginY", *_DETECTOR)
-    target_columns = ("shift_x", "shift_y")
+    origin = relion.PIXEL_ORIGIN
+    source_columns = (*relion.Pose.angles, *origin, *_DETECTOR)
 
-    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
-        """Return each offset in Ångström."""
-        size = _pixel_size(table)
-        return {
-            "shift_x": _in_angstrom(table, "_rlnOriginX", size),
-            "shift_y": _in_angstrom(table, "_rlnOriginY", size),
-        }
+    def matches(self, raw: RawSchema) -> bool:
+        """Apply where an origin in pixels has a detector to scale it."""
+        return (
+            not raw.has("_rlnOpticsGroup")
+            and relion.any_of(raw, self.origin)
+            and raw.has(*_DETECTOR)
+        )
 
-
-class OriginZ(_Relion30):
-    """The third offset, which only a subtomogram has, in pixels."""
-
-    source_columns = ("_rlnOriginZ", *_DETECTOR)
-    target_columns = ("shift_z",)
-
-    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
-        """Return the offset in Ångström."""
-        size = _pixel_size(table)
-        return {"shift_z": _in_angstrom(table, "_rlnOriginZ", size)}
+    def offsets(self, table: pa.Table) -> tuple[np.ndarray, ...]:
+        """Return each row's origin in Ångström."""
+        size = _pixel_size(table).to_numpy()
+        return tuple(relion.numbers(table, n) * size for n in self.origin)
 
 
 def _setting(table: pa.Table) -> ArrowColumn:
@@ -123,12 +119,6 @@ def _pixel_size(table: pa.Table) -> ArrowColumn:
     return pc.divide(pc.multiply(detector, 1e4), magnification)
 
 
-def _in_angstrom(
-    table: pa.Table, column: str, size: ArrowColumn
-) -> ArrowColumn:
-    return pc.multiply(parsed(table.column(column), pa.float64()), size)
-
-
 def relion3_bundle() -> ConventionBundle:
     """Return the conventions that read a Relion 3.0 file.
 
@@ -138,7 +128,7 @@ def relion3_bundle() -> ConventionBundle:
     return ConventionBundle(
         "relion3",
         read={
-            "particles": [OpticsGroup(), Origin(), OriginZ()],
+            "particles": [OpticsGroup(), Pose()],
             "optics": [OpticsGroup(), PixelSize()],
             "micrographs": [OpticsGroup()],
         },

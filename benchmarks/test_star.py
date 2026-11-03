@@ -19,7 +19,7 @@ def test_read_the_canonical_particles(particles_star):
 
 @pytest.mark.benchmark
 def test_read_two_canonical_columns(particles_star):
-    rxm.read(str(particles_star), columns=["angle_rot", "angle_tilt"])[
+    rxm.read(str(particles_star), columns=["coord_x", "coord_y"])[
         "particles"
     ].to_pandas()
 
