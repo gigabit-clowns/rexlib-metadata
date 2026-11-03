@@ -107,6 +107,19 @@ def test_a_pose_with_no_tilt_or_a_half_turn_is_still_the_rotation(pose):
     )
 
 
+def test_a_pose_comes_back_the_same_whatever_rows_it_is_read_with():
+    rng = np.random.default_rng(7)
+    poses = pa.array(list(rng.normal(size=(37, 3))), pa.list_(pa.float32()))
+    table = pa.table({"alignments3D/pose": poses})
+
+    whole = Pose().load(table)
+    alone = [Pose().load(table.slice(row, 1)) for row in range(len(table))]
+
+    for name, column in whole.items():
+        rows = [one[name].to_pylist()[0] for one in alone]
+        assert column.to_pylist() == rows
+
+
 def test_a_shift_comes_back_in_angstrom(_raw):
     df = rxm.read(str(CS))["particles"].to_pandas()
 

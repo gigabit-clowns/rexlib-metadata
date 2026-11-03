@@ -14,6 +14,7 @@ single-precision number is read as the shortest decimal that names it,
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 import pyarrow as pa
@@ -22,6 +23,8 @@ import pyarrow.compute as pc
 from rexlib_metadata.convention import ConventionBundle, ReadConvention
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import numpy as np
 
     from rexlib_metadata.convention import ArrowColumn, RawSchema
@@ -209,59 +212,67 @@ def _rows(column: ArrowColumn, width: int) -> np.ndarray:
     return np.asarray(flat, dtype=np.float64).reshape(-1, width)
 
 
-def _matrices(vectors: np.ndarray) -> np.ndarray:
-    """Return the rotation each vector stands for, by Rodrigues' formula."""
+def _matrices(vectors: np.ndarray) -> dict[str, np.ndarray]:
+    """Return the entries of each vector's rotation, by Rodrigues' formula.
+
+    Only the entries `_angles` reads, keyed by row and column. Every step
+    is one element at a time, so a row's angles do not depend on how many
+    rows are converted with it.
+    """
     import numpy as np
 
-    angle = np.linalg.norm(vectors, axis=1)
-    axis = np.divide(
-        vectors,
-        angle[:, None],
-        out=np.zeros_like(vectors),
-        where=angle[:, None] > 0,
-    )
-    x, y, z = axis.T
-    zero = np.zeros_like(x)
-    cross = np.stack(
-        [
-            np.stack([zero, -z, y], axis=1),
-            np.stack([z, zero, -x], axis=1),
-            np.stack([-y, x, zero], axis=1),
-        ],
-        axis=1,
-    )
-    sin = np.sin(angle)[:, None, None]
-    cos = np.cos(angle)[:, None, None]
-    return np.eye(_AXES) + sin * cross + (1 - cos) * (cross @ cross)
+    x, y, z = (np.ascontiguousarray(vectors[:, i]) for i in range(_AXES))
+    angle = np.sqrt(x * x + y * y + z * z)
+    length = np.where(angle > 0, angle, 1.0)
+    x, y, z = x / length, y / length, z / length
+    sin = _each(math.sin, angle)
+    turn = 1 - _each(math.cos, angle)
+    return {
+        "00": 1 - turn * (y * y + z * z),
+        "02": sin * y + turn * (x * z),
+        "10": sin * z + turn * (x * y),
+        "12": turn * (y * z) - sin * x,
+        "20": turn * (x * z) - sin * y,
+        "21": sin * x + turn * (y * z),
+        "22": 1 - turn * (x * x + y * y),
+    }
+
+
+def _each(
+    function: Callable[..., float], *arrays: np.ndarray
+) -> np.ndarray:
+    import numpy as np
+
+    each = np.frompyfunc(function, len(arrays), 1)
+    return np.asarray(each(*arrays), dtype=np.float64)
 
 
 def _angles(
-    matrices: np.ndarray,
+    a: dict[str, np.ndarray],
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return Relion's rot, tilt and psi of each matrix, in degrees.
+    """Return Relion's rot, tilt and psi of each rotation, in degrees.
 
     As Relion's `Euler_matrix2angles`: where the tilt is 0 or 180 the
     in-plane rotation is psi's and rot is 0.
     """
     import numpy as np
 
-    a = matrices
-    sin_tilt = np.hypot(a[:, 0, 2], a[:, 1, 2])
+    sin_tilt = _each(math.hypot, a["02"], a["12"])
     general = sin_tilt > 16 * np.finfo(np.float64).eps
-    upright = a[:, 2, 2] > 0
+    upright = a["22"] > 0
     psi = np.where(
         general,
-        np.arctan2(a[:, 1, 2], -a[:, 0, 2]),
+        _each(math.atan2, a["12"], -a["02"]),
         np.where(
             upright,
-            np.arctan2(-a[:, 1, 0], a[:, 0, 0]),
-            np.arctan2(a[:, 1, 0], -a[:, 0, 0]),
+            _each(math.atan2, -a["10"], a["00"]),
+            _each(math.atan2, a["10"], -a["00"]),
         ),
     )
-    rot = np.where(general, np.arctan2(a[:, 2, 1], a[:, 2, 0]), 0.0)
+    rot = np.where(general, _each(math.atan2, a["21"], a["20"]), 0.0)
     tilt = np.where(
         general,
-        np.arctan2(sin_tilt, a[:, 2, 2]),
+        _each(math.atan2, sin_tilt, a["22"]),
         np.where(upright, 0.0, np.pi),
     )
     return np.degrees(rot), np.degrees(tilt), np.degrees(psi)
