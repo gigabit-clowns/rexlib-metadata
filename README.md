@@ -1,6 +1,6 @@
 # rexlib-metadata
 
-Highly performant reader and writer of CryoEM metadata formats (STAR, XMD, SQLite), to and from Pandas, Polars or Arrow tables. Rust core, Python API, extensible by design.
+Highly performant reader and writer of CryoEM metadata formats (STAR, XMD, SQLite, cryoSPARC), to and from Pandas, Polars or Arrow tables. Rust core, Python API, extensible by design.
 
 [![Build and Test](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml)
 [![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/gigabit-clowns/rexlib-metadata)
@@ -63,6 +63,7 @@ also benchmarked against `main` on
 ```bash
 pip install rexlib-metadata           # Arrow, through pyarrow
 pip install rexlib-metadata[pandas]   # or [polars], [pandas,polars]
+pip install rexlib-metadata[cryosparc]  # cryoSPARC .cs, through NumPy
 ```
 
 Requires Python ≥ 3.10.

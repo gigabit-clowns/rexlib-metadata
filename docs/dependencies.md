@@ -9,6 +9,7 @@
 | `tempfile` (dev) | Files for the parser tests |
 | `pyarrow` | The Python half of the bridge; the only hard runtime dependency |
 | `pandas`, `polars` | Extras, one per output backend |
+| `numpy` | The `cryosparc` extra, imported only when a `.cs` is opened |
 
 What is not obvious from the manifests:
 

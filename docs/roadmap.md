@@ -46,6 +46,16 @@ paginated through one cursor per table.
 
 Dropped: no cryo-EM program in use exchanges particle tables as HDF5.
 
+## Phase 9b — cryoSPARC `.cs`
+
+Done: `CsReader` (the `cryosparc` extra) and a read-only `cryosparc` bundle:
+image, micrograph, coordinates, pose as Relion's angles, shifts, exposure
+groups as optics.
+
+- [ ] Writing `.cs`, if a user asks for it
+- [ ] `alignments2D` (in-plane pose and shift): a second bundle, since one
+      bundle cannot produce `angle_psi` twice
+
 ## Phase 10 — open
 
 - [ ] CodSpeed's check required by the ruleset, its threshold in `docs/ci.md`

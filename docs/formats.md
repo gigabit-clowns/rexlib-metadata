@@ -58,9 +58,9 @@ fixture).
 | `ctf/phase_shift_rad` | `<f4` | likewise |
 | `blob/psize_A` | `<f4` | pixel size, per row |
 
-Needs a NumPy-dtype-to-Arrow mapping: `fixed_size_list` for subarrays,
-bytes to string for `S` fields. `ColumnDescriptor.dtype` already holds either.
-Not read yet.
+Read by `formats/cryosparc.py` (the `cryosparc` extra, NumPy), mapped rather
+than loaded: one table `""`, a subarray as a `fixed_size_list`, bytes as
+text. Read only. The canonical mapping is in [canonical.md](canonical.md).
 
 What it shows:
 

@@ -21,7 +21,7 @@ A second push to the same ref cancels the run in flight.
 | `sonar-scan` | hands the three reports to SonarQube Cloud |
 
 - One extra cell, Linux on 3.10, installs the **floor** of every range
-  (pyarrow, polars, pandas) instead of the newest.
+  (pyarrow, polars, pandas, numpy) instead of the newest.
 - `fail-fast` is off. The Rust build is cached per platform, written only by
   `main`; the pip job sets `CARGO_TARGET_DIR` so maturin's build is cached.
 - Actions are pinned by digest except the organisation's own, taken from
