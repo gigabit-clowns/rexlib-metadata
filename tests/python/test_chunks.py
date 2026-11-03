@@ -244,14 +244,26 @@ def test_a_chunked_read_skips_the_blocks_before_its_own(tmp_path):
     )
 
 
-def test_a_block_holding_both_tables_fills_both(tmp_path):
-    content = (
-        "data_\n\nloop_\n_rlnImageName\n_rlnOpticsGroup\n"
-        "_rlnImagePixelSize\n000001@a.mrcs 1 1.5\n"
+def _both(tmp_path, *rows):
+    header = (
+        "data_\n\nloop_\n_rlnImageName\n_rlnOpticsGroup\n_rlnImagePixelSize\n"
     )
-    result = rxm.read(file_of(tmp_path, content))
+    body = "".join(f"{row}\n" for row in rows)
+    return rxm.read(file_of(tmp_path, header + body))
+
+
+def test_a_block_holding_both_tables_fills_both_one_row_per_group(tmp_path):
+    result = _both(tmp_path, "1@a.mrcs 1 1.5", "2@a.mrcs 1 1.5")
 
     assert result.names == ("particles", "optics")
-    (chunk,) = result["optics"].chunks(5)
-    assert chunk.to_pandas()["pixel_size"].tolist() == [1.5]
+    assert result["optics"].to_pandas()["pixel_size"].tolist() == [1.5]
+    stream = result["optics"].chunks(5)
+    with pytest.raises(ValueError, match="read it whole"):
+        next(stream)
 
+
+def test_rows_of_one_group_that_disagree_are_refused(tmp_path):
+    result = _both(tmp_path, "1@a.mrcs 1 1.5", "2@a.mrcs 1 2.0")
+
+    with pytest.raises(ValueError, match="disagree on 'pixel_size'"):
+        result["optics"].to_pandas()

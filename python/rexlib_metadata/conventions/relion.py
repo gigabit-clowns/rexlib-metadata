@@ -139,15 +139,25 @@ class OpticsGroup(_Renaming):
     dtype = pa.int32()
 
 
-class Microscope(_Renaming):
-    """What the microscope was set to."""
+class Voltage(_Renaming):
+    """The accelerating voltage, in kV."""
 
-    source_columns = (
-        "_rlnVoltage",
-        "_rlnSphericalAberration",
-        "_rlnAmplitudeContrast",
-    )
-    target_columns = ("voltage", "spherical_aberration", "amplitude_contrast")
+    source_columns = ("_rlnVoltage",)
+    target_columns = ("voltage",)
+
+
+class SphericalAberration(_Renaming):
+    """The spherical aberration, in mm."""
+
+    source_columns = ("_rlnSphericalAberration",)
+    target_columns = ("spherical_aberration",)
+
+
+class AmplitudeContrast(_Renaming):
+    """The fraction of contrast that is amplitude contrast."""
+
+    source_columns = ("_rlnAmplitudeContrast",)
+    target_columns = ("amplitude_contrast",)
 
 
 class PixelSize(_Renaming):
@@ -288,19 +298,25 @@ class WriteOpticsGroup(_Spelling):
     target_columns = ("_rlnOpticsGroup",)
 
 
-class WriteMicroscope(_Spelling):
-    """What the microscope was set to."""
+class WriteVoltage(_Spelling):
+    """The accelerating voltage, in kV."""
 
-    source_columns = (
-        "voltage",
-        "spherical_aberration",
-        "amplitude_contrast",
-    )
-    target_columns = (
-        "_rlnVoltage",
-        "_rlnSphericalAberration",
-        "_rlnAmplitudeContrast",
-    )
+    source_columns = ("voltage",)
+    target_columns = ("_rlnVoltage",)
+
+
+class WriteSphericalAberration(_Spelling):
+    """The spherical aberration, in mm."""
+
+    source_columns = ("spherical_aberration",)
+    target_columns = ("_rlnSphericalAberration",)
+
+
+class WriteAmplitudeContrast(_Spelling):
+    """The fraction of contrast that is amplitude contrast."""
+
+    source_columns = ("amplitude_contrast",)
+    target_columns = ("_rlnAmplitudeContrast",)
 
 
 class WritePixelSize(_Spelling):
@@ -389,7 +405,9 @@ def relion4_bundle() -> ConventionBundle:
             ],
             "optics": [
                 OpticsGroup(),
-                Microscope(),
+                Voltage(),
+                SphericalAberration(),
+                AmplitudeContrast(),
                 PixelSize(),
                 ImageSize(),
             ],
@@ -410,7 +428,9 @@ def relion4_bundle() -> ConventionBundle:
             ],
             "optics": [
                 WriteOpticsGroup(),
-                WriteMicroscope(),
+                WriteVoltage(),
+                WriteSphericalAberration(),
+                WriteAmplitudeContrast(),
                 WritePixelSize(),
                 WriteImageSize(),
             ],

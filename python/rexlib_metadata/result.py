@@ -14,10 +14,13 @@ from rexlib_metadata._arrow import as_arrow_table
 from rexlib_metadata.convention import RawSchema, RawTable, as_bundles
 from rexlib_metadata.engine import (
     assigned,
+    owned_table,
     produced_tables,
     read_canonical,
+    shared,
     source_columns,
     source_table,
+    superseded,
     write_canonical,
     written_from,
 )
@@ -300,6 +303,13 @@ class ReadResult:
         ordinal = assigned(raw, self._bundles, self._schema).get(schema.name)
         if ordinal is None:
             raise _unfilled(f"canonical table '{schema.name}'", self._raw.path)
+        if shared(raw, self._bundles, self._schema, schema.name):
+            raise ValueError(
+                f"Canonical table '{schema.name}' of {self._raw.path} shares "
+                "its rows with another table, as in a Relion 3.0 file with "
+                "no optics table, and what it holds depends on every row; "
+                "read it whole rather than a chunk at a time"
+            )
         return ordinal
 
     def _chunk(
@@ -422,22 +432,34 @@ class ReadResult:
         names = produced_tables(source, self._bundles, self._schema)
         plan_folds = folds(names, bundles, self._schema)
         plan = _Plan(source, bundles, changed, same_format, plan_folds)
-        filling = self._filling(source, names)
         skipped = folded(plan_folds)
         blocks = (
-            self._block(raw, filling.get(id(raw)), plan)
+            self._block(raw, name, plan)
             for raw in source
-            if filling.get(id(raw)) not in skipped
+            for name in self._filled_by(source, raw)
+            if name not in skipped
         )
         return [block for block in blocks if block is not None]
 
-    def _filling(
-        self, source: tuple[RawTable, ...], names: tuple[str, ...]
-    ) -> dict[int, str]:
-        return {
-            id(source_table(source, self._bundles, self._schema, name)): name
-            for name in names
-        }
+    def _filled_by(
+        self, source: tuple[RawTable, ...], raw: RawTable
+    ) -> list[str | None]:
+        """Name the tables `raw` is written as: sharers first, then its own."""
+        at = source.index(raw)
+        chosen = assigned(
+            [table.schema for table in source], self._bundles, self._schema
+        )
+        names = [name for name, where in chosen.items() if where == at]
+        own = next(
+            (
+                name
+                for name in names
+                if owned_table(source, self._bundles, self._schema, name)
+                is raw
+            ),
+            None,
+        )
+        return [*(name for name in names if name != own), own]
 
     def _block(
         self, raw: RawTable, name: str | None, plan: _Plan
@@ -498,7 +520,7 @@ class ReadResult:
         table = self._schema[name]
         columns = write_canonical(canonical, plan.bundles, table)
         if plan.same_format:
-            columns.update(self._carried_over(plan.source, table, columns))
+            columns.update(self._carried_over(plan, table, columns))
         return pa.table(list(columns.values()), names=list(columns))
 
     def _to_write(
@@ -518,21 +540,21 @@ class ReadResult:
         return joined_all(table, related)
 
     def _carried_over(
-        self,
-        raw_tables: tuple[RawTable, ...],
-        table: TableSchema,
-        written: dict[str, ArrowColumn],
+        self, plan: _Plan, table: TableSchema, written: dict[str, ArrowColumn]
     ) -> dict[str, ArrowColumn]:
-        """Return the columns of the table the read drew on, minus `written`."""
-        source = source_table(
-            raw_tables, self._bundles, self._schema, table.name
+        """Return what the write leaves of the table the read drew on."""
+        source = owned_table(
+            plan.source, self._bundles, self._schema, table.name
         )
         if source is None:
             return {}
+        spelled_anew = superseded(
+            plan.source, self._bundles, plan.bundles, self._schema, source
+        )
         return {
             column: source.table.column(column)
             for column in source.table.column_names
-            if column not in written
+            if column not in written and column not in spelled_anew
         }
 
     def _raw_tables(self) -> tuple[RawTable, ...]:

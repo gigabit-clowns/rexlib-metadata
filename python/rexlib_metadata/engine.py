@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pyarrow as pa
+import pyarrow.compute as pc
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence
@@ -37,7 +38,9 @@ def read_canonical(
     One raw table fills it, the one `assigned` gives it. Within that table,
     bundles are tried in the order given, which is their priority: the
     first one to produce a canonical column owns it, and a later one cannot
-    take it back.
+    take it back. A table others point at holds one row per key: rows
+    repeating a key, as when it is read from the rows that point at it,
+    collapse into one where they agree and raise where they do not.
     """
     raw_tables = tuple(raw_tables)
     bundles = tuple(bundles)
@@ -47,7 +50,22 @@ def read_canonical(
     covered = _read_from(source, bundles, table) if source else {}
     rows = _row_count(covered, table)
     _check_required(covered, table)
-    return _assemble(covered, table, rows)
+    assembled = _assemble(covered, table, rows)
+    for relation in schema.related_to(name):
+        assembled = _one_row_per_key(assembled, relation.key, name)
+    return assembled
+
+
+def shared(
+    raw: Sequence[RawSchema],
+    bundles: Iterable[ConventionBundle],
+    schema: Schema,
+    name: str,
+) -> bool:
+    """Say whether canonical table `name` shares its raw table with another."""
+    chosen = assigned(raw, bundles, schema)
+    at = chosen.get(name)
+    return at is not None and list(chosen.values()).count(at) > 1
 
 
 def assigned(
@@ -65,13 +83,74 @@ def assigned(
     one it can fill.
     """
     pairs = _pairs(raw, tuple(bundles), schema)
-    chosen: dict[str, int] = {}
-    for at, name in pairs:
-        if name not in chosen and at not in chosen.values():
-            chosen[name] = at
+    chosen = _owned(pairs)
     for at, name in pairs:
         chosen.setdefault(name, at)
     return chosen
+
+
+def owned_table(
+    raw_tables: Sequence[RawTable],
+    bundles: Iterable[ConventionBundle],
+    schema: Schema,
+    name: str,
+) -> RawTable | None:
+    """Return the raw table `name` took for its own, not one it shares."""
+    raw = [table.schema for table in raw_tables]
+    at = _owned(_pairs(raw, tuple(bundles), schema)).get(name)
+    return None if at is None else raw_tables[at]
+
+
+def superseded(
+    raw_tables: Sequence[RawTable],
+    bundles: tuple[ConventionBundle, ...],
+    writing: tuple[ConventionBundle, ...],
+    schema: Schema,
+    raw: RawTable,
+) -> set[str]:
+    """Name the columns of `raw` a write spells anew from what they read into.
+
+    A column is superseded where everything its read convention produced
+    is consumed by `writing`, as Relion 3.0's offset in pixels is by
+    Relion 4's in Ångström; anything else stays the source's to carry over.
+    """
+    at = raw_tables.index(raw)
+    chosen = assigned([t.schema for t in raw_tables], bundles, schema)
+    return {
+        column
+        for name, where in chosen.items()
+        if where == at
+        for column in _rewritten(raw.schema, bundles, writing, schema[name])
+    }
+
+
+def _rewritten(
+    raw: RawSchema,
+    bundles: tuple[ConventionBundle, ...],
+    writing: tuple[ConventionBundle, ...],
+    table: TableSchema,
+) -> set[str]:
+    matching = [
+        convention
+        for _, convention in _candidates(bundles, table)
+        if convention.matches(raw)
+    ]
+    produced = {name for c in matching for name in c.target_columns}
+    consumed = written_from(produced, writing, table)
+    return {
+        column
+        for convention in matching
+        if consumed.issuperset(convention.target_columns)
+        for column in convention.source_columns
+    }
+
+
+def _owned(pairs: list[tuple[int, str]]) -> dict[str, int]:
+    owned: dict[str, int] = {}
+    for at, name in pairs:
+        if name not in owned and at not in owned.values():
+            owned[name] = at
+    return owned
 
 
 def source_table(
@@ -399,6 +478,35 @@ def _check_required(
             f"Table '{schema.name}' requires "
             f"{', '.join(repr(name) for name in missing)}, which no "
             "convention produced"
+        )
+
+
+def _one_row_per_key(table: pa.Table, key: str, name: str) -> pa.Table:
+    if key not in table.column_names:
+        return table
+    keys = table.column(key)
+    first_held = pc.unique(keys)
+    if len(first_held) == table.num_rows:
+        return table
+    _check_agreeing(table, key, name)
+    return table.take(pc.index_in(first_held, value_set=keys))
+
+
+def _check_agreeing(table: pa.Table, key: str, name: str) -> None:
+    others = [column for column in table.column_names if column != key]
+    every_value = pc.CountOptions(mode="all")
+    counts = table.group_by(key).aggregate(
+        [(column, "count_distinct", every_value) for column in others]
+    )
+    disagreeing = [
+        column
+        for column in others
+        if pc.max(counts.column(f"{column}_count_distinct")).as_py() > 1
+    ]
+    if disagreeing:
+        raise ValueError(
+            f"Table '{name}' holds rows of one '{key}' that disagree on "
+            f"{', '.join(repr(column) for column in disagreeing)}"
         )
 
 
