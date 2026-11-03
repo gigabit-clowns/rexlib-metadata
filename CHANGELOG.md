@@ -1,7 +1,7 @@
 First release: read and write CryoEM metadata as pandas, polars or Arrow.
 
 ### New
-- `rxm.read(path)`: STAR, Xmipp XMD, SQLite and HDF5 (`hdf5` extra), under canonical column names, typed.
+- `rxm.read(path)`: STAR, Xmipp XMD (`.xmd`, `.doc`, `.pos`, `.sel`), SQLite and HDF5 (`hdf5` extra), under canonical column names, typed.
 - `result.raw`: the same file under its own names, every block of it.
 - `result["particles"]`, `result.joined("particles")` (optics on each row), `columns=` to read only some columns.
 - `chunks(n)`: a table a chunk at a time, in bounded memory, from the same block a whole read takes.

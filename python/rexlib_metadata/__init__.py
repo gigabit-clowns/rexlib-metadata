@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 __version__: str = _version()
 
 _STAR = (".star",)
-_XMD = (".xmd",)
+_XMD = (".xmd", ".doc", ".pos", ".sel")
 _SQLITE = (".sqlite", ".db")
 _HDF5 = (".h5", ".hdf5")
 

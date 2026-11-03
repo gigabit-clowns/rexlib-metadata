@@ -82,3 +82,20 @@ def test_a_header_that_is_not_a_comment_is_refused(tmp_path):
 
     with pytest.raises(ValueError, match="not a comment"):
         writer.write_tables(str(tmp_path / "out.xmd"), [table])
+
+
+@pytest.mark.parametrize("extension", [".doc", ".pos", ".sel"])
+def test_xmipps_other_extensions_are_xmd(tmp_path, extension):
+    source = read("c3_stk.xmd")
+    renamed = tmp_path / f"renamed{extension}"
+    renamed.write_bytes((FILES / "c3_stk.xmd").read_bytes())
+    out = tmp_path / f"out{extension}"
+
+    rxm.read(str(renamed)).write(str(out))
+
+    assert out.read_text().splitlines()[0] == "# XMIPP_STAR_1 *"
+    pd.testing.assert_frame_equal(
+        rxm.read(str(out))["particles"].to_pandas(),
+        source["particles"].to_pandas(),
+    )
+    assert "_shiftX" in rxm.read(str(out)).raw.to_pandas().columns
