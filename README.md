@@ -80,6 +80,16 @@ df.columns          # ['image_path', 'image_index', 'micrograph_path', 'coord_x'
 df["coord_x"].dtype # float64
 ```
 
+A pose is one 3x4 transform per particle; `rexlib_metadata.pose` gives it as
+matrices or as Relion's angles ([canonical.md](docs/canonical.md#the-pose)):
+
+```python
+from rexlib_metadata import pose
+
+pose.matrices(df["transform"])            # (n, 3, 4)
+rot, tilt, psi = pose.euler(df["transform"])
+```
+
 A file of several tables names them by what they hold, and asks for one
 rather than picking:
 
@@ -128,16 +138,16 @@ Change some columns and the write carries the rest; `rows=` keeps only some
 particles, by position or mask:
 
 ```python
-result = rxm.read("particles.star", columns=["angle_rot"])
+result = rxm.read("particles.star", columns=["coord_x"])
 df = result.to_pandas()
-df["angle_rot"] += 10
-result.write("rotated.star", updates=df)
+df["coord_x"] += 10
+result.write("moved.star", updates=df)
 
 particles = rxm.read("run_data.star")["particles"]
 df = particles.to_pandas()
 good = df[df["ctf_max_resolution"] < 4].copy()
-good["angle_rot"] += 10
-particles.write("good.star", rows=good.index, updates=good[["angle_rot"]])
+good["coord_x"] += 10
+particles.write("good.star", rows=good.index, updates=good[["coord_x"]])
 ```
 
 - A write rereads the source, so the source must still be where it was. It
@@ -162,7 +172,7 @@ from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.conventions.relion import relion4_bundle
 from rexlib_metadata.formats.star import StarReader, StarWriter
 
-mylab = ConventionBundle("mylab", read={"particles": [MyAngleRot()]})
+mylab = ConventionBundle("mylab", read={"particles": [MyCoordinates()]})
 rxm.read("particles.star", bundle=[mylab, relion4_bundle()]).to_pandas()
 
 relion = relion4_bundle()

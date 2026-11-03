@@ -2,12 +2,15 @@
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pytest
 
 import rexlib_metadata as rxm
+from rexlib_metadata import pose
 from rexlib_metadata.convention import RawTable
+from rexlib_metadata.conventions.xmipp import Pose
 from rexlib_metadata.formats.star import StarWriter
 
 FILES = Path(__file__).parent.parent / "files" / "xmd"
@@ -26,9 +29,7 @@ def test_an_xmipp_file_is_read_without_being_told_what_it_is(name):
     assert list(result["particles"].to_pandas().columns) == [
         "image_path",
         "image_index",
-        "angle_rot",
-        "angle_tilt",
-        "angle_psi",
+        "transform",
     ]
 
 
@@ -45,8 +46,19 @@ def test_the_angles_are_the_ones_the_file_holds(name):
     raw = result.raw.to_pandas()
     df = result["particles"].to_pandas()
 
-    assert df["angle_rot"].tolist() == raw["_angleRot"].astype(float).tolist()
-    assert df["angle_psi"].tolist() == raw["_anglePsi"].astype(float).tolist()
+    angles = (raw[name].astype(float).to_numpy() for name in Pose.angles)
+    a = pose.euler_matrix(*angles)
+    expected = np.stack([np.stack(row, axis=1) for row in a], axis=1)
+    rotation = pose.matrices(df["transform"])[:, :, :3]
+    np.testing.assert_allclose(rotation, expected.transpose(0, 2, 1), atol=1e-6)
+
+
+def test_an_xmipp_pose_has_no_shift():
+    df = read("c3_stk.xmd")["particles"].to_pandas()
+
+    shift = pose.matrices(df["transform"])[:, :, 3]
+
+    assert (shift == 0).all()
 
 
 def test_an_xmd_is_written_with_the_header_xmipp_looks_for(tmp_path):

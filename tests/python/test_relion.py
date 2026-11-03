@@ -1,13 +1,21 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import math
 from pathlib import Path
 
+import numpy as np
+import pyarrow as pa
 import pytest
 
 import rexlib_metadata as rxm
+from rexlib_metadata import pose
 from rexlib_metadata.canonical import SCHEMA
 from rexlib_metadata.convention import ConventionBundle, ReadConvention
-from rexlib_metadata.conventions.relion import relion4_bundle, split_reference
+from rexlib_metadata.conventions.relion import (
+    Pose,
+    relion4_bundle,
+    split_reference,
+)
 from rexlib_metadata.engine import read_canonical
 
 FILES = Path(__file__).parent.parent / "files" / "star"
@@ -47,21 +55,46 @@ def test_a_bare_path_is_an_image_reference_too():
     assert df["image_path"][0].endswith("tomo_ts01.mrc_0000000_5.00A.mrc")
 
 
-def test_the_angles_and_the_resolution_come_through_as_numbers():
+def test_the_pose_and_the_resolution_come_through_as_numbers():
     df = canonical("one_loop.star", "particles")
 
-    assert df["angle_rot"].tolist() == [0.0] * 16
+    assert pose.euler(df["transform"])[0].tolist() == [0.0] * 16
     assert df["ctf_max_resolution"][0] == pytest.approx(7.4)
-    assert str(df["angle_rot"].dtype) == "float64"
 
 
-def test_the_shifts_come_through_in_angstrom():
+def test_the_angles_come_back_as_the_file_holds_them():
+    path = str(FILES / "relion3.1_subtomo.star")
+    raw = rxm.read(path).raw["particles"].to_pandas()
+
+    angles = pose.euler(rxm.read(path)["particles"].to_pandas()["transform"])
+
+    for got, name in zip(angles, Pose.angles, strict=True):
+        assert got.tolist() == pytest.approx(raw[name].astype(float), abs=1e-3)
+
+
+def test_the_origin_comes_back_in_angstrom():
     df = canonical("relion3.1_subtomo.star", "particles")
 
-    assert df["shift_x"][0] == pytest.approx(3.947427)
-    assert df["shift_y"][1] == pytest.approx(5.447427)
-    assert df["shift_z"][1] == pytest.approx(1.947427)
-    assert str(df["shift_z"].dtype) == "float64"
+    _, origin = pose.relion(df["transform"])
+
+    assert origin[0][0] == pytest.approx(3.947427, abs=1e-5)
+    assert origin[1][1] == pytest.approx(5.447427, abs=1e-5)
+    assert origin[2][1] == pytest.approx(1.947427, abs=1e-5)
+
+
+def test_an_in_plane_angle_alone_turns_about_z():
+    table = pa.table({"_rlnAnglePsi": ["30"]})
+
+    (transform,) = Pose().load(table).values()
+
+    rotation = pose.matrices(transform)[0, :, :3]
+    turn = math.radians(30)
+    expected = [
+        [math.cos(turn), -math.sin(turn), 0],
+        [math.sin(turn), math.cos(turn), 0],
+        [0, 0, 1],
+    ]
+    assert rotation == pytest.approx(np.array(expected), abs=1e-6)
 
 
 def test_a_relion_optics_table_becomes_canonical():
@@ -78,7 +111,7 @@ def test_a_relion_optics_table_becomes_canonical():
 def test_a_column_nobody_wrote_is_left_out():
     df = canonical("rln3.1_data_style.star", "particles")
 
-    assert "angle_rot" not in df.columns
+    assert "transform" not in df.columns
     assert "optics_group" not in df.columns
 
 

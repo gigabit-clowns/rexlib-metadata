@@ -4,11 +4,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pyarrow as pa
 import pyarrow.compute as pc
 
+from rexlib_metadata import pose
 from rexlib_metadata.convention import (
     ArrowColumn,
     ConventionBundle,
@@ -19,9 +20,12 @@ from rexlib_metadata.convention import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    import numpy as np
+
     from rexlib_metadata.convention import RawSchema
 
 _INDEX_WIDTH = 6
+PIXEL_ORIGIN = ("_rlnOriginX", "_rlnOriginY", "_rlnOriginZ")
 
 
 class _Renaming(ReadConvention):
@@ -96,39 +100,41 @@ class CoordinateZ(_Renaming):
     target_columns = ("coord_z",)
 
 
-class AngleRot(_Renaming):
-    """The first of Relion's ZYZ angles, in degrees."""
+class Pose(ReadConvention):
+    """Relion's ZYZ angles and origin in Ångström, as one transform.
 
-    source_columns = ("_rlnAngleRot",)
-    target_columns = ("angle_rot",)
+    Any of the six may be missing, from the file or from a row, and is
+    then zero. An origin in pixels is Relion 3.0's to read.
+    """
 
+    angles: tuple[str, ...] = (
+        "_rlnAngleRot",
+        "_rlnAngleTilt",
+        "_rlnAnglePsi",
+    )
+    origin: tuple[str, ...] = (
+        "_rlnOriginXAngst",
+        "_rlnOriginYAngst",
+        "_rlnOriginZAngst",
+    )
+    source_columns: tuple[str, ...] = (*angles, *origin)
+    target_columns = ("transform",)
 
-class AngleTilt(_Renaming):
-    """The second of Relion's ZYZ angles, in degrees."""
+    def matches(self, raw: RawSchema) -> bool:
+        """Apply where any of the six is there and no origin in pixels."""
+        return any_of(raw, self.source_columns) and not any_of(
+            raw, PIXEL_ORIGIN
+        )
 
-    source_columns = ("_rlnAngleTilt",)
-    target_columns = ("angle_tilt",)
+    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
+        """Return the transform of each row's angles and origin."""
+        rot, tilt, psi = (numbers(table, name) for name in self.angles)
+        a = pose.euler_matrix(rot, tilt, psi)
+        return {"transform": pose.transforms(a, self.offsets(table))}
 
-
-class AnglePsi(_Renaming):
-    """The in-plane angle, which a 2D classification carries on its own."""
-
-    source_columns = ("_rlnAnglePsi",)
-    target_columns = ("angle_psi",)
-
-
-class Origin(_Renaming):
-    """How far a particle sits from the centre of its box, in Ångström."""
-
-    source_columns = ("_rlnOriginXAngst", "_rlnOriginYAngst")
-    target_columns = ("shift_x", "shift_y")
-
-
-class OriginZ(_Renaming):
-    """The third offset, which only a subtomogram has."""
-
-    source_columns = ("_rlnOriginZAngst",)
-    target_columns = ("shift_z",)
+    def offsets(self, table: pa.Table) -> tuple[np.ndarray, ...]:
+        """Return each row's origin in Ångström."""
+        return tuple(numbers(table, name) for name in self.origin)
 
 
 class CtfMaxResolution(_Renaming):
@@ -264,39 +270,29 @@ class WriteCoordinateZ(_Spelling):
     target_columns = ("_rlnCoordinateZ",)
 
 
-class WriteAngleRot(_Spelling):
-    """The first of Relion's ZYZ angles, in degrees."""
+class WritePose(WriteConvention):
+    """A transform as Relion's ZYZ angles and origin in Ångström.
 
-    source_columns = ("angle_rot",)
-    target_columns = ("_rlnAngleRot",)
+    All six are written, at single precision, as the transform holds them.
+    A transform that scales, shears or mirrors has no angles and raises.
+    """
 
+    angles = Pose.angles
+    origin: tuple[str, ...] = Pose.origin
+    source_columns = ("transform",)
+    target_columns = (*angles, *origin)
 
-class WriteAngleTilt(_Spelling):
-    """The second of Relion's ZYZ angles, in degrees."""
-
-    source_columns = ("angle_tilt",)
-    target_columns = ("_rlnAngleTilt",)
-
-
-class WriteAnglePsi(_Spelling):
-    """The in-plane angle, which a 2D classification carries on its own."""
-
-    source_columns = ("angle_psi",)
-    target_columns = ("_rlnAnglePsi",)
-
-
-class WriteOrigin(_Spelling):
-    """How far a particle sits from the centre of its box, in Ångström."""
-
-    source_columns = ("shift_x", "shift_y")
-    target_columns = ("_rlnOriginXAngst", "_rlnOriginYAngst")
-
-
-class WriteOriginZ(_Spelling):
-    """The third offset, which only a subtomogram has."""
-
-    source_columns = ("shift_z",)
-    target_columns = ("_rlnOriginZAngst",)
+    def store(
+        self, canonical: dict[str, ArrowColumn]
+    ) -> dict[str, ArrowColumn]:
+        """Return the angles in degrees, then the origin in Ångström."""
+        a, offsets = pose.relion(canonical["transform"])
+        pose.check_rotation(a)
+        angles = pose.euler_angles(a)
+        written = dict(zip(self.angles, map(single, angles), strict=True))
+        if self.origin:
+            written.update(zip(self.origin, map(single, offsets), strict=True))
+        return written
 
 
 class WriteCtfMaxResolution(_Spelling):
@@ -366,6 +362,33 @@ def parsed(column: ArrowColumn, dtype: pa.DataType) -> ArrowColumn:
     return pc.cast(_empty_as_null(column), dtype)
 
 
+def numbers(table: pa.Table, column: str) -> np.ndarray:
+    """Return a text column as doubles, zero where empty or not there."""
+    import numpy as np
+
+    if column not in table.column_names:
+        return np.zeros(table.num_rows)
+    parsed_column = parsed(table.column(column), pa.float64())
+    values = cast("pa.ChunkedArray", parsed_column).fill_null(pa.scalar(0.0))
+    return np.asarray(values.to_numpy(), dtype=np.float64)
+
+
+def single(values: np.ndarray) -> ArrowColumn:
+    """Spell doubles as the shortest text of their single precision.
+
+    A NaN, a null transform's, is a null.
+    """
+    import numpy as np
+
+    array = pa.array(values.astype(np.float32), from_pandas=True)
+    return pc.cast(array, pa.string())
+
+
+def any_of(raw: RawSchema, columns: tuple[str, ...]) -> bool:
+    """Say whether the table declares at least one of `columns`."""
+    return any(raw.has(column) for column in columns)
+
+
 def _empty_as_null(column: ArrowColumn) -> ArrowColumn:
     written = pc.not_equal(column, pa.scalar(""))
     return pc.if_else(written, column, pa.nulls(len(column), pa.string()))
@@ -417,11 +440,7 @@ def relion4_bundle() -> ConventionBundle:
                 MicrographName(),
                 Coordinates(),
                 CoordinateZ(),
-                AngleRot(),
-                AngleTilt(),
-                AnglePsi(),
-                Origin(),
-                OriginZ(),
+                Pose(),
                 CtfMaxResolution(),
                 ParticleOpticsGroup(),
             ],
@@ -446,11 +465,7 @@ def relion4_bundle() -> ConventionBundle:
                 WriteMicrographName(),
                 WriteCoordinates(),
                 WriteCoordinateZ(),
-                WriteAngleRot(),
-                WriteAngleTilt(),
-                WriteAnglePsi(),
-                WriteOrigin(),
-                WriteOriginZ(),
+                WritePose(),
                 WriteCtfMaxResolution(),
                 WriteParticleOpticsGroup(),
             ],

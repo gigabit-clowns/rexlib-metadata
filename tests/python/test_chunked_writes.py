@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import numpy as np
 import pyarrow as pa
 import pytest
 
@@ -18,14 +19,19 @@ POLISHED = FILES / "star" / "relion3.0_polished.star"
 CS = FILES / "cs" / "J114_particles_exported.cs"
 
 
+def _moved(transforms, by):
+    along_x = np.eye(1, 12, 3)[0]
+    return [transform + by * along_x for transform in transforms]
+
+
 def _plain(_):
     return {}
 
 
 def _shifted(view):
     frame = view.to_pandas()
-    frame["shift_x"] += 1.5
-    return {"updates": frame[["shift_x"]]}
+    frame["transform"] = _moved(frame["transform"], 1.5)
+    return {"updates": frame[["transform"]]}
 
 
 def _every_third(view):
@@ -38,8 +44,8 @@ def _a_mask(view):
 
 def _kept_and_shifted(view):
     frame = view.to_pandas().iloc[::3].copy()
-    frame["shift_x"] -= 2.0
-    return {"rows": frame.index, "updates": frame[["shift_x"]]}
+    frame["transform"] = _moved(frame["transform"], -2.0)
+    return {"rows": frame.index, "updates": frame[["transform"]]}
 
 
 def _backwards(view):

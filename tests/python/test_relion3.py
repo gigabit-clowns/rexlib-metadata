@@ -7,6 +7,7 @@ import pyarrow as pa
 import pytest
 
 import rexlib_metadata as rxm
+from rexlib_metadata import pose
 from rexlib_metadata.formats.star import StarReader
 
 FILES = Path(__file__).parent.parent / "files" / "star"
@@ -38,8 +39,9 @@ def test_a_relion30_offset_in_pixels_comes_back_in_angstrom():
 
     df = result["particles"].to_pandas()
 
+    _, origin = pose.relion(df["transform"])
     expected = raw["_rlnOriginX"].astype(float) * _pixel_size(raw)
-    assert df["shift_x"].tolist() == pytest.approx(expected.tolist())
+    assert origin[0].tolist() == pytest.approx(expected.tolist(), abs=1e-4)
 
 
 def test_relion30_micrographs_are_one_optics_row():

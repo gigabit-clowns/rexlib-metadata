@@ -10,20 +10,36 @@ no name carries a dialect (`rln`, `cs`, `xmipp`).
 | What | Canonical |
 |---|---|
 | Angles | degrees |
-| Rotation | ZYZ Euler `angle_rot`, `angle_tilt`, `angle_psi`, intrinsic, reference frame into the particle's |
+| Pose | `transform`, below |
 | Shifts | Ångström |
 | Coordinates | pixels of the micrograph they refer to |
 | Image reference | `image_path` as written, plus `image_index` zero-based; a bare path is index zero |
 | Paths | kept as written, never resolved |
-| Missing | null, an empty value of a typed column included |
+| Missing | null, an empty value of a typed column included; in a pose, no turn and no shift |
 | Unparseable value | an error naming the file and the table |
 | Format sentinels (Xmipp's `-999`) | translated by that format's conventions, never by the core |
-| Continuous values | `float64` |
+| Continuous values | `float64`; the transform `float32` |
 
-> **Unverified.** The sign of each angle, the direction the rotation maps,
-> and whether a shift is added or subtracted are taken from documentation.
-> A round trip through a real Relion and a real cryoSPARC file of the same
-> particles settles them.
+## The pose
+
+`transform` is the 3x4 matrix `[R | t]`, row by row, taking a point of the
+particle's frame into the reference's: Scipion's projection alignment, with
+`t` in Ångström rather than pixels. `R` is the transpose of the matrix `A`
+Relion builds from its ZYZ angles, and `t = R · origin`. A 2D alignment is a
+turn about z with no z shift. `rexlib_metadata.pose` converts it:
+
+| Function | Gives |
+|---|---|
+| `matrices(column)` | `(n, 3, 4)` doubles, from Arrow, pandas or polars |
+| `euler(column)` | Relion's rot, tilt, psi in degrees |
+| `relion(column)` | Relion's `A` and origin in Å |
+| `transforms(a, origin)`, `euler_matrix(rot, tilt, psi)` | the column, from Relion's terms |
+
+A write to Euler angles refuses a transform that scales, shears or mirrors.
+Angles and origins are written at the transform's single precision.
+
+> **Unverified.** cryoSPARC's rotation is taken as Relion's `A`; a real
+> cryoSPARC and Relion file of the same particles settles it.
 
 ## Tables
 
@@ -41,8 +57,7 @@ run.
 | `image_index` | `int64` | | yes |
 | `micrograph_path` | `string` | | |
 | `coord_x`, `coord_y`, `coord_z` | `float64` | `px` | |
-| `angle_rot`, `angle_tilt`, `angle_psi` | `float64` | `degrees` | |
-| `shift_x`, `shift_y`, `shift_z` | `float64` | `A` | |
+| `transform` | `fixed_size_list<float32>[12]` | `A` (of `t`) | |
 | `ctf_max_resolution` | `float64` | `A` | |
 | `optics_group` | `int32` | | |
 
@@ -80,7 +95,7 @@ A column is added when a convention produces it. Names reserved for then:
   `class_id`, `figure_of_merit`, `optics_group`.
 
 Out of scope until a real file asks: helical parameters, tomography columns
-beyond `coord_z` and `shift_z`, priors, Zernike coefficients, the MTF file.
+beyond `coord_z` and a z shift, priors, Zernike coefficients, the MTF file.
 
 ## Relion 4 and 5
 
@@ -89,7 +104,7 @@ The mappings that are not a rename (`conventions/relion.py`).
 | Canonical | Relion | Note |
 |---|---|---|
 | `image_path` + `image_index` | `_rlnImageName` | `index@path`, one-based; written back zero-padded to six digits |
-| `shift_x`, `shift_y`, `shift_z` | `_rlnOriginXAngst`, `…YAngst`, `…ZAngst` | already Å |
+| `transform` | `_rlnAngleRot`, `…Tilt`, `…Psi`, `_rlnOriginXAngst`, `…YAngst`, `…ZAngst` | any may be missing; all six written |
 | `optics` columns | `data_optics`, row named by `_rlnOpticsGroup` | joined per row on request |
 | `micrographs` | a block naming `_rlnMicrographName` and no `_rlnImageName` | a particles block never fills it |
 
@@ -102,7 +117,7 @@ where a block has no `_rlnOpticsGroup`.
 |---|---|---|
 | `optics_group` | `_rlnVoltage`, `_rlnSphericalAberration`, `_rlnAmplitudeContrast`, `_rlnMagnification`, `_rlnDetectorPixelSize` | each distinct setting a group, numbered from 1 as first held |
 | `pixel_size` | `_rlnDetectorPixelSize` (µm), `_rlnMagnification` | `detector · 10⁴ / magnification` |
-| `shift_x`, `shift_y`, `shift_z` | `_rlnOriginX`, `…Y`, `…Z` (px) | times the row's pixel size |
+| `transform` | the angles, `_rlnOriginX`, `…Y`, `…Z` (px) | origin times the row's pixel size |
 | `optics` | the particles' or micrographs' own rows | one row per group |
 
 ## cryoSPARC
@@ -114,8 +129,7 @@ Read only (`conventions/cryosparc.py`).
 | `image_path`, `image_index` | `blob/path`, `blob/idx` | zero-based; a leading `>` (project-relative) dropped |
 | `micrograph_path` | `location/micrograph_path` | the same |
 | `coord_x`, `coord_y` | `location/center_x_frac`, `…_y_frac`, `location/micrograph_shape` | fraction times columns, rows |
-| `angle_rot`, `angle_tilt`, `angle_psi` | `alignments3D/pose` | rotation vector (rad) → matrix → Relion ZYZ (deg) |
-| `shift_x`, `shift_y` | `alignments3D/shift`, `alignments3D/psize_A` | pixels times that pixel size |
+| `transform` | `alignments3D/pose`, `…/shift`, `…/psize_A` | rotation vector (rad) → `A`; shift in pixels times that pixel size |
 | `optics_group` | `ctf/exp_group_id` | plus one |
 | `voltage`, `spherical_aberration`, `amplitude_contrast` | `ctf/accel_kv`, `ctf/cs_mm`, `ctf/amp_contrast` | |
 | `pixel_size`, `image_size`, `image_dimensionality` | `blob/psize_A`, `blob/shape` | |
@@ -127,11 +141,12 @@ A single-precision field is read as its shortest decimal (2.7, not
 ## Xmipp
 
 `conventions/xmipp.py` reads and writes `_image` (`index@path`, one-based, as
-Relion) and `_angleRot`, `_angleTilt`, `_anglePsi` (the same ZYZ angles).
-`_shiftX`, `_shiftY` are pixels with no pixel size in the file, and are not
-read.
+Relion) and `_angleRot`, `_angleTilt`, `_anglePsi` (Relion's angles) as the
+transform. `_shiftX`, `_shiftY` are pixels with no pixel size in the file:
+not read, so the transform has no shift, and not written.
 
 ## Open
 
-- The rotation and shift signs, above.
+- cryoSPARC's rotation, above.
+- Xmipp's shifts, which need a pixel size the file does not hold.
 - Whether `coordinates` and `particles` are one table or two.
