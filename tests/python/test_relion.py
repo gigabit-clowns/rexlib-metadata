@@ -181,3 +181,17 @@ def test_a_value_that_does_not_parse_names_the_file_and_the_table(tmp_path):
         particles.to_pandas()
     with pytest.raises(ValueError, match="does not parse"):
         next(stream)
+
+
+def test_a_microscope_setting_missing_from_the_file_leaves_the_rest():
+    result = rxm.read(str(FILES / "relion3.1_subtomo.star"))
+    raw = result.raw["optics"].to_pandas()
+
+    optics = result["optics"].to_pandas()
+
+    assert "_rlnAmplitudeContrast" not in raw.columns
+    assert "amplitude_contrast" not in optics.columns
+    assert optics["voltage"].tolist() == [float(raw["_rlnVoltage"][0])]
+    assert optics["spherical_aberration"].tolist() == [
+        float(raw["_rlnSphericalAberration"][0])
+    ]
