@@ -81,8 +81,20 @@ The mappings that are not a rename (`conventions/relion.py`).
 | Canonical | Relion | Note |
 |---|---|---|
 | `image_path` + `image_index` | `_rlnImageName` | `index@path`, one-based; written back zero-padded to six digits |
-| `shift_x`, `shift_y`, `shift_z` | `_rlnOriginXAngst`, `…YAngst`, `…ZAngst` | already Å; 3.0's pixel `_rlnOriginX` is not read |
+| `shift_x`, `shift_y`, `shift_z` | `_rlnOriginXAngst`, `…YAngst`, `…ZAngst` | already Å |
 | `optics` columns | `data_optics`, row named by `_rlnOpticsGroup` | joined per row on request |
+
+## Relion 3.0
+
+Read only (`conventions/relion3.py`); written back as Relion 4. It applies
+where a block has no `_rlnOpticsGroup`.
+
+| Canonical | Relion 3.0 | Note |
+|---|---|---|
+| `optics_group` | `_rlnVoltage`, `_rlnSphericalAberration`, `_rlnAmplitudeContrast`, `_rlnMagnification`, `_rlnDetectorPixelSize` | each distinct setting a group, numbered from 1 as first held |
+| `pixel_size` | `_rlnDetectorPixelSize` (µm), `_rlnMagnification` | `detector · 10⁴ / magnification` |
+| `shift_x`, `shift_y`, `shift_z` | `_rlnOriginX`, `…Y`, `…Z` (px) | times the row's pixel size |
+| `optics` | the particles' own rows | one row per group |
 
 ## Xmipp
 

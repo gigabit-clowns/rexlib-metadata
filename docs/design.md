@@ -193,6 +193,11 @@ chunk.
    relation's job or the convention's, never a broadcast by the engine.
 6. A required column nobody produced raises. A defaulted one is filled with
    its default; any other is absent, not nulls.
+7. A table others point at holds one row per key: rows repeating a key, as
+   when it is read from the rows that point at it (Relion 3.0's optics),
+   collapse into one where they agree and raise where they do not. Such a
+   table, and one sharing its raw table, is not read a chunk at a time: it
+   depends on every row, and `chunks()` says to read it whole.
 
 A narrowed read (`columns=`) keeps a set of raw names computed from the
 conventions alone, before the file is opened (`source_columns` in
@@ -218,7 +223,11 @@ undeclared output raises, and a table nothing writes raises.
 - **Same format** means the same writer, class and configuration, not the
   same suffix (`.sqlite` and `.db` are one; `.star` and `.xmd` are two). Then
   a column no convention writes, and a block no canonical table covers, are
-  carried over in file order. Towards another format both are dropped.
+  carried over in file order, except a column whose read convention's every
+  output is written anew (Relion 3.0's `_rlnOriginX` as `_rlnOriginXAngst`).
+  Towards another format both are dropped.
+- A table that shares its raw table is written as a block of its own, before
+  the block of the table that owns it.
 - A column of `updates` no write convention consumes raises. A write that
   would hold nothing raises.
 - Every write goes to a temporary file in the destination's directory,
@@ -313,14 +322,14 @@ rxm.write("new.star", {"particles": frame})  # canonical tables from memory
 
 | Extension | Reader / writer | Bundle |
 |---|---|---|
-| `.star` | `StarReader` / `StarWriter` | `relion4` |
+| `.star` | `StarReader` / `StarWriter` | `relion4`, then `relion3` (read only) |
 | `.xmd`, `.doc`, `.pos`, `.sel` | `StarReader` / `StarWriter(header=HEADER)` | `xmipp` |
 | `.sqlite`, `.db` | `SqliteReader` / `SqliteWriter` | — |
 
 Order: Relion 4/5 STAR, Xmipp XMD, cryoSPARC, then the stored formats.
 cryoSPARC `.cs` (a NumPy structured array, one `pose` column feeding three
 angles), FREALIGN `.par` and the cryoSPARC CSV are in
-[formats.md](formats.md); Relion 3 is deferred.
+[formats.md](formats.md).
 
 ## Open questions
 
@@ -333,8 +342,6 @@ angles), FREALIGN `.par` and the cryoSPARC CSV are in
   read.
 - **The rotation convention's signs**, unverified against real files (see
   [canonical.md](canonical.md)).
-- **A read convention that needs a joined column**, as Relion 3.0's shifts in
-  pixels need the optics' pixel size.
 
 ## References
 

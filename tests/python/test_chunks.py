@@ -245,7 +245,9 @@ def test_a_chunked_read_skips_the_blocks_before_its_own(tmp_path):
 
 
 def _both(tmp_path, *rows):
-    header = "data_\n\nloop_\n_rlnImageName\n_rlnOpticsGroup\n_rlnImagePixelSize\n"
+    header = (
+        "data_\n\nloop_\n_rlnImageName\n_rlnOpticsGroup\n_rlnImagePixelSize\n"
+    )
     body = "".join(f"{row}\n" for row in rows)
     return rxm.read(file_of(tmp_path, header + body))
 

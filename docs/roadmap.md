@@ -33,9 +33,6 @@ canonical shifts in Ångström, optics joined per row through `result.joined()`.
 
 - [ ] Micrograph, coordinates, CTF and shifts, once a real `.xmd` holding
       them is under `tests/files/xmd/`
-- [ ] A read convention that needs a joined column: Relion 3.0's
-      `_rlnOriginX` in pixels needs the optics' pixel size, waiting on a real
-      Relion 3.0 STAR
 
 ## Phase 8 — SQLite
 
@@ -74,6 +71,5 @@ After every phase above, one pass over the whole repository.
 
 ## Deferred
 
-- `Relion3Bundle`, for legacy files
 - `RexConvention`, the suite's own canonical spelling, waiting on the team
   agreeing it
