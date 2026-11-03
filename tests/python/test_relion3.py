@@ -64,10 +64,10 @@ def test_a_relion30_file_writes_back_as_relion4(tmp_path):
 
 
 def test_a_relion30_file_is_not_read_a_chunk_at_a_time():
-    particles = rxm.read(POLISHED)["particles"]
+    stream = rxm.read(POLISHED)["particles"].chunks(5)
 
     with pytest.raises(ValueError, match="read it whole"):
-        next(particles.chunks(5))
+        next(stream)
 
 
 def _setting_rows(tmp_path, rows):
