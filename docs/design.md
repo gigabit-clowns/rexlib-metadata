@@ -23,7 +23,7 @@ each an addition, not a rewrite.
 6. Paginated reading and writing.
 7. Single columns can be read, and the rest forwarded on write.
 8. Strict column typing.
-9. Binary formats: SQLite, HDF5.
+9. Binary formats: SQLite.
 
 The canonical table is a pandas or polars DataFrame, the user's choice; Arrow
 sits under both.
@@ -37,7 +37,7 @@ sits under both.
   across the boundary. pandas and polars are extras, imported only by
   `to_pandas()` / `to_polars()`.
 - **A reader never infers a type.** STAR and XMD arrive as `Utf8`; SQLite
-  and HDF5 are transcribed as they declare. Typing is the schema's, conversion
+  is transcribed as it declares. Typing is the schema's, conversion
   the convention's.
 - **Read and write are separate pipelines**: separate ABCs, registration and
   lists in a bundle. A canonical column may have several origins and has one
@@ -66,10 +66,8 @@ sits under both.
 - **SQLite is read in Python through `sqlite3`.** Generic reader: every
   table, typed by SQLite's affinity rules, `NUMERIC` and undeclared columns
   as text. A dialect such as Scipion's is a bundle on top, not a reader.
-- **HDF5 is read through h5py, the `hdf5` extra**, imported only when an HDF5
-  file is opened. A table is a one-dimensional compound dataset (fields are
-  columns) or a group of equal-length datasets (each a column), named by its
-  path. The writer writes groups.
+- **No HDF5**: no cryo-EM program in use exchanges particle tables as HDF5
+  (EMAN2 keeps per-image header attributes, not a table).
 - **A table the file does not name is named `""`**, a plain `str`. Written to
   STAR it is `data_`.
 - **Relations between tables are data on the `Schema`**, not special cases in
@@ -164,7 +162,7 @@ class Writer(ABC):
 
 `read_schemas`, `read_tables_keeping` and `read_chunks` default to reading everything and
 dropping or slicing; a reader that can do better overrides them, as
-`StarReader`, `SqliteReader` and `Hdf5Reader` do. `columns` is raw names and
+`StarReader` and `SqliteReader` do. `columns` is raw names and
 may name columns the file lacks. Each chunk carries its table's ordinal,
 which tells two tables of one name apart; a table of no rows is one empty
 chunk.
@@ -282,8 +280,7 @@ registered. A write rereads its source through the reader it was read with.
   row for every row written, in order. `rows=` (positions or a boolean mask)
   keeps only those rows of that table.
 
-Text formats are paginated by the parser; SQLite by a cursor per table, HDF5
-by dataset slicing.
+Text formats are paginated by the parser; SQLite by a cursor per table.
 
 ## The public API
 
@@ -319,7 +316,6 @@ rxm.write("new.star", {"particles": frame})  # canonical tables from memory
 | `.star` | `StarReader` / `StarWriter` | `relion4` |
 | `.xmd`, `.doc`, `.pos`, `.sel` | `StarReader` / `StarWriter(header=HEADER)` | `xmipp` |
 | `.sqlite`, `.db` | `SqliteReader` / `SqliteWriter` | — |
-| `.h5`, `.hdf5` | `Hdf5Reader` / `Hdf5Writer` | — |
 
 Order: Relion 4/5 STAR, Xmipp XMD, cryoSPARC, then the stored formats.
 cryoSPARC `.cs` (a NumPy structured array, one `pose` column feeding three

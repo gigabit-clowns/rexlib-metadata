@@ -78,7 +78,7 @@ What it shows:
 - A reader never infers a type: STAR and `.par` arrive as text, CSV and `.cs`
   as declared.
 - Conventions match on column presence, not table name.
-- An extension does not name a dialect (`.csv`, `.db`, `.h5`), so `read`
+- An extension does not name a dialect (`.csv`, `.db`), so `read`
   takes `reader=` and `bundle=`, and `write` takes `writer=` and `bundle=`.
 
 ## Fixtures from these files

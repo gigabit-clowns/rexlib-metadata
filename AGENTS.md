@@ -1,6 +1,6 @@
 # Working on rexlib-metadata
 
-Reads and writes CryoEM metadata — Relion STAR, Xmipp XMD, SQLite, HDF5 —
+Reads and writes CryoEM metadata — Relion STAR, Xmipp XMD, SQLite —
 into one canonical Arrow table, handed to Python as pandas or polars. Part of
 the REX suite (gigabit-clowns), but depends on nothing else in it.
 

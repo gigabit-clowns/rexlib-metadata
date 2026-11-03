@@ -11,10 +11,8 @@ FILES = Path(__file__).parent.parent / "files" / "star"
 STAR = FILES / "relion3.1_subtomo.star"
 
 
-@pytest.fixture(params=[".star", ".sqlite", ".h5"])
+@pytest.fixture(params=[".star", ".sqlite"])
 def source(request, tmp_path):
-    if request.param == ".h5":
-        pytest.importorskip("h5py")
     if request.param == ".star":
         return str(STAR)
     path = str(tmp_path / f"subtomo{request.param}")
