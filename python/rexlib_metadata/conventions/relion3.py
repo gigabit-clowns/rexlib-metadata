@@ -140,5 +140,6 @@ def relion3_bundle() -> ConventionBundle:
         read={
             "particles": [OpticsGroup(), Origin(), OriginZ()],
             "optics": [OpticsGroup(), PixelSize()],
+            "micrographs": [OpticsGroup()],
         },
     )

@@ -27,8 +27,8 @@ no name carries a dialect (`rln`, `cs`, `xmipp`).
 
 ## Tables
 
-`particles` points at `optics` through
-`Relation("particles", "optics", "optics_group")`.
+`particles` and `micrographs` point at `optics` through
+`Relation(..., "optics", "optics_group")`.
 `result.joined("particles")` gives each particle its group's columns; a write
 to a format without an optics table (XMD) joins them before its conventions
 run.
@@ -58,6 +58,16 @@ run.
 | `image_size` | `int64` | `px` | |
 | `image_dimensionality` | `int32` | | |
 
+### `micrographs`
+
+| Column | Type | Unit | Required |
+|---|---|---|---|
+| `micrograph_path` | `string` | | yes |
+| `defocus_u`, `defocus_v` | `float64` | `A` | |
+| `defocus_angle` | `float64` | `degrees` | |
+| `ctf_max_resolution` | `float64` | `A` | |
+| `optics_group` | `int32` | | |
+
 A column is added when a convention produces it. Names reserved for then:
 
 - `particles`: `defocus_u`, `defocus_v` (Å), `defocus_angle`, `phase_shift`
@@ -68,8 +78,6 @@ A column is added when a convention produces it. Names reserved for then:
   `ctf_premultiplied`, `beam_tilt_x`, `beam_tilt_y` (mrad).
 - `coordinates`: `micrograph_path`, `coord_x`, `coord_y` required;
   `class_id`, `figure_of_merit`, `optics_group`.
-- `micrographs`: `micrograph_path` required, plus optics and CTF columns per
-  micrograph.
 
 Out of scope until a real file asks: helical parameters, tomography columns
 beyond `coord_z` and `shift_z`, priors, Zernike coefficients, the MTF file.
@@ -83,6 +91,7 @@ The mappings that are not a rename (`conventions/relion.py`).
 | `image_path` + `image_index` | `_rlnImageName` | `index@path`, one-based; written back zero-padded to six digits |
 | `shift_x`, `shift_y`, `shift_z` | `_rlnOriginXAngst`, `…YAngst`, `…ZAngst` | already Å |
 | `optics` columns | `data_optics`, row named by `_rlnOpticsGroup` | joined per row on request |
+| `micrographs` | a block naming `_rlnMicrographName` and no `_rlnImageName` | a particles block never fills it |
 
 ## Relion 3.0
 
@@ -94,7 +103,7 @@ where a block has no `_rlnOpticsGroup`.
 | `optics_group` | `_rlnVoltage`, `_rlnSphericalAberration`, `_rlnAmplitudeContrast`, `_rlnMagnification`, `_rlnDetectorPixelSize` | each distinct setting a group, numbered from 1 as first held |
 | `pixel_size` | `_rlnDetectorPixelSize` (µm), `_rlnMagnification` | `detector · 10⁴ / magnification` |
 | `shift_x`, `shift_y`, `shift_z` | `_rlnOriginX`, `…Y`, `…Z` (px) | times the row's pixel size |
-| `optics` | the particles' own rows | one row per group |
+| `optics` | the particles' or micrographs' own rows | one row per group |
 
 ## cryoSPARC
 
