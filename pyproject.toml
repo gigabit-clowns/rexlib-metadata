@@ -63,7 +63,7 @@ sdist = ["build==1.6.1"]
 bench = [
     { include-group = "test" },
     { include-group = "develop" },
-    "pytest-codspeed==5.0.3",
+    "pytest-codspeed==5.0.4",
 ]
 coverage = [
     { include-group = "test" },
