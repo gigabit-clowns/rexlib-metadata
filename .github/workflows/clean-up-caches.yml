@@ -37,12 +37,18 @@ jobs:
     uses: gigabit-clowns/.github/.github/workflows/clean-up-caches.yml@main
     with:
       scope: superseded
-      tails: &tails >-
-        [
-          "(-[0-9a-f]{8}){2}$",
-          "-[0-9]+(\\.[0-9]+)+-[0-9a-f]{40}-[0-9]+-[0-9]+$",
-          "-ubuntu-[0-9.]+-.*$"
-        ]
+      patterns: &patterns |
+        v0-rust-cargo-ubuntu-latest-*
+        v0-rust-cargo-macos-latest-*
+        v0-rust-cargo-windows-latest-*
+        v0-rust-pip-ubuntu-latest-*
+        v0-rust-pip-macos-latest-*
+        v0-rust-pip-windows-latest-*
+        v0-rust-bench-ubuntu-latest-*
+        v0-rust-coverage-ubuntu-latest-*
+        v0-rust-docs-*
+        codeql-overlay-base-database-*
+        codspeed-instruments-simulation-*
 
   on_request:
     permissions:
@@ -53,4 +59,4 @@ jobs:
     with:
       scope: ${{ inputs.scope }}
       ref: ${{ inputs.ref != '' && inputs.ref || github.ref_name }}
-      tails: *tails
+      patterns: *patterns
