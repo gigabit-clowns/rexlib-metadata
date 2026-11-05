@@ -14,3 +14,4 @@ First release: read and write CryoEM metadata as pandas, polars or Arrow.
 - `bundle=`, `reader=`, `writer=`: conventions, readers and writers of your own; `rxm.new_registry(schema)` for a schema of your own.
 - `to_arrow()` beside `to_pandas()` and `to_polars()`.
 - abi3 wheels for Python 3.10 and later on Linux, macOS and Windows.
+- The Python and Rust references on GitHub Pages, the README as their first page, light or dark.

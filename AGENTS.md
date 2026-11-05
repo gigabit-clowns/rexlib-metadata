@@ -35,7 +35,8 @@ the REX suite (gigabit-clowns), but depends on nothing else in it.
 | `…/writing.py`, `join.py`, `_arrow.py` | Writing frames, the optics join, Arrow conversions |
 | `…/_rexlib.pyi` | Hand-written stubs for the compiled module |
 | `tests/python/`, `tests/files/` | pytest suites; real files, each with its origin |
-| `benchmarks/`, `scripts/` | CodSpeed benchmarks; gate, comparison, charts |
+| `benchmarks/`, `scripts/` | CodSpeed benchmarks; gate, comparison, charts, the docs site |
+| `docs/pdoc/` | The templates of the Python reference |
 
 Rust unit tests live in `mod tests` at the foot of each file. A new delimited
 format adds a lexer and a speller under `src/<format>/`, not a parser.

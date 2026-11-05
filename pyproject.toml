@@ -60,6 +60,10 @@ lint = [
     "numpy==2.5.4",
 ]
 sdist = ["build==1.6.1"]
+docs = [
+    { include-group = "develop" },
+    "pdoc==16.0.0",
+]
 bench = [
     { include-group = "test" },
     { include-group = "develop" },

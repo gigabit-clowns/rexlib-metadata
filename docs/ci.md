@@ -6,6 +6,7 @@
 | `benchmarks.yml` | PRs and `main` touching code; `compare` on demand | CodSpeed benchmarks; the starfile/starfile-rs comparison |
 | `codeql.yml` | PRs, `main`, Mondays | CodeQL over the workflows, Python and Rust, without a build |
 | `release.yml` | packaging changes, `main`, `v*` tags | sdist, abi3 wheels per platform, the `development` prerelease |
+| `documentation.yml` | PRs and `main` touching the docs' sources, `v*` tags | builds the Python (pdoc) and Rust (`cargo doc`) references; a tag publishes them to GitHub Pages |
 | `keep-caches-warm.yml` | every morning, and on a change to itself | reads every Rust cache so none expires |
 
 A second push to the same ref cancels the run in flight.

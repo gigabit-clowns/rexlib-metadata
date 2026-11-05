@@ -2,8 +2,10 @@
 
 Highly performant reader and writer of CryoEM metadata formats (STAR, XMD, SQLite, cryoSPARC), to and from Pandas, Polars or Arrow tables. Rust core, Python API, extensible by design.
 
+<!-- docs-badges:start -->
 [![Build and Test](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/gigabit-clowns/rexlib-metadata/actions/workflows/build-and-test.yml)
 [![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/gigabit-clowns/rexlib-metadata)
+<!-- docs-badges:end -->
 
 ## Features
 
@@ -61,9 +63,9 @@ also benchmarked against `main` on
 ## Installation
 
 ```bash
-pip install rexlib-metadata           # Arrow, through pyarrow
-pip install rexlib-metadata[pandas]   # or [polars], [pandas,polars]
-pip install rexlib-metadata[cryosparc]  # cryoSPARC .cs, through NumPy
+pip install rexlib-metadata				# Arrow, through pyarrow
+pip install rexlib-metadata[pandas]		# or [polars], [pandas,polars]
+pip install rexlib-metadata[cryosparc]	# cryoSPARC .cs, through NumPy
 ```
 
 Requires Python ≥ 3.10.
@@ -213,6 +215,7 @@ columns your lab adds.
 
 Start with [AGENTS.md](AGENTS.md).
 
+<!-- docs-badges:start -->
 ## SonarCloud status
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
 
@@ -228,3 +231,4 @@ Start with [AGENTS.md](AGENTS.md).
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=gigabit-clowns_rexlib-metadata&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=gigabit-clowns_rexlib-metadata)
+<!-- docs-badges:end -->
