@@ -1,0 +1,76 @@
+name: Clean up caches
+permissions: {}
+
+on:
+  pull_request:
+    types:
+      - closed
+
+  workflow_run:
+    workflows:
+      - Build and test
+      - Benchmarks
+      - CodeQL
+      - Documentation
+    types:
+      - completed
+
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: Which caches go
+        required: true
+        type: choice
+        options:
+          - superseded
+          - all
+        default: superseded
+      ref:
+        description: Ref or branch to clean. The one this runs from when empty.
+        required: false
+        type: string
+
+jobs:
+  after_a_pull_request:
+    permissions:
+      actions: write
+    name: Delete every cache of the closed pull request
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    uses: gigabit-clowns/.github/.github/workflows/clean-up-caches.yml@main
+    with:
+      scope: all
+      ref: refs/pull/${{ github.event.pull_request.number }}/merge
+
+  after_a_build:
+    permissions:
+      actions: write
+    name: Delete the caches a newer run has replaced
+    if: github.event_name == 'workflow_run'
+    uses: gigabit-clowns/.github/.github/workflows/clean-up-caches.yml@main
+    with:
+      scope: superseded
+      prefixes: &prefixes >-
+        [
+          "v0-rust-cargo-ubuntu-latest",
+          "v0-rust-cargo-macos-latest",
+          "v0-rust-cargo-windows-latest",
+          "v0-rust-pip-ubuntu-latest",
+          "v0-rust-pip-macos-latest",
+          "v0-rust-pip-windows-latest",
+          "v0-rust-bench-ubuntu-latest",
+          "v0-rust-coverage-ubuntu-latest",
+          "v0-rust-docs"
+        ]
+
+  on_request:
+    permissions:
+      actions: write
+    name: Delete ${{ inputs.scope }} caches
+    if: github.event_name == 'workflow_dispatch'
+    uses: gigabit-clowns/.github/.github/workflows/clean-up-caches.yml@main
+    with:
+      scope: ${{ inputs.scope }}
+      ref: ${{ inputs.ref != '' && inputs.ref || github.ref_name }}
+      prefixes: *prefixes
