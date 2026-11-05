@@ -10,6 +10,7 @@
 | `pyarrow` | The Python half of the bridge; the only hard runtime dependency |
 | `pandas`, `polars` | Extras, one per output backend |
 | `numpy` | The `cryosparc` extra, imported only when a `.cs` is opened |
+| `pdoc` (`docs` group) | The Python reference, templated in `docs/pdoc/` |
 
 What is not obvious from the manifests:
 

@@ -1,0 +1,52 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later #}
+{% extends "default/module.html.jinja2" %}
+{% set landing = module.modulename == root %}
+{% set up = "../" * module.modulename.count(".") %}
+{% block title %}{{ module.modulename }} {{ version }}{% endblock %}
+{% block head %}
+    <script>{% include "theme.js" %}</script>
+{% endblock %}
+{% block nav_title %}
+    <div class="project">
+        <a href="{{ up }}{{ root }}.html">rexlib-metadata</a>
+        <span class="version">{{ version }}</span>
+        <button class="theme-toggle" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+            <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+            <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></svg>
+        </button>
+    </div>
+    <p class="elsewhere"><a href="{{ up }}../rust/{{ root }}/index.html">Rust reference</a></p>
+{% endblock %}
+{% block nav_index %}
+    {% if landing %}
+        <h2>Contents</h2>
+        {{ readme.toc_html | safe }}
+    {% else %}
+        {{ super() }}
+    {% endif %}
+{% endblock %}
+{% block module_info %}
+    {% if landing %}
+        <section class="module-info readme">{{ readme | safe }}</section>
+    {% else %}
+        {{ super() }}
+    {% endif %}
+{% endblock %}
+{% block module_contents %}
+    {% if not landing %}{{ super() }}{% endif %}
+{% endblock %}
+{% block style %}
+    {{ super() }}
+    <style>{{ dark_code | safe }}</style>
+    <style>
+        .project { display: flex; align-items: center; gap: .5rem; font-weight: 600; font-size: 1.15rem; }
+        .project .version { font-size: .8rem; font-weight: 400; color: var(--muted); border: 1px solid var(--accent2); border-radius: .3rem; padding: 0 .35rem; }
+        .theme-toggle { margin-left: auto; padding: .25rem; border: 0; background: none; color: var(--muted); cursor: pointer; line-height: 0; }
+        .theme-toggle:hover { color: var(--text); }
+        .theme-toggle svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+        .theme-toggle .moon { fill: currentColor; stroke: none; }
+        :root[data-theme="dark"] .theme-toggle .moon, :root:not([data-theme="dark"]) .theme-toggle .sun { display: none; }
+        .elsewhere { margin: .25rem 0 1rem; font-size: .9rem; }
+        .readme img, .readme picture { max-width: 100%; }
+    </style>
+{% endblock %}
