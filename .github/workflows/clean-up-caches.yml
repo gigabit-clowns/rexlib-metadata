@@ -37,17 +37,11 @@ jobs:
     uses: gigabit-clowns/.github/.github/workflows/clean-up-caches.yml@main
     with:
       scope: superseded
-      prefixes: &prefixes >-
+      tails: &tails >-
         [
-          "v0-rust-cargo-ubuntu-latest",
-          "v0-rust-cargo-macos-latest",
-          "v0-rust-cargo-windows-latest",
-          "v0-rust-pip-ubuntu-latest",
-          "v0-rust-pip-macos-latest",
-          "v0-rust-pip-windows-latest",
-          "v0-rust-bench-ubuntu-latest",
-          "v0-rust-coverage-ubuntu-latest",
-          "v0-rust-docs"
+          "(-[0-9a-f]{8}){2}$",
+          "-[0-9]+(\\.[0-9]+)+-[0-9a-f]{40}-[0-9]+-[0-9]+$",
+          "-ubuntu-[0-9.]+-.*$"
         ]
 
   on_request:
@@ -59,4 +53,4 @@ jobs:
     with:
       scope: ${{ inputs.scope }}
       ref: ${{ inputs.ref != '' && inputs.ref || github.ref_name }}
-      prefixes: *prefixes
+      tails: *tails
