@@ -8,7 +8,7 @@
 | `release.yml` | packaging changes, `main`, `v*` tags | sdist, abi3 wheels per platform, the `development` prerelease |
 | `documentation.yml` | PRs and `main` touching the docs' sources, `v*` tags | builds the Python (pdoc) and Rust (`cargo doc`) references; a tag publishes them to GitHub Pages |
 | `keep-caches-warm.yml` | every morning, and on a change to itself | reads every Rust cache so none expires |
-| `clean-up-caches.yml` | after a workflow that writes caches, a closed PR, on demand | deletes the caches a newer one replaced, and a closed PR's |
+| `clean-up-caches.yml` | after a workflow that writes caches runs on `main`, on demand | deletes the caches a newer one replaced |
 
 A second push to the same ref cancels the run in flight.
 
@@ -24,8 +24,12 @@ A second push to the same ref cancels the run in flight.
 
 - One extra cell, Linux on 3.10, installs the **floor** of every range
   (pyarrow, polars, pandas, numpy) instead of the newest.
-- `fail-fast` is off. The Rust build is cached per platform, written only by
-  `main`; the pip job sets `CARGO_TARGET_DIR` so maturin's build is cached.
+- `fail-fast` is on: one failing cell cancels the rest. The Rust build is
+  cached per platform; the pip job sets `CARGO_TARGET_DIR` so maturin's
+  build is cached.
+- Only `main` writes caches: `rust-cache` through `save-if`, CodSpeed's
+  instruments through `cache-instruments`. A pull request restores main's Rust
+  caches and installs the instruments itself.
 - Actions are pinned by digest except the organisation's own, taken from
   `main`. Renovate updates the rest with a 14-day minimum release age and
   turns on auto-merge, which still waits on the checks and a code-owner

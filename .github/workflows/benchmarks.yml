@@ -75,6 +75,7 @@ jobs:
         with:
           mode: simulation
           run: pytest benchmarks --codspeed
+          cache-instruments: ${{ github.ref == 'refs/heads/main' }}
 
   compare:
     name: Against starfile and starfile-rs

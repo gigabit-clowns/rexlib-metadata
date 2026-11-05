@@ -26,7 +26,6 @@ jobs:
   build_with_cargo:
     name: Cargo / ${{ matrix.os }}
     strategy:
-      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
@@ -90,7 +89,6 @@ jobs:
   build_with_pip:
     name: ${{ matrix.os }} / Python ${{ matrix.python-version }}${{ matrix.extras == 'oldest' && ' / oldest extras' || '' }}
     strategy:
-      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
