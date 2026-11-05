@@ -29,5 +29,6 @@ jobs:
           {"os": "macos-latest", "prefix": "v0-rust-pip-macos-latest"},
           {"os": "windows-latest", "prefix": "v0-rust-pip-windows-latest"},
           {"os": "ubuntu-latest", "prefix": "v0-rust-bench-ubuntu-latest"},
-          {"os": "ubuntu-latest", "prefix": "v0-rust-coverage-ubuntu-latest"}
+          {"os": "ubuntu-latest", "prefix": "v0-rust-coverage-ubuntu-latest"},
+          {"os": "ubuntu-latest", "prefix": "v0-rust-docs"}
         ]

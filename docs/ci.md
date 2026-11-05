@@ -8,6 +8,7 @@
 | `release.yml` | packaging changes, `main`, `v*` tags | sdist, abi3 wheels per platform, the `development` prerelease |
 | `documentation.yml` | PRs and `main` touching the docs' sources, `v*` tags | builds the Python (pdoc) and Rust (`cargo doc`) references; a tag publishes them to GitHub Pages |
 | `keep-caches-warm.yml` | every morning, and on a change to itself | reads every Rust cache so none expires |
+| `clean-up-caches.yml` | after a workflow that writes caches, a closed PR, on demand | deletes the caches a newer one replaced, and a closed PR's |
 
 A second push to the same ref cancels the run in flight.
 
