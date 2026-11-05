@@ -61,6 +61,7 @@ lint = [
 ]
 sdist = ["build==1.6.1"]
 docs = [
+    { include-group = "test" },
     { include-group = "develop" },
     "pdoc==16.0.0",
 ]
