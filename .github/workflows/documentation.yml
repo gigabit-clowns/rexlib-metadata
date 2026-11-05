@@ -64,8 +64,14 @@ jobs:
           shared-key: docs
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Install the package and pdoc
-        run: pip install . --group docs
+      - name: Install pdoc
+        run: 'pip install --only-binary :all: --group docs'
+
+      - name: Build the package
+        run: python -m maturin build --out dist
+
+      - name: Install the package
+        run: 'pip install --only-binary :all: --no-deps dist/*.whl'
 
       - name: Build the Python reference
         run: python -W error -m scripts.docs site
