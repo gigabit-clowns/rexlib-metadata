@@ -24,8 +24,11 @@ A second push to the same ref cancels the run in flight.
 
 - One extra cell, Linux on 3.10, installs the **floor** of every range
   (pyarrow, polars, pandas, numpy) instead of the newest.
-- `fail-fast` is off. The Rust build is cached per platform, written only by
-  `main`; the pip job sets `CARGO_TARGET_DIR` so maturin's build is cached.
+- `fail-fast` is off. The Rust build is cached per platform; the pip job sets
+  `CARGO_TARGET_DIR` so maturin's build is cached.
+- Only `main` writes caches: `rust-cache` through `save-if`, CodSpeed's
+  instruments through `cache-instruments`. A pull request restores main's Rust
+  caches and installs the instruments itself.
 - Actions are pinned by digest except the organisation's own, taken from
   `main`. Renovate updates the rest with a 14-day minimum release age and
   turns on auto-merge, which still waits on the checks and a code-owner
