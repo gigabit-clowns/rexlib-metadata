@@ -2,10 +2,6 @@ name: Clean up caches
 permissions: {}
 
 on:
-  pull_request:
-    types:
-      - closed
-
   workflow_run:
     workflows:
       - Build and test
@@ -14,6 +10,8 @@ on:
       - Documentation
     types:
       - completed
+    branches:
+      - main
 
   workflow_dispatch:
     inputs:
@@ -31,18 +29,6 @@ on:
         type: string
 
 jobs:
-  after_a_pull_request:
-    permissions:
-      actions: write
-    name: Delete every cache of the closed pull request
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    uses: gigabit-clowns/.github/.github/workflows/clean-up-caches.yml@main
-    with:
-      scope: all
-      ref: refs/pull/${{ github.event.pull_request.number }}/merge
-
   after_a_build:
     permissions:
       actions: write
