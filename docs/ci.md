@@ -24,8 +24,9 @@ A second push to the same ref cancels the run in flight.
 
 - One extra cell, Linux on 3.10, installs the **floor** of every range
   (pyarrow, polars, pandas, numpy) instead of the newest.
-- `fail-fast` is off. The Rust build is cached per platform; the pip job sets
-  `CARGO_TARGET_DIR` so maturin's build is cached.
+- `fail-fast` is on: one failing cell cancels the rest. The Rust build is
+  cached per platform; the pip job sets `CARGO_TARGET_DIR` so maturin's
+  build is cached.
 - Only `main` writes caches: `rust-cache` through `save-if`, CodSpeed's
   instruments through `cache-instruments`. A pull request restores main's Rust
   caches and installs the instruments itself.

@@ -63,7 +63,6 @@ jobs:
     name: Build wheels for ${{ matrix.os }} (${{ matrix.architectures }})
     needs: sdist
     strategy:
-      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest

@@ -29,7 +29,6 @@ jobs:
       packages: read
       security-events: write
     strategy:
-      fail-fast: false
       matrix:
         language: [actions, python, rust]
     steps:
