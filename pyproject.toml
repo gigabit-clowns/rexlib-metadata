@@ -1,5 +1,5 @@
 [build-system]
-requires      = ["maturin==1.15.0"]
+requires      = ["maturin==1.16.0"]
 build-backend = "maturin"
 
 [project]
@@ -46,7 +46,7 @@ test = [
     "numpy==2.5.4; python_version >= '3.12'",
 ]
 develop = [
-    "maturin==1.15.0",
+    "maturin==1.16.0",
     "pyarrow==25.0.1; python_version == '3.10'",
     "pyarrow==26.0.1; python_version >= '3.11'",
 ]
