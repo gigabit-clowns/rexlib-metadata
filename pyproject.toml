@@ -51,7 +51,7 @@ develop = [
     "pyarrow==26.0.0; python_version >= '3.11'",
 ]
 lint = [
-    "ruff==0.17.3",
+    "ruff==0.17.4",
     "complexipy==8.3.0",
     "mypy==2.4.1",
     "pyarrow-stubs==20.0.0.20260819",
