@@ -68,11 +68,15 @@
       "constraintsFiltering": "strict"
     },
     {
-      "description": "The pandas test pin for python_version == '3.10'; 3.0.0 raised requires-python to >=3.11.",
+      "description": [
+        "The pandas test pin for python_version == '3.10'; 3.0.0 raised requires-python to >=3.11.",
+        "The constraint alone still let pandas 3 through, so the pin is also capped below it."
+      ],
       "matchDepNames": ["pandas"],
       "matchCurrentVersion": "<3",
       "constraints": { "python": "3.10" },
-      "constraintsFiltering": "strict"
+      "constraintsFiltering": "strict",
+      "allowedVersions": "<3"
     },
     {
       "description": "The python_version == '3.10' half of the pandas extra. A range has no current version to match, so the half is told apart by its raw value and capped below the release that dropped 3.10.",
