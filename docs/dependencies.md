@@ -18,10 +18,10 @@ What is not obvious from the manifests:
   defaults are unused, and `pyo3-arrow`'s `buffer_protocol` would keep the
   wheel off abi3 before 3.11.
 - Never enable arrow's `pyarrow` feature: it conflicts with `pyo3-arrow`.
-- `arrow` and `pyo3-arrow` upgrade together, or `lib.rs` stops compiling, so
-  `renovate.json` caps `arrow` at the major `pyo3-arrow` holds. `pyo3` is
-  left uncapped on purpose: its failing Renovate PR is the signal to raise
-  `pyo3-arrow` in the same branch.
+- `arrow`, `pyo3` and `pyo3-arrow` upgrade together, or `lib.rs` stops
+  compiling, so Renovate raises them in one pull request. It fails while
+  `arrow` or `pyo3` is a major ahead of `pyo3-arrow`, until a `pyo3-arrow`
+  release catches up.
 - Every range, extras included, runs from what the code needs (`pyarrow>=16`, the first
   built for NumPy 2) to the newest version CI has passed, which Renovate
   widens. The oldest-extras cell installs each floor.

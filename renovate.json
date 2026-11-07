@@ -83,13 +83,12 @@
     },
     {
       "description": [
-        "arrow and pyo3-arrow are one upgrade and not two: pyo3-arrow re-exports no arrow of its own, so the RecordBatch our arrow builds and the one PyRecordBatch::new takes have to come from the same major, or lib.rs does not compile.",
-        "pyo3-arrow 0.21, the newest there is, pins arrow 60, which is why arrow stops there. The cap is lifted in the same pull request that raises pyo3-arrow, never on its own.",
-        "Only arrow is capped. A pyo3-arrow release built against a newer arrow should open a PR that fails CI, which is the signal to do both by hand, rather than freeze silently.",
-        "The constraint is a bare version: cargo ranges are matched against each release, and a range here would filter out every one of them."
+        "arrow, pyo3 and pyo3-arrow are one upgrade: pyo3-arrow is built against one major of arrow and of pyo3, and lib.rs compiles only while ours are the same.",
+        "Renovate cannot read which majors a pyo3-arrow release takes, so they share one pull request, majors included. It fails CI while arrow or pyo3 is ahead of pyo3-arrow, and passes once a pyo3-arrow release catches up."
       ],
-      "matchDepNames": ["arrow"],
-      "allowedVersions": "<61"
+      "matchDepNames": ["arrow", "pyo3", "pyo3-arrow"],
+      "groupName": "arrow, pyo3 and pyo3-arrow",
+      "separateMajorMinor": false
     }
   ]
 }
