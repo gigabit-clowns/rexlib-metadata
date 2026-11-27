@@ -39,8 +39,7 @@ matching `v[0-9]*.[0-9]*.[0-9]*`, the closest its patterns come.
   turns on auto-merge, which still waits on the checks and a code-owner
   review.
 - The Rust toolchain follows stable, so a new clippy can fail an untouched
-  build; pin it in `rust-toolchain.toml` if that starts costing more than
-  it gives.
+  build.
 
 ## Static analysis
 
@@ -51,9 +50,7 @@ coverage, and turns off Sonar's own clippy run, since `coverage` already
 produced it.
 
 Findings accepted in the SonarQube interface rather than fixed: the missing
-lock file and the free resolution of `pip install . --group test`. A
-library declares ranges; `build_with_pip` builds this crate from source by
-design.
+lock file and the free resolution of `pip install . --group test`.
 
 ## Benchmarks
 

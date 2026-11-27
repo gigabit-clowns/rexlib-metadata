@@ -1,9 +1,8 @@
-# Files from EMPIAR
+# Fixtures
 
-Three formats, each trimmed from a real deposition so that the reader
-written for it meets the file before it meets us; `.cs` is read, `.par` and
+`star/` and `xmd/` have a README of their own. The `.cs`, `.par` and CSV
+files are each trimmed from an EMPIAR deposition; `.cs` is read, `.par` and
 CSV not yet.
-`star/` has a README of its own.
 
 All three come from `ftp.ebi.ac.uk/empiar/world_availability/`, fetched on
 2026-10-31. EMPIAR releases everything it archives under
@@ -20,7 +19,7 @@ restrictions".
 Nothing else was changed: the rows kept are the file's first rows, byte for
 byte in the two text files and value for value in the `.cs`.
 
-## What trimming them showed
+## What they hold
 
 - The `.par` is fixed width, 136 characters a row, and every row of the
   full file splits into its 16 fields on whitespace. Nothing runs into its

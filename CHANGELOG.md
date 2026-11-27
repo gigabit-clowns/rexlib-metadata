@@ -5,7 +5,7 @@ First release: read and write CryoEM metadata as pandas, polars or Arrow.
 - A particle's pose is one 3x4 `transform`, Scipion's with the shift in Ångström; `rexlib_metadata.pose` gives matrices or Relion's angles.
 - cryoSPARC `.cs` read (`cryosparc` extra): poses and shifts, exposure groups as optics; converts to Relion.
 - A `micrographs` table (path, defocus, CTF resolution, optics group): Relion 4 read and written, Relion 3.0 read and written back as Relion 4.
-- Relion 3.0 files read: each particle's microscope becomes an optics group, offsets come back in Ångström, and a write gives Relion 4. Each microscope setting is read on its own, so one the file lacks no longer drops the rest.
+- Relion 3.0 files read: each particle's microscope becomes an optics group, offsets come back in Ångström, and a write gives Relion 4.
 - `result.raw`: the same file under its own names, every block of it.
 - `result["particles"]`, `result.joined("particles")` (optics on each row), `columns=` to read only some columns.
 - `chunks(n)`: a table a chunk at a time, in bounded memory, from the same block a whole read takes; Relion 3.0 and `.cs` files too.
