@@ -57,9 +57,9 @@ may override `read_tables_keeping` to skip columns while parsing and
 implements `write_tables`, and may override `write_chunks` to stream. Neither
 knows the registry.
 
-`lib.rs` keeps no logic: it wraps, releases the GIL while Rust reads, and maps
-`Error` to `FileNotFoundError` (missing), `ValueError` (malformed) or
-`RuntimeError` (Arrow, i.e. our bug).
+`lib.rs` keeps no logic: it wraps, releases the GIL around every file
+operation, and maps `Error` to an `OSError` subclass (I/O), `ValueError`
+(malformed input or a bad argument) or `RuntimeError` (Arrow, i.e. our bug).
 
 ## Building and testing
 

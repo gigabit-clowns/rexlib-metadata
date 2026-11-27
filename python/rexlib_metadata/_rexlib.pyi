@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-from collections.abc import Iterator, Sequence, Set
+from collections.abc import Iterator, Sequence
 from types import TracebackType
 
 from rexlib_metadata._arrow import ArrowArrayExportable
 
 def version() -> str: ...
 def _star_read_tables(
-    path: str, columns: Set[str] | None = None
+    path: str, columns: set[str] | frozenset[str] | None = None
 ) -> Sequence[tuple[str, Sequence[ArrowArrayExportable]]]: ...
 def _star_read_headers(path: str) -> Sequence[tuple[str, Sequence[str]]]: ...
 def _star_read_chunks(
-    path: str, chunk_size: int, columns: Set[str] | None = None
+    path: str, chunk_size: int, columns: set[str] | frozenset[str] | None = None
 ) -> StarChunks: ...
 
 class StarChunks(Iterator[tuple[str, int, ArrowArrayExportable]]):
