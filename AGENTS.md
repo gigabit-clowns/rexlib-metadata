@@ -1,6 +1,7 @@
 # Working on rexlib-metadata
 
-Reads and writes CryoEM metadata — Relion STAR, Xmipp XMD, SQLite —
+Reads and writes CryoEM metadata — Relion STAR, Xmipp XMD, SQLite,
+cryoSPARC `.cs` —
 into one canonical Arrow table, handed to Python as pandas or polars. Part of
 the REX suite (gigabit-clowns), but depends on nothing else in it.
 
@@ -29,7 +30,7 @@ the REX suite (gigabit-clowns), but depends on nothing else in it.
 | `…/pose.py` | The canonical transform, and Relion's angles to and from it |
 | `…/convention.py` | Convention interfaces and `ConventionBundle` |
 | `…/formats/` | One reader and writer per file format |
-| `…/conventions/` | One module of conventions per dialect: Relion, Xmipp |
+| `…/conventions/` | One module of conventions per dialect: Relion, Relion 3.0, Xmipp, cryoSPARC |
 | `…/engine.py` | The read and write engine |
 | `…/result.py` | `ReadResult`, `RawResult`, `Chunk` |
 | `…/writing.py`, `join.py`, `_arrow.py` | Writing frames, the optics join, Arrow conversions |

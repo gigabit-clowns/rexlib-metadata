@@ -22,8 +22,8 @@ What is not obvious from the manifests:
   compiling, so Renovate raises them in one pull request. It fails while
   `arrow` or `pyo3` is a major ahead of `pyo3-arrow`, until a `pyo3-arrow`
   release catches up.
-- Every range, extras included, runs from what the code needs (`pyarrow>=16`, the first
-  built for NumPy 2) to the newest version CI has passed, which Renovate
-  widens. The oldest-extras cell installs each floor.
+- Every range, extras included, runs from what the code needs to the newest
+  version CI has passed, which Renovate widens. The oldest-extras cell
+  installs each floor.
 - A pin split by `python_version` keeps an older Python on the last release
   that supports it; `renovate.json` caps only the older halves.

@@ -29,7 +29,7 @@ over several lines, and more than one `loop_` in a block.
 ## Phase 7 — Xmipp XMD
 
 Done: `.xmd` read and write (also `.doc`, `.pos`, `.sel`, Xmipp's other names for it), Xmipp bundle (image reference, angles),
-canonical shifts in Ångström, optics joined per row through `result.joined()`.
+optics joined per row through `result.joined()`.
 
 - [ ] Micrograph, coordinates, CTF and shifts, once a real `.xmd` holding
       them is under `tests/files/xmd/`
@@ -44,7 +44,7 @@ paginated through one cursor per table.
 
 ## Phase 9 — HDF5
 
-Dropped: no cryo-EM program in use exchanges particle tables as HDF5.
+Dropped; see [design.md](design.md).
 
 ## Phase 9b — cryoSPARC `.cs`
 
@@ -58,24 +58,19 @@ groups as optics.
 
 ## Phase 10 — open
 
-- [ ] CodSpeed's check required by the ruleset, its threshold in `docs/ci.md`
+- Dropped: CodSpeed as a required check, since it runs only on pull
+  requests that touch code.
 
-Measured and rejected:
-
-- Cold-read prefetch: the disk gives ~400 MiB/s, the parser takes
-  185–236 MiB/s, so a cold read costs only 1.5–5 % over a warm one
-  (`.github/measure/cold_read.py` at `3e50392`, for slower storage).
-- LTO: every profile within 5 % of cargo's default, either way; the release
-  profile stays the default.
-- Skipping dropped columns while tokenising: a canonical read needs
-  `_rlnImageName`, near the end of a Relion row.
+Measured and rejected, none worth 5 %: a cold-read prefetch, LTO, and
+skipping dropped columns while tokenising.
 
 ## Phase 11 — Review and clean-up
 
 After every phase above, one pass over the whole repository.
 
-- [ ] Exhaustive review: quality, architecture, patterns, test gaps
-- [ ] Every `# type: ignore[...]` and `# noqa: ...` replaced by code that
+- [x] Exhaustive review: quality, architecture, patterns, test gaps
+      (#169–#175)
+- [x] Every `# type: ignore[...]` and `# noqa: ...` replaced by code that
       needs none
 - [ ] The clean-up the review asks for, in pull requests of their own
 

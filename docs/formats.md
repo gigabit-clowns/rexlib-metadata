@@ -86,14 +86,8 @@ What it shows:
 
 ## Fixtures from these files
 
-From `ftp.ebi.ac.uk/empiar/world_availability/`, trimmed to ten rows with
-headers intact; origin and trimming in `tests/files/README.md`.
-
-| Format | EMPIAR file | Original |
-|---|---|---|
-| `.cs` | `13345/data/h41_gs/rotated/trna_a-pe_EMD-56849/J114_particles_exported.cs` | 2 MB, 85 fields, 3152 rows |
-| `.par` | `10076/data/Frealign9Parameter_0_r1.par` | 18 MB |
-| `.csv` | `10255/data/final.csv` | 54 MB |
+Trimmed from EMPIAR to ten rows, headers intact: origin and trimming in
+[tests/files/README.md](../tests/files/README.md).
 
 [teamtomo](https://teamtomo.org/site/io_packages/) has a package per format
 with tests and assets to borrow with attribution. Its mdoc is blocks of
