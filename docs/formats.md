@@ -10,9 +10,11 @@ Built, `src/star/`.
 
 A tag carries exactly one value and a block does not mix tags with a loop:
 not in the standard, but what every file in `tests/files/star/` does.
-Anything else is an error naming the line. A null is written `""`; a typed
-column reads it back as null, a text column cannot tell it from an empty
-string.
+Neither are a `;` text field, a column named twice in one block, or a line
+over 1 GiB. Anything else is an error naming the line. Keywords match in any
+case, and a `#` starts a comment only at a line's start or after whitespace.
+A null is written `""`; a typed column reads it back as null, a text column
+cannot tell it from an empty string.
 
 ## cryoSPARC `.csv`
 

@@ -20,6 +20,9 @@ pub(crate) enum Error {
     Unwritable { message: String },
 
     #[error("{0}")]
+    Argument(String),
+
+    #[error("{0}")]
     Arrow(#[from] arrow::error::ArrowError),
 }
 
@@ -34,5 +37,17 @@ pub(crate) fn parse_error(path: &str, line: usize, message: impl Into<String>) -
 pub(crate) fn unwritable(message: impl Into<String>) -> Error {
     Error::Unwritable {
         message: message.into(),
+    }
+}
+
+impl Error {
+    /// An unwritable value's error, its message prefixed with `context`.
+    pub(crate) fn within(self, context: &str) -> Self {
+        match self {
+            Self::Unwritable { message } => Self::Unwritable {
+                message: format!("{context}: {message}"),
+            },
+            other => other,
+        }
     }
 }
