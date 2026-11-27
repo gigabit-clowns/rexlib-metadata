@@ -10,9 +10,11 @@ Built, `src/star/`.
 
 A tag carries exactly one value and a block does not mix tags with a loop:
 not in the standard, but what every file in `tests/files/star/` does.
-Anything else is an error naming the line. A null is written `""`; a typed
-column reads it back as null, a text column cannot tell it from an empty
-string.
+Neither are a `;` text field, a column named twice in one block, or a line
+over 1 GiB. Anything else is an error naming the line. Keywords match in any
+case, and a `#` starts a comment only at a line's start or after whitespace.
+A null is written `""`; a typed column reads it back as null, a text column
+cannot tell it from an empty string.
 
 ## cryoSPARC `.csv`
 
@@ -84,14 +86,8 @@ What it shows:
 
 ## Fixtures from these files
 
-From `ftp.ebi.ac.uk/empiar/world_availability/`, trimmed to ten rows with
-headers intact; origin and trimming in `tests/files/README.md`.
-
-| Format | EMPIAR file | Original |
-|---|---|---|
-| `.cs` | `13345/data/h41_gs/rotated/trna_a-pe_EMD-56849/J114_particles_exported.cs` | 2 MB, 85 fields, 3152 rows |
-| `.par` | `10076/data/Frealign9Parameter_0_r1.par` | 18 MB |
-| `.csv` | `10255/data/final.csv` | 54 MB |
+Trimmed from EMPIAR to ten rows, headers intact: origin and trimming in
+[tests/files/README.md](../tests/files/README.md).
 
 [teamtomo](https://teamtomo.org/site/io_packages/) has a package per format
 with tests and assets to borrow with attribution. Its mdoc is blocks of

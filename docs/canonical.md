@@ -137,7 +137,7 @@ Read only (`conventions/cryosparc.py`).
 | `pixel_size`, `image_size`, `image_dimensionality` | `blob/psize_A`, `blob/shape` | |
 | `optics` | the particles' own rows | one row per group |
 
-A single-precision field is read as its shortest decimal (2.7, not
+A single-precision scalar field is read as its shortest decimal (2.7, not
 2.700000047683716).
 
 ## Xmipp

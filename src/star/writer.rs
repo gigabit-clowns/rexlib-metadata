@@ -19,7 +19,8 @@ pub(crate) fn write_tables(
 ) -> Result<(), Error> {
     let mut stream = Stream::create(path, header)?;
     for (name, batches) in tables {
-        let columns = first(name, batches)?
+        let columns = first(name, batches)
+            .map_err(|error| error.within(&format!("'{path}'")))?
             .schema()
             .fields()
             .iter()
@@ -44,7 +45,7 @@ pub(crate) struct Stream {
 impl Stream {
     pub(crate) fn create(path: &str, header: Option<&str>) -> Result<Self, Error> {
         if let Some(header) = header {
-            check_header(header)?;
+            check_header(header).map_err(|error| error.within(&format!("'{path}'")))?;
         }
         let file = File::create(path).map_err(|source| io_error(path, source))?;
         let mut stream = Self {
@@ -85,7 +86,10 @@ impl Stream {
             check_columns(name, columns, batch)?;
             let values = string_columns(batch)?;
             for row in 0..batch.num_rows() {
-                write_row(out, path, &values, row)?;
+                write_row(out, path, &values, row).map_err(|(error, column)| {
+                    let column = columns.get(column).map_or("", String::as_str);
+                    error.within(&format!("block '{name}', column '{column}', row {row}"))
+                })?;
             }
             Ok(())
         });
@@ -122,7 +126,7 @@ impl Stream {
                 self.path
             )));
         };
-        let done = step(out, &self.path);
+        let done = step(out, &self.path).map_err(|error| error.within(&format!("'{}'", self.path)));
         if done.is_err() {
             self.abandon();
         }
@@ -162,6 +166,11 @@ fn check_header(header: &str) -> Result<(), Error> {
 }
 
 fn check_names(name: &str, columns: &[String]) -> Result<(), Error> {
+    if columns.is_empty() {
+        return Err(unwritable(format!(
+            "block '{name}' has no columns, and its rows would read back as none"
+        )));
+    }
     if !is_one_word(name) {
         return Err(unwritable(format!(
             "the block name {name:?} holds whitespace or '#', and a STAR file \
@@ -196,26 +205,27 @@ fn is_one_word(name: &str) -> bool {
     !name.contains(|ch: char| ch == '#' || ch.is_whitespace())
 }
 
+/// One row, or the error and the index of the column it came from.
 fn write_row<W: Write>(
     out: &mut W,
     path: &str,
     columns: &[&StringArray],
     row: usize,
-) -> Result<(), Error> {
+) -> Result<(), (Error, usize)> {
     for (index, column) in columns.iter().enumerate() {
         if index > 0 {
             out.write_all(b" ")
-                .map_err(|source| io_error(path, source))?;
+                .map_err(|source| (io_error(path, source), index))?;
         }
         let value = if column.is_null(row) {
             ""
         } else {
             column.value(row)
         };
-        write_value(out, path, value)?;
+        write_value(out, path, value).map_err(|error| (error, index))?;
     }
     out.write_all(b"\n")
-        .map_err(|source| io_error(path, source))
+        .map_err(|source| (io_error(path, source), 0))
 }
 
 fn write_value<W: Write>(out: &mut W, path: &str, value: &str) -> Result<(), Error> {
@@ -236,28 +246,38 @@ fn quote_for(value: &str) -> Result<&'static [u8], Error> {
              read one line at a time, cannot"
         )));
     }
-    match (value.contains('"'), value.contains('\'')) {
-        (true, true) => Err(unwritable(format!(
-            "the value {value:?} holds both kinds of quote, which STAR has no \
-             way to escape"
-        ))),
-        (true, false) => Ok(b"'"),
-        _ => Ok(b"\""),
+    if closes_inside(value, '"') {
+        if closes_inside(value, '\'') {
+            return Err(unwritable(format!(
+                "the value {value:?} would end early inside either kind of \
+                 quote, which STAR has no way to escape"
+            )));
+        }
+        return Ok(b"'");
     }
+    Ok(b"\"")
 }
+
+/// Whether `quote` would end a value quoted with it before its end: a quote
+/// closes where whitespace follows it, or where the value ends.
+fn closes_inside(value: &str, quote: char) -> bool {
+    value.ends_with(quote)
+        || value
+            .char_indices()
+            .any(|(at, ch)| ch == quote && value[at + 1..].starts_with(char::is_whitespace))
+}
+
+const RESERVED: [&str; 5] = ["data_", "loop_", "global_", "save_", "stop_"];
 
 fn needs_quotes(value: &str) -> bool {
     value.is_empty()
-        || value.starts_with(['#', '_'])
-        || value.starts_with("data_")
-        || value == "loop_"
-        || value.bytes().any(|byte| {
-            matches!(
-                byte,
-                b' ' | b'\t' | b'\n' | b'\r' | 0x0B | 0x0C | b'"' | b'\''
-            )
+        || value.starts_with(['#', '_', ';', '"', '\''])
+        || RESERVED.iter().any(|word| {
+            value
+                .get(..word.len())
+                .is_some_and(|head| head.eq_ignore_ascii_case(word))
         })
-        || (!value.is_ascii() && value.contains(char::is_whitespace))
+        || value.contains(char::is_whitespace)
 }
 
 #[cfg(test)]
@@ -391,11 +411,59 @@ mod tests {
     }
 
     #[test]
-    fn a_value_holding_both_quotes_says_so() {
-        let error = written(&one("p", &["_rlnA"], &[&["it's \"this\""]])).unwrap_err();
+    fn a_value_either_quote_would_end_early_says_where_it_is() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("out.star");
+        let path = path.to_str().unwrap();
+        let tables = one("p", &["_rlnA", "_rlnB"], &[&["1", "2"], &["3", "a' b\" c"]]);
+
+        let error = write_tables(path, None, &tables).unwrap_err();
 
         assert!(matches!(error, Error::Unwritable { .. }));
-        assert!(error.to_string().contains("both kinds of quote"));
+        let message = error.to_string();
+        assert!(message.contains("either kind of quote"), "{message}");
+        assert!(message.contains(path), "{message}");
+        assert!(
+            message.contains("block 'p', column '_rlnB', row 1"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn a_value_holding_quotes_that_would_not_end_it_survives() {
+        let values = ["a'b\"c", "it's \"this\"", "'lead", "\"lead", "tail'"];
+        let rows: Vec<&[&str]> = values.iter().map(std::slice::from_ref).collect();
+
+        let read = round_trip(&one("p", &["_rlnA"], &rows));
+
+        assert_eq!(values_of(&read[0].1, 0), values);
+    }
+
+    #[test]
+    fn a_value_that_reads_as_a_keyword_or_a_text_field_survives() {
+        let values = [
+            "loop_#1", "loop_", "data_x", "global_", "save_a", "stop_", "LOOP_", ";text",
+        ];
+        let rows: Vec<&[&str]> = values.iter().map(std::slice::from_ref).collect();
+
+        let read = round_trip(&one("p", &["_rlnA"], &rows));
+
+        assert_eq!(values_of(&read[0].1, 0), values);
+    }
+
+    #[test]
+    fn a_block_with_no_columns_is_refused() {
+        let empty = Arc::new(Schema::empty());
+        let batch = RecordBatch::try_new_with_options(
+            empty,
+            vec![],
+            &arrow::record_batch::RecordBatchOptions::new().with_row_count(Some(3)),
+        )
+        .unwrap();
+
+        let error = written(&[("p".to_string(), vec![batch])]).unwrap_err();
+
+        assert!(error.to_string().contains("no columns"));
     }
 
     #[test]
@@ -444,11 +512,11 @@ data_",
         let directory = TempDir::new().unwrap();
         let path = directory.path().join("out.star");
         let mut tables = one("first", &["_rlnA"], &[&["fine"]]);
-        tables.extend(one("second", &["_rlnA"], &[&["it's \"this\""]]));
+        tables.extend(one("second", &["_rlnA"], &[&["a' b\" c"]]));
 
         let error = write_tables(path.to_str().unwrap(), None, &tables).unwrap_err();
 
-        assert!(error.to_string().contains("both kinds of quote"));
+        assert!(error.to_string().contains("either kind of quote"));
         assert!(!path.exists());
     }
 

@@ -9,7 +9,7 @@ Highly performant reader and writer of CryoEM metadata formats (STAR, XMD, SQLit
 
 ## Features
 
-- **One vocabulary, whatever the file** — columns come back under canonical names, typed: `_rlnCoordinateX` and Xmipp's equivalent both arrive as `coord_x`
+- **One vocabulary, whatever the file** — columns come back under canonical names, typed: Relion's `_rlnCoordinateX` and cryoSPARC's `location/center_x_frac` both arrive as `coord_x`
 - **The file's own names too** — `result.raw` is the same read as the format wrote it, every value a string
 - **Lazy I/O** — `rxm.read()` returns immediately with no file I/O, and so does naming a table; data is only loaded when you call `to_pandas()`, `to_polars()`, `to_arrow()` or `chunks()`, and nothing of the file is kept once the frame is handed back
 - **Bounded memory** — `chunks()` streams a file larger than memory, parsing only the columns asked for, and `write()` rereads and writes it a chunk at a time
@@ -76,7 +76,7 @@ Requires Python ≥ 3.10.
 import rexlib_metadata as rxm
 
 result = rxm.read("particles.star")   # reader and conventions chosen by extension
-df = result.to_pandas()               # or .to_polars(), .to_arrow()
+df = result["particles"].to_pandas()  # or .to_polars(), .to_arrow()
 
 df.columns          # ['image_path', 'image_index', 'micrograph_path', 'coord_x', 'coord_y', ...]
 df["coord_x"].dtype # float64
@@ -99,7 +99,7 @@ rather than picking:
 result = rxm.read("run_it025_data.star")
 result.names                             # ('particles', 'optics')
 result["particles"].to_pandas()
-result.joined("particles").to_pandas()   # ..., optics_group, voltage, pixel_size, ...
+result.joined("particles").to_pandas()   # ..., optics_group, voltage, spherical_aberration, ...
 ```
 
 ### Chunks

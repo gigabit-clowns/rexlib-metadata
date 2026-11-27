@@ -8,11 +8,30 @@ pub(crate) fn tokenize_line<'a>(
     path: &str,
     line_num: usize,
 ) -> Result<Vec<Token<'a>>, Error> {
-    if is_row(line) {
+    if line.starts_with(';') {
+        Err(parse_error(
+            path,
+            line_num,
+            "a ';' text field is not supported: a STAR value has to fit on its line",
+        ))
+    } else if is_row(line) {
         tokenize_values(line, path, line_num)
     } else {
         keyword_or_values(line, path, line_num)
     }
+}
+
+/// `line` up to its comment, which a `#` starts at the line's start or after
+/// whitespace, as STAR and CIF have it.
+fn without_comment(line: &str) -> &str {
+    let mut previous = ' ';
+    for (at, ch) in line.char_indices() {
+        if ch == '#' && previous.is_whitespace() {
+            return &line[..at];
+        }
+        previous = ch;
+    }
+    line
 }
 
 /// Whether `line` can only be values, which is how a loop's rows are told
@@ -20,7 +39,7 @@ pub(crate) fn tokenize_line<'a>(
 pub(crate) fn is_row(line: &str) -> bool {
     !matches!(
         line.trim_start().bytes().next(),
-        None | Some(b'#' | b'd' | b'l' | b'_')
+        None | Some(b'#' | b'd' | b'D' | b'l' | b'L' | b'_')
     )
 }
 
@@ -29,13 +48,17 @@ fn keyword_or_values<'a>(
     path: &str,
     line_num: usize,
 ) -> Result<Vec<Token<'a>>, Error> {
-    let clean_line = line.split_once('#').map_or(line, |(head, _)| head).trim();
+    let clean_line = without_comment(line).trim();
     if clean_line.is_empty() {
         Ok(vec![])
-    } else if let Some(name) = clean_line.strip_prefix("data_") {
+    } else if let Some(name) = keyword(clean_line, "data_") {
         ensure_single_word(clean_line, path, line_num, "data block header")?;
         Ok(vec![Token::DataBlock(name)])
-    } else if clean_line.split_whitespace().next() == Some("loop_") {
+    } else if clean_line
+        .split_whitespace()
+        .next()
+        .is_some_and(|word| keyword(word, "loop_") == Some(""))
+    {
         ensure_single_word(clean_line, path, line_num, "loop_ keyword")?;
         Ok(vec![Token::Loop])
     } else if clean_line.starts_with('_') {
@@ -43,6 +66,13 @@ fn keyword_or_values<'a>(
     } else {
         tokenize_values(line, path, line_num)
     }
+}
+
+/// What follows `word` at the start of `text`, matched regardless of case.
+fn keyword<'a>(text: &'a str, word: &str) -> Option<&'a str> {
+    text.get(..word.len())
+        .filter(|head| head.eq_ignore_ascii_case(word))
+        .and_then(|_| text.get(word.len()..))
 }
 
 fn tokenize_tag<'a>(
