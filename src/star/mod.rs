@@ -59,9 +59,11 @@ pub(crate) struct Chunks {
 impl Chunks {
     pub(crate) fn open(
         path: &str,
-        chunk_size: NonZeroUsize,
+        chunk_size: usize,
         columns: Option<HashSet<String>>,
     ) -> Result<Self, Error> {
+        let chunk_size = NonZeroUsize::new(chunk_size)
+            .ok_or_else(|| Error::Argument("chunk_size has to be at least one row".to_string()))?;
         Ok(Self {
             parser: Parser::open(path, lexer::tokenize_line as Tokenize)?,
             sink: ArrowSink::new(Some(chunk_size), columns),
@@ -121,14 +123,10 @@ mod tests {
     fn chunks(content: &str, size: usize, columns: Option<&[&str]>) -> Vec<Chunk> {
         let file = written(content.as_bytes());
         let keep = columns.map(|names| names.iter().map(ToString::to_string).collect());
-        Chunks::open(
-            file.path().to_str().unwrap(),
-            NonZeroUsize::new(size).unwrap(),
-            keep,
-        )
-        .unwrap()
-        .collect::<Result<_, _>>()
-        .unwrap()
+        Chunks::open(file.path().to_str().unwrap(), size, keep)
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
     }
 
     fn shape(chunks: &[Chunk]) -> Vec<(&str, usize)> {
@@ -247,12 +245,7 @@ _x
     #[test]
     fn a_chunk_read_before_a_broken_line_comes_back_and_then_the_error() {
         let file = written(b"data_p\nloop_\n_x\n1\n2\n3 4\n");
-        let mut read = Chunks::open(
-            file.path().to_str().unwrap(),
-            NonZeroUsize::new(2).unwrap(),
-            None,
-        )
-        .unwrap();
+        let mut read = Chunks::open(file.path().to_str().unwrap(), 2, None).unwrap();
 
         assert_eq!(read.next().unwrap().unwrap().2.num_rows(), 2);
         assert!(matches!(
@@ -420,5 +413,57 @@ _x
             Error::Parse { line, .. } => assert_eq!(line, 7),
             other => panic!("expected a parse error, got {other:?}"),
         }
+    }
+
+    fn refused_at(content: &str, expected_line: usize, words: &str) {
+        match error(content) {
+            Error::Parse { line, message, .. } => {
+                assert_eq!(line, expected_line, "{message}");
+                assert!(message.contains(words), "{message}");
+            }
+            other => panic!("expected a parse error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_column_declared_twice_names_the_line() {
+        refused_at("data_p\nloop_\n_x\n_x\n1 2\n", 4, "declared twice");
+    }
+
+    #[test]
+    fn a_tag_declared_twice_names_the_line() {
+        refused_at("data_p\n_a 1\n_a 2\n", 3, "declared twice");
+    }
+
+    #[test]
+    fn a_text_field_is_refused_rather_than_read_as_values() {
+        refused_at("data_p\nloop_\n_x\n;\nhello\n;\n", 4, "text field");
+    }
+
+    #[test]
+    fn keywords_are_read_in_any_case() {
+        let read = tables("DATA_p\nLoop_\n_x\n1\n");
+
+        assert_eq!(read[0].0, "p");
+        let (_, rows) = rows_of_record_batch(&read[0].1).unwrap();
+        assert_eq!(rows, [["1"]]);
+    }
+
+    #[test]
+    fn chunks_of_no_rows_are_refused() {
+        let file = written(b"data_p\nloop_\n_x\n1\n");
+
+        let refused = Chunks::open(file.path().to_str().unwrap(), 0, None);
+
+        assert!(matches!(refused, Err(Error::Argument(_))));
+    }
+
+    #[test]
+    fn a_comment_starts_only_at_whitespace() {
+        let read = tables("data_p # the block\nloop_ # its loop\n_x\nloop_#1\n");
+
+        assert_eq!(read[0].0, "p");
+        let (_, rows) = rows_of_record_batch(&read[0].1).unwrap();
+        assert_eq!(rows, [["loop_#1"]]);
     }
 }

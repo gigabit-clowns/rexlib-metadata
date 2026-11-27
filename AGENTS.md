@@ -1,6 +1,7 @@
 # Working on rexlib-metadata
 
-Reads and writes CryoEM metadata — Relion STAR, Xmipp XMD, SQLite —
+Reads and writes CryoEM metadata — Relion STAR, Xmipp XMD, SQLite,
+cryoSPARC `.cs` —
 into one canonical Arrow table, handed to Python as pandas or polars. Part of
 the REX suite (gigabit-clowns), but depends on nothing else in it.
 
@@ -29,7 +30,7 @@ the REX suite (gigabit-clowns), but depends on nothing else in it.
 | `…/pose.py` | The canonical transform, and Relion's angles to and from it |
 | `…/convention.py` | Convention interfaces and `ConventionBundle` |
 | `…/formats/` | One reader and writer per file format |
-| `…/conventions/` | One module of conventions per dialect: Relion, Xmipp |
+| `…/conventions/` | One module of conventions per dialect: Relion, Relion 3.0, Xmipp, cryoSPARC |
 | `…/engine.py` | The read and write engine |
 | `…/result.py` | `ReadResult`, `RawResult`, `Chunk` |
 | `…/writing.py`, `join.py`, `_arrow.py` | Writing frames, the optics join, Arrow conversions |
@@ -57,9 +58,9 @@ may override `read_tables_keeping` to skip columns while parsing and
 implements `write_tables`, and may override `write_chunks` to stream. Neither
 knows the registry.
 
-`lib.rs` keeps no logic: it wraps, releases the GIL while Rust reads, and maps
-`Error` to `FileNotFoundError` (missing), `ValueError` (malformed) or
-`RuntimeError` (Arrow, i.e. our bug).
+`lib.rs` keeps no logic: it wraps, releases the GIL around every file
+operation, and maps `Error` to an `OSError` subclass (I/O), `ValueError`
+(malformed input or a bad argument) or `RuntimeError` (Arrow, i.e. our bug).
 
 ## Building and testing
 

@@ -61,8 +61,7 @@ sits under both.
   while mapped is a `SIGBUS`. A buffered reader bounds memory instead.
 - **No chunk index** until an API asks for chunk *k* without reading the ones
   before it; then a progressive index, never a mandatory first scan.
-- **No LTO**: the release profile is cargo's default (see the Phase 10
-  measurements in [roadmap.md](roadmap.md)).
+- **No LTO**: the release profile is cargo's default.
 - **SQLite is read in Python through `sqlite3`.** Generic reader: every
   table, typed by SQLite's affinity rules, `NUMERIC` and undeclared columns
   as text. A dialect such as Scipion's is a bundle on top, not a reader.

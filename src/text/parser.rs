@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 use std::fs::File;
-use std::io::{BufRead, BufReader, ErrorKind};
+use std::io::{BufRead, BufReader, ErrorKind, Read};
 
-use super::Token;
+use super::{LINE_LIMIT, Token};
 use crate::error::{Error, parse_error};
 
 pub(crate) trait Sink {
@@ -138,8 +138,8 @@ where
     fn read_line(&mut self) -> Result<bool, Error> {
         self.line.clear();
         self.line_num += 1;
-        let read = self
-            .reader
+        let read = (&mut self.reader)
+            .take(LINE_LIMIT as u64 + 1)
             .read_line(&mut self.line)
             .map_err(|source| match source.kind() {
                 ErrorKind::InvalidData => parse_error(&self.path, self.line_num, "not valid UTF-8"),
@@ -148,6 +148,13 @@ where
                     source,
                 },
             })?;
+        if read > LINE_LIMIT {
+            return Err(parse_error(
+                &self.path,
+                self.line_num,
+                "a line longer than 1 GiB, which an Arrow string column cannot hold",
+            ));
+        }
         if self.line_num == 1 && self.line.starts_with('\u{feff}') {
             self.line.drain(..'\u{feff}'.len_utf8());
         }
@@ -242,6 +249,7 @@ fn read_tag(
             mut columns,
             mut values,
         } => {
+            refuse_repeat(&columns, &name, path, line)?;
             columns.push(name);
             values.push(value);
             Ok(State::ReadingTags {
@@ -277,6 +285,7 @@ fn declare_columns(
 fn declare_column(state: State, column: String, path: &str, line: usize) -> Result<State, Error> {
     match state {
         State::ReadingColumns { name, mut columns } => {
+            refuse_repeat(&columns, &column, path, line)?;
             columns.push(column);
             Ok(State::ReadingColumns { name, columns })
         }
@@ -301,6 +310,17 @@ fn declare_column(state: State, column: String, path: &str, line: usize) -> Resu
             format!("column '{column}' with no value among a block's tags"),
         )),
     }
+}
+
+fn refuse_repeat(columns: &[String], name: &str, path: &str, line: usize) -> Result<(), Error> {
+    if columns.iter().any(|column| column == name) {
+        return Err(parse_error(
+            path,
+            line,
+            format!("column '{name}' is declared twice in one block"),
+        ));
+    }
+    Ok(())
 }
 
 fn read_row<S: Sink>(

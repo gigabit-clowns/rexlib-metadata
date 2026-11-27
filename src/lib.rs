@@ -6,7 +6,6 @@ mod text;
 
 use std::collections::HashSet;
 use std::io::ErrorKind;
-use std::num::NonZeroUsize;
 
 use arrow::record_batch::RecordBatch;
 use pyo3::exceptions::{
@@ -48,13 +47,14 @@ fn star_read_headers(py: Python<'_>, path: &str) -> PyResult<Vec<(String, Vec<St
 #[pyfunction]
 #[pyo3(name = "_star_read_chunks", signature = (path, chunk_size, columns=None))]
 fn star_read_chunks(
+    py: Python<'_>,
     path: &str,
     chunk_size: usize,
     columns: Option<HashSet<String>>,
 ) -> PyResult<StarChunks> {
-    let chunk_size = NonZeroUsize::new(chunk_size)
-        .ok_or_else(|| PyValueError::new_err("chunk_size has to be at least one row"))?;
-    let chunks = star::Chunks::open(path, chunk_size, columns).map_err(to_python_error)?;
+    let chunks = py
+        .detach(|| star::Chunks::open(path, chunk_size, columns))
+        .map_err(to_python_error)?;
     Ok(StarChunks {
         chunks: Some(chunks),
     })
@@ -112,8 +112,10 @@ fn star_write(
 
 #[pyfunction]
 #[pyo3(name = "_star_stream", signature = (path, header=None))]
-fn star_stream(path: &str, header: Option<&str>) -> PyResult<StarStream> {
-    let stream = star::writer::Stream::create(path, header).map_err(to_python_error)?;
+fn star_stream(py: Python<'_>, path: &str, header: Option<&str>) -> PyResult<StarStream> {
+    let stream = py
+        .detach(|| star::writer::Stream::create(path, header))
+        .map_err(to_python_error)?;
     Ok(StarStream {
         stream: Some(stream),
     })
@@ -153,8 +155,9 @@ impl StarStream {
         }
     }
 
-    fn abandon(&mut self) {
-        self.stream = None;
+    fn abandon(&mut self, py: Python<'_>) {
+        let stream = self.stream.take();
+        py.detach(|| drop(stream));
     }
 
     fn __enter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
@@ -170,7 +173,7 @@ impl StarStream {
     ) -> PyResult<bool> {
         match kind {
             None => self.close(py)?,
-            Some(_) => self.abandon(),
+            Some(_) => self.abandon(py),
         }
         Ok(false)
     }
@@ -180,14 +183,22 @@ fn to_python_error(error: Error) -> PyErr {
     let message = error.to_string();
     match error {
         Error::Io { path, source } => {
-            let arguments = (source.raw_os_error(), message, path);
+            let reason = source.to_string();
+            let reason = source
+                .raw_os_error()
+                .and_then(|code| reason.strip_suffix(&format!(" (os error {code})")))
+                .unwrap_or(&reason)
+                .to_string();
+            let arguments = (source.raw_os_error(), reason, path);
             match source.kind() {
                 ErrorKind::NotFound => PyFileNotFoundError::new_err(arguments),
                 ErrorKind::PermissionDenied => PyPermissionError::new_err(arguments),
                 _ => PyOSError::new_err(arguments),
             }
         }
-        Error::Parse { .. } | Error::Unwritable { .. } => PyValueError::new_err(message),
+        Error::Parse { .. } | Error::Unwritable { .. } | Error::Argument(_) => {
+            PyValueError::new_err(message)
+        }
         Error::Arrow(_) => PyRuntimeError::new_err(message),
     }
 }
