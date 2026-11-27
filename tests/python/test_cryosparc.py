@@ -180,3 +180,30 @@ def test_a_file_that_is_not_a_cs_says_so(tmp_path):
 
     with pytest.raises(ValueError, match="not a cryoSPARC file"):
         reader.read_tables(str(path))
+
+
+def _shifted(**sizes):
+    columns = {
+        "alignments3D/pose": pa.array(
+            [[0.0, 0.0, 0.0]], pa.list_(pa.float32(), 3)
+        ),
+        "alignments3D/shift": pa.array([[2.0, 0.0]], pa.list_(pa.float32(), 2)),
+    }
+    columns.update({name: pa.array([size]) for name, size in sizes.items()})
+    return pa.table(columns)
+
+
+def test_a_shift_takes_the_images_pixel_size_where_the_alignment_has_none():
+    table = _shifted(**{"blob/psize_A": 1.5})
+
+    (transform,) = Pose().load(table).values()
+
+    assert pose.matrices(transform)[0, 0, 3] == pytest.approx(3.0)
+
+
+def test_a_shift_with_no_pixel_size_is_refused():
+    table = _shifted()
+    convention = Pose()
+
+    with pytest.raises(ValueError, match="alignments3D/shift is in pixels"):
+        convention.load(table)
