@@ -129,3 +129,21 @@ def test_a_frame_of_lists_casts_to_the_canonical_column():
     got = pose.matrices(frame["transform"])
 
     assert got.tolist() == [[[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11]]]
+
+
+def test_a_turn_about_z_with_float32_noise_keeps_its_angle():
+    turn = np.radians(50)
+    noisy = np.array(
+        [
+            [np.cos(turn), -np.sin(turn), 1e-8, 0],
+            [np.sin(turn), np.cos(turn), 0, 0],
+            [-1e-8, 0, 1, 0],
+        ]
+    )
+    column = pa.FixedSizeListArray.from_arrays(
+        pa.array(noisy.astype(np.float32).ravel()), 12
+    )
+
+    rot, tilt, psi = (angle[0] for angle in pose.euler(column))
+
+    assert (rot, tilt, psi) == pytest.approx((0.0, 0.0, 50.0), abs=1e-4)

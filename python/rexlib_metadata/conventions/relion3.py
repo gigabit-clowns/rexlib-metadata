@@ -95,22 +95,55 @@ class Pose(relion.Pose):
     source_columns = (*relion.Pose.angles, *origin, *_DETECTOR)
 
     def matches(self, raw: RawSchema) -> bool:
-        """Apply where an origin in pixels has a detector to scale it."""
-        return (
-            not raw.has("_rlnOpticsGroup")
-            and relion.any_of(raw, self.origin)
-            and raw.has(*_DETECTOR)
+        """Apply where an origin is in pixels."""
+        return not raw.has("_rlnOpticsGroup") and relion.any_of(
+            raw, self.origin
         )
 
     def offsets(self, table: pa.Table) -> tuple[np.ndarray, ...]:
-        """Return each row's origin in Ångström."""
-        size = _pixel_size(table).to_numpy()
-        return tuple(relion.numbers(table, n) * size for n in self.origin)
+        """Return each row's origin in Ångström.
+
+        A non-zero origin needs a finite pixel size, and a block with no
+        detector has none.
+        """
+        if not set(_DETECTOR).issubset(table.column_names):
+            raise ValueError(
+                "an origin in pixels needs _rlnDetectorPixelSize and "
+                "_rlnMagnification to be in Ångström, and the block has "
+                "neither"
+            )
+        size = _pixel_size(table).to_numpy(zero_copy_only=False)
+        return tuple(
+            _scaled(relion.numbers(table, n), size, n) for n in self.origin
+        )
 
 
 def _setting(table: pa.Table) -> ArrowColumn:
     join: Callable[..., ArrowColumn] = pc.binary_join_element_wise
-    return join(*(table.column(c) for c in _SETTING), pa.scalar("\x1f"))
+    values = (
+        pc.cast(parsed(table.column(c), pa.float64()), pa.string())
+        for c in _SETTING
+    )
+    return join(
+        *values,
+        pa.scalar("\x1f"),
+        null_handling="replace",
+        null_replacement="",
+    )
+
+
+def _scaled(pixels: np.ndarray, size: np.ndarray, column: str) -> np.ndarray:
+    import numpy as np
+
+    with np.errstate(invalid="ignore"):
+        angstrom = np.where(pixels == 0, 0.0, pixels * size)
+    if not np.isfinite(angstrom).all():
+        row = int(np.argmax(~np.isfinite(angstrom)))
+        raise ValueError(
+            f"{column} is {pixels[row]} px in row {row}, whose detector "
+            "gives no finite pixel size to put it in Ångström"
+        )
+    return angstrom
 
 
 def _pixel_size(table: pa.Table) -> ArrowColumn:

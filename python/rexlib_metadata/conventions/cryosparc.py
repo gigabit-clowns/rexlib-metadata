@@ -102,14 +102,15 @@ class Coordinates(_Fields):
 class Pose(_Fields):
     """A 3D alignment's rotation vector and shift, as one transform.
 
-    The shift is in pixels of the alignment's own size, and is zero where
-    the file has none.
+    The shift is in pixels of the alignment's own size, or of the image's
+    where the alignment names none, and is zero where the file has none.
     """
 
     source_columns = (
         "alignments3D/pose",
         "alignments3D/shift",
         "alignments3D/psize_A",
+        "blob/psize_A",
     )
     target_columns = ("transform",)
 
@@ -204,9 +205,15 @@ def _rows(column: ArrowColumn, width: int) -> np.ndarray:
 def _origin(table: pa.Table) -> tuple[np.ndarray, ...]:
     import numpy as np
 
-    shift, size = Pose.source_columns[1:]
-    if not {shift, size}.issubset(table.column_names):
+    shift, *sizes = Pose.source_columns[1:]
+    if shift not in table.column_names:
         return tuple(np.zeros(table.num_rows) for _ in range(_AXES))
+    size = next((name for name in sizes if name in table.column_names), None)
+    if size is None:
+        raise ValueError(
+            f"{shift} is in pixels, and the file has none of "
+            f"{', '.join(sizes)} to put it in Ångström"
+        )
     pixels = _rows(table.column(shift), 2)
     angstrom = _double(table.column(size)).to_numpy()
     x, y = (np.ascontiguousarray(pixels[:, i]) * angstrom for i in range(2))
