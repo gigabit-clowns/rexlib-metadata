@@ -232,7 +232,6 @@ def test_the_parser_keeps_what_a_read_and_a_select_would(name):
     )
 
 
-
 class _CountingStar(StarReader):
     def __init__(self):
         self.reads = 0

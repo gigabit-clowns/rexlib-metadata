@@ -5,9 +5,12 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+candidates=(".venv/bin/python" ".venv/Scripts/python.exe")
+if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+    candidates=("$VIRTUAL_ENV/bin/python" "$VIRTUAL_ENV/Scripts/python.exe" "${candidates[@]}")
+fi
 python=""
-for candidate in "${VIRTUAL_ENV:-}/bin/python" "${VIRTUAL_ENV:-}/Scripts/python.exe" \
-    ".venv/bin/python" ".venv/Scripts/python.exe"; do
+for candidate in "${candidates[@]}"; do
     if [[ -x "$candidate" ]]; then
         python="$candidate"
         break
@@ -35,5 +38,10 @@ step "ruff" "$python" -m ruff check .
 step "complexipy" "$bin/complexipy" python tests benchmarks scripts --max-complexity-allowed 7 --quiet
 step "mypy" "$python" -m mypy
 step "pytest" "$python" -m pytest tests/python/
+step "cargo doc" env RUSTDOCFLAGS="-D warnings" \
+    cargo doc --locked --no-deps --document-private-items --quiet
+site="$(mktemp -d)"
+trap 'rm -rf "$site"' EXIT
+step "docs" "$python" -W error -m scripts.docs "$site"
 
 printf '\n\033[1mThe gate is green.\033[0m\n'
