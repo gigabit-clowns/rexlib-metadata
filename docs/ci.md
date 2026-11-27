@@ -12,6 +12,10 @@
 
 A second push to the same ref cancels the run in flight.
 
+On a pull request, `benchmarks.yml` and `release.yml` skip their jobs when
+the only change is to `pyproject.toml`'s groups they do not install
+(`scripts/changed.py`). Neither is a required check.
+
 A version tag is `vX.Y.Z`, digits only; the workflows' filters take no
 other. The `github-pages` environment deploys from `main` and from tags
 matching `v[0-9]*.[0-9]*.[0-9]*`, the closest its patterns come.
