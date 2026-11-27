@@ -202,5 +202,8 @@ def test_a_shift_takes_the_images_pixel_size_where_the_alignment_has_none():
 
 
 def test_a_shift_with_no_pixel_size_is_refused():
+    table = _shifted()
+    convention = Pose()
+
     with pytest.raises(ValueError, match="alignments3D/shift is in pixels"):
-        Pose().load(_shifted())
+        convention.load(table)

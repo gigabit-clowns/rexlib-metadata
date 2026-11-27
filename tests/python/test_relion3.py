@@ -230,17 +230,17 @@ def _relion30(tmp_path, detector, origin):
 
 
 def test_an_origin_in_pixels_with_no_detector_is_refused(tmp_path):
-    path = _relion30(tmp_path, detector=None, origin="2")
+    view = rxm.read(_relion30(tmp_path, detector=None, origin="2"))
 
     with pytest.raises(ValueError, match="_rlnDetectorPixelSize"):
-        rxm.read(path)["particles"].to_arrow()
+        view["particles"].to_arrow()
 
 
 def test_an_origin_with_no_finite_pixel_size_is_refused(tmp_path):
-    path = _relion30(tmp_path, detector='""', origin="2")
+    view = rxm.read(_relion30(tmp_path, detector='""', origin="2"))
 
     with pytest.raises(ValueError, match=r"_rlnOriginX is 2\.0 px in row 0"):
-        rxm.read(path)["particles"].to_arrow()
+        view["particles"].to_arrow()
 
 
 def test_a_zero_origin_needs_no_pixel_size(tmp_path):
