@@ -79,7 +79,7 @@ compare = [
     { include-group = "test" },
     { include-group = "develop" },
     "starfile==0.5.13",
-    "starfile-rs==0.1.13",
+    "starfile-rs==0.1.15",
 ]
 
 [project.urls]
