@@ -23,8 +23,8 @@ fn version() -> &'static str {
 }
 
 #[pyfunction]
-#[pyo3(signature = (path, columns=None))]
-fn _star_read_tables(
+#[pyo3(name = "_star_read_tables", signature = (path, columns=None))]
+fn star_read_tables(
     py: Python<'_>,
     path: &str,
     columns: Option<HashSet<String>>,
@@ -39,14 +39,15 @@ fn _star_read_tables(
 }
 
 #[pyfunction]
-fn _star_read_headers(py: Python<'_>, path: &str) -> PyResult<Vec<(String, Vec<String>)>> {
+#[pyo3(name = "_star_read_headers")]
+fn star_read_headers(py: Python<'_>, path: &str) -> PyResult<Vec<(String, Vec<String>)>> {
     py.detach(|| star::read_headers(path))
         .map_err(to_python_error)
 }
 
 #[pyfunction]
-#[pyo3(signature = (path, chunk_size, columns=None))]
-fn _star_read_chunks(
+#[pyo3(name = "_star_read_chunks", signature = (path, chunk_size, columns=None))]
+fn star_read_chunks(
     path: &str,
     chunk_size: usize,
     columns: Option<HashSet<String>>,
@@ -91,8 +92,8 @@ impl StarChunks {
 }
 
 #[pyfunction]
-#[pyo3(signature = (path, tables, header=None))]
-fn _star_write(
+#[pyo3(name = "_star_write", signature = (path, tables, header=None))]
+fn star_write(
     py: Python<'_>,
     path: &str,
     tables: Vec<(String, Vec<PyRecordBatch>)>,
@@ -110,8 +111,8 @@ fn _star_write(
 }
 
 #[pyfunction]
-#[pyo3(signature = (path, header=None))]
-fn _star_stream(path: &str, header: Option<&str>) -> PyResult<StarStream> {
+#[pyo3(name = "_star_stream", signature = (path, header=None))]
+fn star_stream(path: &str, header: Option<&str>) -> PyResult<StarStream> {
     let stream = star::writer::Stream::create(path, header).map_err(to_python_error)?;
     Ok(StarStream {
         stream: Some(stream),
@@ -191,14 +192,14 @@ fn to_python_error(error: Error) -> PyErr {
     }
 }
 
-#[pymodule]
-fn _rexlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
+#[pymodule(name = "_rexlib")]
+fn rexlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(version, m)?)?;
-    m.add_function(wrap_pyfunction!(_star_read_tables, m)?)?;
-    m.add_function(wrap_pyfunction!(_star_read_chunks, m)?)?;
-    m.add_function(wrap_pyfunction!(_star_read_headers, m)?)?;
-    m.add_function(wrap_pyfunction!(_star_write, m)?)?;
-    m.add_function(wrap_pyfunction!(_star_stream, m)?)?;
+    m.add_function(wrap_pyfunction!(star_read_tables, m)?)?;
+    m.add_function(wrap_pyfunction!(star_read_chunks, m)?)?;
+    m.add_function(wrap_pyfunction!(star_read_headers, m)?)?;
+    m.add_function(wrap_pyfunction!(star_write, m)?)?;
+    m.add_function(wrap_pyfunction!(star_stream, m)?)?;
     m.add_class::<StarChunks>()?;
     m.add_class::<StarStream>()?;
     Ok(())
