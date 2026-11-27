@@ -63,9 +63,8 @@ also benchmarked against `main` on
 ## Installation
 
 ```bash
-pip install rexlib-metadata				# Arrow, through pyarrow
-pip install rexlib-metadata[pandas]		# or [polars], [pandas,polars]
-pip install rexlib-metadata[cryosparc]	# cryoSPARC .cs, through NumPy
+pip install rexlib-metadata           # Arrow, through pyarrow and NumPy
+pip install rexlib-metadata[pandas]   # or [polars], [pandas,polars]
 ```
 
 Requires Python ≥ 3.10.
