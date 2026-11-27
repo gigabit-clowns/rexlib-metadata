@@ -26,4 +26,9 @@ What is not obvious from the manifests:
   version CI has passed, which Renovate widens. The oldest-extras cell
   installs each floor.
 - A pin split by `python_version` keeps an older Python on the last release
-  that supports it; `renovate.json` caps only the older halves.
+  that supports it; `renovate.json` caps only the older halves, so a newer
+  pin dropping a Python fails CI instead. Renovate drops the marker, so a
+  rule tells the halves apart by `matchCurrentVersion` (by the raw value
+  for a range) and caps through `constraints`, which takes a bare version.
+- The suite's own workflows and composites stay on main, unpinned, so a fix
+  reaches every repository at once.
