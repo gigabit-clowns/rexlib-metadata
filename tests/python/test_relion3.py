@@ -10,6 +10,8 @@ import rexlib_metadata as rxm
 from rexlib_metadata import pose
 from rexlib_metadata.formats.star import StarReader
 
+from .frames import assert_same
+
 FILES = Path(__file__).parent.parent / "files" / "star"
 POLISHED = str(FILES / "relion3.0_polished.star")
 MICROGRAPHS = str(FILES / "relion3.0_micrographs.star")
@@ -83,9 +85,7 @@ def test_relion30_micrographs_write_back_as_relion4(tmp_path):
     assert "_rlnCtfImage" in written
     assert "_rlnVoltage" not in written
     for name in source.names:
-        pd.testing.assert_frame_equal(
-            again[name].to_pandas(), source[name].to_pandas()
-        )
+        assert_same(again[name].to_pandas(), source[name].to_pandas())
 
 
 def test_a_relion30_file_writes_back_as_relion4(tmp_path):
@@ -100,9 +100,7 @@ def test_a_relion30_file_writes_back_as_relion4(tmp_path):
     assert {"_rlnOriginXAngst", "_rlnOpticsGroup", "_rlnClassNumber"} <= columns
     assert not {"_rlnOriginX", "_rlnMagnification", "_rlnVoltage"} & columns
     for name in source.names:
-        pd.testing.assert_frame_equal(
-            again[name].to_pandas(), source[name].to_pandas()
-        )
+        assert_same(again[name].to_pandas(), source[name].to_pandas())
 
 
 @pytest.mark.parametrize(
@@ -211,3 +209,56 @@ def test_each_distinct_setting_is_a_group_numbered_as_first_held(tmp_path):
     assert particles["optics_group"].tolist() == [1, 2, 1]
     assert optics["optics_group"].tolist() == [1, 2]
     assert optics["voltage"].tolist() == [200.0, 300.0]
+
+
+def _relion30(tmp_path, detector, origin):
+    path = tmp_path / "r30.star"
+    names = ["_rlnImageName", "_rlnAnglePsi", "_rlnOriginX", "_rlnOriginY"]
+    row = ["1@a.mrcs", "30", origin, "0"]
+    if detector is not None:
+        names += [
+            "_rlnVoltage",
+            "_rlnSphericalAberration",
+            "_rlnAmplitudeContrast",
+            "_rlnMagnification",
+            "_rlnDetectorPixelSize",
+        ]
+        row += ["300", "2.7", "0.1", "10000", detector]
+    header = "".join(f"{name}\n" for name in names)
+    path.write_text(f"data_\nloop_\n{header}{' '.join(row)}\n")
+    return str(path)
+
+
+def test_an_origin_in_pixels_with_no_detector_is_refused(tmp_path):
+    view = rxm.read(_relion30(tmp_path, detector=None, origin="2"))
+
+    with pytest.raises(ValueError, match="_rlnDetectorPixelSize"):
+        view["particles"].to_arrow()
+
+
+def test_an_origin_with_no_finite_pixel_size_is_refused(tmp_path):
+    view = rxm.read(_relion30(tmp_path, detector='""', origin="2"))
+
+    with pytest.raises(ValueError, match=r"_rlnOriginX is 2\.0 px in row 0"):
+        view["particles"].to_arrow()
+
+
+def test_a_zero_origin_needs_no_pixel_size(tmp_path):
+    path = _relion30(tmp_path, detector='""', origin="0")
+
+    df = rxm.read(path)["particles"].to_pandas()
+
+    assert pose.matrices(df["transform"])[0, :, 3].tolist() == [0, 0, 0]
+
+
+def test_a_setting_written_two_ways_is_one_group(tmp_path):
+    path = tmp_path / "r30.star"
+    path.write_text(
+        "data_\nloop_\n_rlnImageName\n_rlnVoltage\n_rlnSphericalAberration\n"
+        "_rlnAmplitudeContrast\n_rlnMagnification\n_rlnDetectorPixelSize\n"
+        "1@a.mrcs 300 2.7 0.1 10000 5\n2@a.mrcs 300.0 2.70 0.10 10000 5.0\n"
+    )
+
+    groups = rxm.read(str(path))["particles"].to_pandas()["optics_group"]
+
+    assert groups.tolist() == [1, 1]

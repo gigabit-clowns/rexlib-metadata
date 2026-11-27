@@ -241,3 +241,47 @@ def test_a_pose_read_a_slice_at_a_time_is_the_pose_read_whole(monkeypatch):
 
     assert sliced.num_chunks == 12
     assert sliced.to_pylist() == whole.to_pylist()
+
+
+_UNTOUCHED = """data_optics
+loop_
+_rlnOpticsGroup
+_rlnImagePixelSize
+1 1.0
+
+data_particles
+loop_
+_rlnImageName
+_rlnAngleRot
+_rlnAngleTilt
+_rlnAnglePsi
+_rlnOriginXAngst
+_rlnOpticsGroup
+1@a.mrcs 37.3 81.2 -145.7 3.2 1
+"""
+
+
+def test_an_untouched_pose_is_written_back_as_it_was_read(tmp_path):
+    source = tmp_path / "in.star"
+    source.write_text(_UNTOUCHED)
+    out = str(tmp_path / "out.star")
+
+    rxm.read(str(source)).write(out)
+
+    before = rxm.read(str(source)).raw["particles"].to_pandas().iloc[0]
+    after = rxm.read(out).raw["particles"].to_pandas().iloc[0]
+    for name in ("_rlnAngleRot", "_rlnAngleTilt", "_rlnAnglePsi"):
+        assert after[name] == before[name]
+    assert after["_rlnOriginXAngst"] == before["_rlnOriginXAngst"]
+    assert after["_rlnOriginYAngst"] == after["_rlnOriginZAngst"] == "0"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [pytest.param("nan", id="nan"), pytest.param("inf", id="inf")],
+)
+def test_an_angle_that_is_not_finite_is_refused(value):
+    table = pa.table({"_rlnAnglePsi": ["10", value]})
+
+    with pytest.raises(ValueError, match=r"_rlnAnglePsi .* row 1"):
+        Pose().load(table)
