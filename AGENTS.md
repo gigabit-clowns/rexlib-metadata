@@ -22,7 +22,7 @@ the REX suite (gigabit-clowns), but depends on nothing else in it.
 |---|---|
 | `src/lib.rs` | The PyO3 module `_rexlib`: wrappers and error conversion only |
 | `src/error.rs` | `Error`, carrying the path and the line |
-| `src/text/` | Format-agnostic: `Token`, the line-at-a-time `Parser`, `ArrowSink` (rows ↔ `Utf8` batches) |
+| `src/text/` | Format-agnostic: `Token`, `Lexer`, the line-at-a-time `Parser`, `ArrowSink` (rows ↔ `Utf8` batches) |
 | `src/star/` | STAR's lexer and writer, and `read_tables` / `Chunks` |
 | `python/rexlib_metadata/abc.py` | `Reader` and `Writer` |
 | `…/registry.py` | `MetadataRegistry`: picks reader, writer and bundles |
