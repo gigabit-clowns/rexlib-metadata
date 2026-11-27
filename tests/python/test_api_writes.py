@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
+import os
+import stat
 from pathlib import Path
 
 import pandas as pd
@@ -152,3 +154,28 @@ def test_a_joined_view_refuses_a_change_to_the_table_it_points_at(tmp_path):
 
     with pytest.raises(ValueError, match="'pixel_size'"):
         view.write(out, updates=flat)
+
+
+_POSIX_ONLY = pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+
+
+@_POSIX_ONLY
+def test_a_file_written_over_keeps_its_mode(tmp_path):
+    out = tmp_path / "out.star"
+    out.write_text("")
+    out.chmod(0o640)
+
+    rxm.read(SUBTOMO).write(str(out))
+
+    assert stat.S_IMODE(out.stat().st_mode) == 0o640
+
+
+@_POSIX_ONLY
+def test_a_new_file_takes_a_new_files_mode(tmp_path):
+    out = tmp_path / "out.star"
+    umask = os.umask(0)
+    os.umask(umask)
+
+    rxm.read(SUBTOMO).write(str(out))
+
+    assert stat.S_IMODE(out.stat().st_mode) == 0o666 & ~umask
