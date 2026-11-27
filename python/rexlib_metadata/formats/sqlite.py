@@ -74,16 +74,37 @@ class SqliteWriter(Writer):
         tables = list(tables)
         names = [table.schema.table_name for table in tables]
         if len(set(names)) != len(names):
-            raise ValueError(
-                "Two tables share a name, and an SQLite file has one table "
-                "per name"
-            )
+            raise _shared_name()
         for table in tables:
             _create_statement(table)
         Path(path).write_bytes(b"")
         with closing(sqlite3.connect(path)) as connection, connection:
             for table in tables:
-                _write_table(connection, table)
+                connection.execute(_create_statement(table))
+                _insert(connection, table)
+
+    def write_chunks(
+        self, path: str, chunks: Iterable[tuple[int, RawTable]]
+    ) -> None:
+        """Write one table per ordinal, a chunk at a time."""
+        Path(path).write_bytes(b"")
+        with closing(sqlite3.connect(path)) as connection, connection:
+            names: set[str] = set()
+            current = None
+            for ordinal, chunk in chunks:
+                if ordinal != current:
+                    if chunk.schema.table_name in names:
+                        raise _shared_name()
+                    names.add(chunk.schema.table_name)
+                    connection.execute(_create_statement(chunk))
+                    current = ordinal
+                _insert(connection, chunk)
+
+
+def _shared_name() -> ValueError:
+    return ValueError(
+        "Two tables share a name, and an SQLite file has one table per name"
+    )
 
 
 def _open(path: str) -> sqlite3.Connection:
@@ -231,8 +252,7 @@ def _sqlite_type(table: RawTable, field: pa.Field) -> str:
     )
 
 
-def _write_table(connection: sqlite3.Connection, table: RawTable) -> None:
-    connection.execute(_create_statement(table))
+def _insert(connection: sqlite3.Connection, table: RawTable) -> None:
     marks = ", ".join("?" * table.table.num_columns)
     name = _quoted(table.schema.table_name)
     insert = f"INSERT INTO {name} VALUES ({marks})"
