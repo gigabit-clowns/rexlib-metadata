@@ -20,7 +20,7 @@ from rexlib_metadata.conventions import relion
 from rexlib_metadata.conventions.relion import parsed
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Iterable
 
     import numpy as np
 
@@ -119,17 +119,11 @@ class Pose(relion.Pose):
 
 
 def _setting(table: pa.Table) -> ArrowColumn:
-    join: Callable[..., ArrowColumn] = pc.binary_join_element_wise
-    values = (
+    values = [
         pc.cast(parsed(table.column(c), pa.float64()), pa.string())
         for c in _SETTING
-    )
-    return join(
-        *values,
-        pa.scalar("\x1f"),
-        null_handling="replace",
-        null_replacement="",
-    )
+    ]
+    return relion.joined_text(values, "\x1f", null_replacement="")
 
 
 def _scaled(pixels: np.ndarray, size: np.ndarray, column: str) -> np.ndarray:

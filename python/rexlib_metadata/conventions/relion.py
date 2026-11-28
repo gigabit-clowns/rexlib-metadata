@@ -18,7 +18,7 @@ from rexlib_metadata.convention import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     import numpy as np
 
@@ -144,7 +144,11 @@ class Pose(ReadConvention):
         return pose.transforms(a, self.offsets(table))
 
     def offsets(self, table: pa.Table) -> tuple[np.ndarray, ...]:
-        """Return each row's origin in Ångström."""
+        """Return each row's origin in Ångström, zero with no `origin`."""
+        import numpy as np
+
+        if not self.origin:
+            return tuple(np.zeros(table.num_rows) for _ in range(3))
         return tuple(numbers(table, name) for name in self.origin)
 
 
@@ -155,16 +159,8 @@ class CtfMaxResolution(_Renaming):
     target_columns = ("ctf_max_resolution",)
 
 
-class ParticleOpticsGroup(_Renaming):
-    """Which optics group a particle belongs to."""
-
-    source_columns = ("_rlnOpticsGroup",)
-    target_columns = ("optics_group",)
-    dtype = pa.int32()
-
-
 class OpticsGroup(_Renaming):
-    """The optics group a row of the optics table describes."""
+    """The optics group a row belongs to, or describes in the optics table."""
 
     source_columns = ("_rlnOpticsGroup",)
     target_columns = ("optics_group",)
@@ -200,19 +196,19 @@ class PixelSize(_Renaming):
 
 
 class ImageSize(_Renaming):
-    """The box edge in pixels, and whether it is a square or a cube."""
+    """The box edge, in pixels."""
 
-    source_columns = ("_rlnImageSize", "_rlnImageDimensionality")
-    target_columns = ("image_size", "image_dimensionality")
+    source_columns = ("_rlnImageSize",)
+    target_columns = ("image_size",)
+    dtype = pa.int64()
 
-    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
-        """Return the box edge as an integer, and the dimensionality."""
-        return {
-            "image_size": parsed(table.column("_rlnImageSize"), pa.int64()),
-            "image_dimensionality": parsed(
-                table.column("_rlnImageDimensionality"), pa.int32()
-            ),
-        }
+
+class ImageDimensionality(_Renaming):
+    """Whether the box is a square or a cube: 2 or 3."""
+
+    source_columns = ("_rlnImageDimensionality",)
+    target_columns = ("image_dimensionality",)
+    dtype = pa.int32()
 
 
 class _Spelling(WriteConvention):
@@ -247,8 +243,8 @@ class WriteImageReference(_Spelling):
         """Count from one where the canonical form counts from zero."""
         one_based = pc.add(canonical["image_index"], pa.scalar(1, pa.int64()))
         return {
-            self.target_columns[0]: _joined(
-                _padded(one_based), canonical["image_path"], "@"
+            self.target_columns[0]: joined_text(
+                [_padded(one_based), canonical["image_path"]], "@"
             )
         }
 
@@ -313,13 +309,6 @@ class WriteCtfMaxResolution(_Spelling):
     target_columns = ("_rlnCtfMaxResolution",)
 
 
-class WriteParticleOpticsGroup(_Spelling):
-    """Which optics group a particle belongs to."""
-
-    source_columns = ("optics_group",)
-    target_columns = ("_rlnOpticsGroup",)
-
-
 class WriteOpticsGroup(_Spelling):
     """The optics group a row of the optics table describes."""
 
@@ -356,10 +345,17 @@ class WritePixelSize(_Spelling):
 
 
 class WriteImageSize(_Spelling):
-    """The box edge in pixels, and whether it is a square or a cube."""
+    """The box edge, in pixels."""
 
-    source_columns = ("image_size", "image_dimensionality")
-    target_columns = ("_rlnImageSize", "_rlnImageDimensionality")
+    source_columns = ("image_size",)
+    target_columns = ("_rlnImageSize",)
+
+
+class WriteImageDimensionality(_Spelling):
+    """Whether the box is a square or a cube: 2 or 3."""
+
+    source_columns = ("image_dimensionality",)
+    target_columns = ("_rlnImageDimensionality",)
 
 
 def parsed(column: ArrowColumn, dtype: pa.DataType) -> ArrowColumn:
@@ -437,11 +433,24 @@ def split_reference(
     return index, path
 
 
-def _joined(
-    head: ArrowColumn, tail: ArrowColumn, separator: str
+def joined_text(
+    columns: Sequence[ArrowColumn],
+    separator: str,
+    null_replacement: str | None = None,
 ) -> ArrowColumn:
+    """Join text `columns` row by row with `separator`.
+
+    A null makes the row null, unless `null_replacement` stands for it.
+    """
     join: Callable[..., ArrowColumn] = pc.binary_join_element_wise
-    return join(head, tail, pa.scalar(separator))
+    if null_replacement is None:
+        return join(*columns, pa.scalar(separator))
+    return join(
+        *columns,
+        pa.scalar(separator),
+        null_handling="replace",
+        null_replacement=null_replacement,
+    )
 
 
 def _padded(index: ArrowColumn) -> ArrowColumn:
@@ -460,7 +469,7 @@ def relion4_bundle() -> ConventionBundle:
                 CoordinateZ(),
                 Pose(),
                 CtfMaxResolution(),
-                ParticleOpticsGroup(),
+                OpticsGroup(),
             ],
             "optics": [
                 OpticsGroup(),
@@ -469,12 +478,13 @@ def relion4_bundle() -> ConventionBundle:
                 AmplitudeContrast(),
                 PixelSize(),
                 ImageSize(),
+                ImageDimensionality(),
             ],
             "micrographs": [
                 Micrograph(),
                 Defocus(),
                 CtfMaxResolution(),
-                ParticleOpticsGroup(),
+                OpticsGroup(),
             ],
         },
         write={
@@ -485,7 +495,7 @@ def relion4_bundle() -> ConventionBundle:
                 WriteCoordinateZ(),
                 WritePose(),
                 WriteCtfMaxResolution(),
-                WriteParticleOpticsGroup(),
+                WriteOpticsGroup(),
             ],
             "optics": [
                 WriteOpticsGroup(),
@@ -494,12 +504,13 @@ def relion4_bundle() -> ConventionBundle:
                 WriteAmplitudeContrast(),
                 WritePixelSize(),
                 WriteImageSize(),
+                WriteImageDimensionality(),
             ],
             "micrographs": [
                 WriteMicrographName(),
                 WriteDefocus(),
                 WriteCtfMaxResolution(),
-                WriteParticleOpticsGroup(),
+                WriteOpticsGroup(),
             ],
         },
     )
