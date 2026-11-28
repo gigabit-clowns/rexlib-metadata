@@ -1,13 +1,26 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 use crate::error::{Error, parse_error};
-use crate::text::Token;
+use crate::text::{Lexer, Token};
 
-pub(crate) fn tokenize_line<'a>(
-    line: &'a str,
-    path: &str,
-    line_num: usize,
-) -> Result<Vec<Token<'a>>, Error> {
+pub(crate) struct Star;
+
+impl Lexer for Star {
+    fn tokenize<'a>(
+        &self,
+        line: &'a str,
+        path: &str,
+        line_num: usize,
+    ) -> Result<Vec<Token<'a>>, Error> {
+        tokenize_line(line, path, line_num)
+    }
+
+    fn is_row(&self, line: &str) -> bool {
+        is_row(line)
+    }
+}
+
+fn tokenize_line<'a>(line: &'a str, path: &str, line_num: usize) -> Result<Vec<Token<'a>>, Error> {
     if line.starts_with(';') {
         Err(parse_error(
             path,
@@ -34,9 +47,7 @@ fn without_comment(line: &str) -> &str {
     line
 }
 
-/// Whether `line` can only be values, which is how a loop's rows are told
-/// apart without tokenizing them.
-pub(crate) fn is_row(line: &str) -> bool {
+fn is_row(line: &str) -> bool {
     !matches!(
         line.trim_start().bytes().next(),
         None | Some(b'#' | b'd' | b'D' | b'l' | b'L' | b'_')
