@@ -276,7 +276,8 @@ fn needs_quotes(value: &str) -> bool {
 			value
 				.get(..word.len())
 				.is_some_and(|head| head.eq_ignore_ascii_case(word))
-		}) || value.contains(char::is_whitespace)
+		})
+		|| value.contains(char::is_whitespace)
 }
 
 #[cfg(test)]
