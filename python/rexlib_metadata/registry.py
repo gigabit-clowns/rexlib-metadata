@@ -112,7 +112,6 @@ class MetadataRegistry:
         raw = RawResult(path, reader, self)
         return ReadResult(raw, bundles, self._schema, columns=columns)
 
-
     def write(
         self,
         path: str,

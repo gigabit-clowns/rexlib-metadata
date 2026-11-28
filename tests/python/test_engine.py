@@ -197,8 +197,6 @@ def test_the_columns_come_in_the_order_the_schema_declares():
     ]
 
 
-
-
 class Sneaky(ReadConvention):
     target_columns = ("image_path",)
 

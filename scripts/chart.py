@@ -100,7 +100,7 @@ def svg(
     """Return the whole chart as an SVG document."""
     bars = sorted(bars, key=lambda bar: bar.value)
     step = _step(max(bar.value for bar in bars))
-    scale = step * math.ceil(max(bar.value for bar in bars) / step)
+    scale = step * max(1, math.ceil(max(bar.value for bar in bars) / step))
     height = TOP + PITCH * len(bars) + 56
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" '
@@ -139,13 +139,13 @@ def _grid(scale: int, step: int, rows: int, theme: Theme) -> list[str]:
     bottom = TOP + PITCH * rows - (PITCH - BAR) / 2
     tick = _Ink(theme.muted, 12, anchor="middle")
     lines = []
-    for second in range(0, scale + 1, step):
-        x = _x(second, scale)
+    for value in range(0, scale + 1, step):
+        x = _x(value, scale)
         lines.append(
             f'<line x1="{x:.1f}" y1="{TOP - 6}" x2="{x:.1f}" '
             f'y2="{bottom:.1f}" stroke="{theme.grid}" stroke-width="1"/>'
         )
-        lines.append(_text(x, bottom + 18, f"{second}", tick))
+        lines.append(_text(x, bottom + 18, f"{value}", tick))
     return lines
 
 

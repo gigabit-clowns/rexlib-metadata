@@ -67,7 +67,7 @@ operation, and maps `Error` to an `OSError` subclass (I/O), `ValueError`
 ```bash
 pip install --group develop    # maturin and pyarrow
 maturin develop                # the extension, into python/rexlib_metadata/
-pip install --group test --group lint
+pip install --group test --group lint --group docs
 pytest tests/python/
 cargo test
 bash scripts/local-gate.sh     # all of it, in CI's order
@@ -75,7 +75,8 @@ bash scripts/local-gate.sh     # all of it, in CI's order
 
 Groups install without the project, so they do not rebuild the crate. The
 gate runs `cargo fmt --check`, build, test, clippy `-D warnings`, ruff,
-complexipy, mypy and pytest, rebuilding the extension first.
+complexipy, mypy, pytest and both references with warnings as errors,
+rebuilding the extension first.
 
 PyO3's `extension-module` feature is enabled through `[tool.maturin]` and
 must stay off in `Cargo.toml`: with it, `cargo test` does not link.
