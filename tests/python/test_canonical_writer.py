@@ -8,7 +8,7 @@ import pytest
 
 import rexlib_metadata as rxm
 from rexlib_metadata import pose
-from rexlib_metadata.abc import Reader, Writer
+from rexlib_metadata.abc import Writer
 from rexlib_metadata.convention import ConventionBundle, RawTable
 from rexlib_metadata.conventions.relion import relion4_bundle
 from rexlib_metadata.formats.star import StarReader
@@ -63,10 +63,10 @@ def test_a_pose_is_written_as_relion_spells_it(tmp_path):
     raw = rxm.read(str(out)).raw["particles"].to_pandas()
 
     assert float(raw["_rlnOriginXAngst"][0]) == pytest.approx(
-        3.947427 + 1.5, abs=1e-5
+        float(before["_rlnOriginXAngst"][0]) + 1.5, abs=1e-5
     )
     assert float(raw["_rlnOriginZAngst"][1]) == pytest.approx(
-        1.947427, abs=1e-5
+        float(before["_rlnOriginZAngst"][1]), abs=1e-5
     )
     assert float(raw["_rlnAngleTilt"][0]) == pytest.approx(
         float(before["_rlnAngleTilt"][0]), abs=1e-4
@@ -163,7 +163,3 @@ def test_an_extension_with_no_writer_raises(tmp_path):
 
     with pytest.raises(ValueError, match="No writer registered"):
         source.write(str(tmp_path / "out.csv"))
-
-
-def test_a_reader_is_still_all_a_format_needs_to_be_read():
-    assert issubclass(StarReader, Reader)

@@ -7,7 +7,7 @@ import pyarrow.compute as pc
 import pytest
 
 import rexlib_metadata as rxm
-from rexlib_metadata.abc import Reader
+from rexlib_metadata.abc import Reader, Writer
 from rexlib_metadata.canonical import OPTICS, PARTICLES, SCHEMA
 from rexlib_metadata.convention import (
     ConventionBundle,
@@ -140,4 +140,20 @@ def test_results_hand_back_arrow_too():
     arrow = result.to_arrow()
     frame = pa.Table.from_pandas(result.to_pandas(), preserve_index=False)
     assert frame.cast(arrow.schema).equals(arrow)
-    assert result.raw["particles"].to_arrow().num_rows == 57
+    assert result.raw["particles"].to_arrow().num_rows == arrow.num_rows
+
+
+class _Writer(Writer):
+    def write_tables(self, path, tables):
+        pass
+
+
+def test_the_registered_writer_is_the_one_handed_back():
+    writer = _Writer()
+    registry = MetadataRegistry()
+    registry.register_writer([".star"], writer)
+
+    assert registry.writer_for("x.star") is writer
+    assert registry.writer_for("X.STAR") is writer
+    with pytest.raises(ValueError, match=r"No writer registered for '\.xmd'"):
+        registry.writer_for("x.xmd")

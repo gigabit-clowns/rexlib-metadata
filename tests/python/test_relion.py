@@ -75,12 +75,14 @@ def test_the_angles_come_back_as_the_file_holds_them():
 
 def test_the_origin_comes_back_in_angstrom():
     df = canonical("relion3.1_subtomo.star", "particles")
+    raw = rxm.read(str(FILES / "relion3.1_subtomo.star")).raw
+    angstrom = raw["particles"].to_pandas()
 
     _, origin = pose.relion(df["transform"])
 
-    assert origin[0][0] == pytest.approx(3.947427, abs=1e-5)
-    assert origin[1][1] == pytest.approx(5.447427, abs=1e-5)
-    assert origin[2][1] == pytest.approx(1.947427, abs=1e-5)
+    for got, axis in zip(origin, "XYZ", strict=True):
+        expected = angstrom[f"_rlnOrigin{axis}Angst"].astype(float)
+        assert got.tolist() == pytest.approx(expected.tolist(), abs=1e-5)
 
 
 def test_an_in_plane_angle_alone_turns_about_z():

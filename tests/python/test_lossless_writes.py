@@ -128,7 +128,8 @@ def test_two_extensions_of_one_writer_are_one_format(tmp_path):
     )
 
     again = rxm.read(str(tmp_path / "t.db")).raw["particles"].to_pandas()
-    assert len(again.columns) == 22
+    before = rxm.read(str(source)).raw["particles"].to_pandas()
+    assert set(again.columns) == set(before.columns)
 
 
 def test_a_writer_named_as_the_registered_one_is_the_same_format(tmp_path):

@@ -151,8 +151,11 @@ def test_a_streamed_write_never_reads_the_source_whole(
     with monkeypatch.context() as patched:
         patched.setattr(RawResult, "reread", _refused)
         view.write(str(tmp_path / "out.star"), **write)
+    monkeypatch.setattr(ReadResult, "_whole_needed", lambda *_: True)
+    view.write(str(tmp_path / "whole.star"), **write)
 
-    assert len(rxm.read(str(tmp_path / "out.star"))["particles"].to_pandas())
+    streamed = (tmp_path / "out.star").read_text()
+    assert streamed == (tmp_path / "whole.star").read_text()
 
 
 def _refused(_):

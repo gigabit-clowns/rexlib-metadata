@@ -181,7 +181,8 @@ def test_a_canonical_read_of_some_columns_reads_a_file_of_tables(tmp_path):
 
     result = rxm.read(path, columns=["transform"], bundle=relion4_bundle())
 
-    assert len(result["particles"].to_pandas()) == 57
+    star = rxm.read(str(star / "relion3.1_subtomo.star"), columns=["transform"])
+    assert result["particles"].to_arrow().equals(star["particles"].to_arrow())
 
 
 def test_two_tables_of_one_name_are_refused(tmp_path):
