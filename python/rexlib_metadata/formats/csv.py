@@ -128,7 +128,7 @@ class _Lines:
 
 	def __init__(self, path: str, file: Iterable[str]) -> None:
 		self._path = path
-		self._lines = (
+		self._remaining = (
 			(number, line.rstrip("\r\n"))
 			for number, line in enumerate(file, start=1)
 			if line.strip()
@@ -150,11 +150,11 @@ class _Lines:
 
 	def before_next(self) -> int:
 		"""Return how many lines come before the next that is not blank."""
-		found = next(self._lines, None)
+		found = next(self._remaining, None)
 		return self._number if found is None else found[0] - 1
 
 	def _next(self, expected: str) -> str:
-		found = next(self._lines, None)
+		found = next(self._remaining, None)
 		if found is None:
 			raise ValueError(
 				f"{self._path} is not a cryoSPARC CSV: it ends where "
