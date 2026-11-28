@@ -35,11 +35,21 @@ class Reading:
         raw: RawResult,
         bundles: tuple[ConventionBundle, ...],
         schema: Schema,
+        rows: int = ROWS,
     ) -> None:
-        """Read `raw` through `bundles` into the tables of `schema`."""
+        """Read `raw` through `bundles` into the tables of `schema`.
+
+        A table read whole, to build it or bind its conventions, is read
+        `rows` rows at a time.
+        """
         self.raw = raw
         self.bundles = bundles
         self.schema = schema
+        self.rows = rows
+
+    def sized(self, rows: int) -> Reading:
+        """Return the same reading, `rows` rows at a time."""
+        return Reading(self.raw, self.bundles, self.schema, rows)
 
     def assigned(self, found: tuple[RawSchema, ...]) -> dict[str, int]:
         """Name the raw table each canonical table is filled from."""
@@ -66,7 +76,7 @@ class Reading:
         self, name: str, raw: RawSchema, at: int
     ) -> dict[int, ReadConvention]:
         """Bind the conventions of `name` to the whole raw table `at`."""
-        chunks = partial(_block_tables, self.raw, at)
+        chunks = partial(_block_tables, self.raw, at, self.rows)
         return in_context(raw, self.bundles, self.schema[name], chunks)
 
     def built(
@@ -76,7 +86,7 @@ class Reading:
         bound = self.bound(name, raw, at)
         pieces = (
             self.filled([piece], name, bound)
-            for piece in block_chunks(self.raw, ROWS, at, columns)
+            for piece in block_chunks(self.raw, self.rows, at, columns)
         )
         return reduce(
             lambda whole, piece: keyed(
@@ -97,10 +107,10 @@ def block_chunks(
 
 
 def _block_tables(
-    raw: RawResult, at: int, columns: tuple[str, ...]
+    raw: RawResult, at: int, size: int, columns: tuple[str, ...]
 ) -> Iterator[pa.Table]:
     yield from (
-        chunk.table for chunk in block_chunks(raw, ROWS, at, set(columns))
+        chunk.table for chunk in block_chunks(raw, size, at, set(columns))
     )
 
 

@@ -238,9 +238,12 @@ undeclared output raises, and a table nothing writes raises.
   a column no convention writes, and a block no canonical table covers, are
   carried over in file order, except a column whose read convention's every
   output is written anew (Relion 3.0's `_rlnOriginX` as `_rlnOriginXAngst`).
-  Towards another format both are dropped.
+  Towards another format both are dropped. `carry=` overrides the choice.
 - A table that shares its raw table is written as a block of its own, before
   the block of the table that owns it.
+- `chunk_size=` is the rows a write reads at a time, 100 000 by default;
+  a table others point at that is read whole, to build or bind it, is read
+  that many at a time too.
 - A column of `updates` no write convention consumes raises. A write that
   would hold nothing raises.
 - Every write goes to a temporary file in the destination's directory,

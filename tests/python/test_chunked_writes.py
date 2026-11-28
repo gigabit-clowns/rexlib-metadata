@@ -7,7 +7,6 @@ import pyarrow as pa
 import pytest
 
 import rexlib_metadata as rxm
-from rexlib_metadata import reading
 from rexlib_metadata.abc import Writer
 from rexlib_metadata.convention import RawTable
 from rexlib_metadata.formats.star import StarWriter
@@ -71,10 +70,8 @@ CASES = [
 ]
 
 
-def _written(view, out, rows_per_chunk, monkeypatch):
-    with monkeypatch.context() as patched:
-        patched.setattr(reading, "ROWS", rows_per_chunk)
-        view.write(str(out))
+def _written(view, out, rows_per_chunk):
+    view.write(str(out), chunk_size=rows_per_chunk)
     return out.read_bytes()
 
 
@@ -84,10 +81,10 @@ def test_a_file_written_in_chunks_is_the_file_written_whole(
 ):
     view = edit(rxm.read(str(source))[name])
 
-    chunked = _written(view, tmp_path / f"c{suffix}", 2, monkeypatch)
+    chunked = _written(view, tmp_path / f"c{suffix}", 2)
     monkeypatch.setattr(StarWriter, "write_chunks", Writer.write_chunks)
     monkeypatch.setattr(Rewrite, "_whole_needed", lambda *_: True)
-    whole = _written(view, tmp_path / f"w{suffix}", 10**9, monkeypatch)
+    whole = _written(view, tmp_path / f"w{suffix}", 10**9)
 
     assert chunked == whole
 
@@ -122,10 +119,10 @@ def test_relion30_with_two_settings_writes_in_chunks_as_whole(
 ):
     view = edit(rxm.read(str(_two_settings(tmp_path)))["particles"])
 
-    chunked = _written(view, tmp_path / "c.star", 2, monkeypatch)
+    chunked = _written(view, tmp_path / "c.star", 2)
     monkeypatch.setattr(StarWriter, "write_chunks", Writer.write_chunks)
     monkeypatch.setattr(Rewrite, "_whole_needed", lambda *_: True)
-    whole = _written(view, tmp_path / "w.star", 10**9, monkeypatch)
+    whole = _written(view, tmp_path / "w.star", 10**9)
 
     assert chunked == whole
     groups = rxm.read(str(tmp_path / "c.star"))["optics"].to_pandas()
@@ -244,4 +241,31 @@ def test_a_star_write_failing_midway_leaves_no_file(tmp_path):
     with pytest.raises(RuntimeError, match="went away"):
         writer.write_chunks(str(out), failing)
 
+    assert not out.exists()
+
+
+def test_a_write_reads_its_source_chunk_size_rows_at_a_time(
+    tmp_path, monkeypatch
+):
+    sizes = []
+    chunks = RawResult._chunks
+
+    def counted(raw, size, columns=None):
+        sizes.append(size)
+        return chunks(raw, size, columns)
+
+    monkeypatch.setattr(RawResult, "_chunks", counted)
+    rxm.read(str(SUBTOMO))["particles"].write(
+        str(tmp_path / "out.star"), chunk_size=7
+    )
+
+    assert 7 in sizes
+
+
+@pytest.mark.parametrize("size", [0, -1])
+def test_a_write_of_chunks_of_no_rows_is_refused(tmp_path, size):
+    out = tmp_path / "out.star"
+
+    with pytest.raises(ValueError, match="at least one row"):
+        rxm.read(str(SUBTOMO)).write(str(out), chunk_size=size)
     assert not out.exists()

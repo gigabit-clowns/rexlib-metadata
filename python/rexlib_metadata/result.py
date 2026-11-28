@@ -23,8 +23,8 @@ from rexlib_metadata.editing import (
 )
 from rexlib_metadata.engine import produced_tables, source_columns
 from rexlib_metadata.join import joined_all
-from rexlib_metadata.reading import Reading, block_chunks, narrowed_all
-from rexlib_metadata.rewrite import Rewrite
+from rexlib_metadata.reading import ROWS, Reading, block_chunks, narrowed_all
+from rexlib_metadata.rewrite import Destination, Rewrite
 from rexlib_metadata.writing import replaced, typed
 
 if TYPE_CHECKING:
@@ -461,6 +461,8 @@ class ReadResult:
         *,
         bundle: ConventionBundle | Iterable[ConventionBundle] | None = None,
         writer: Writer | None = None,
+        carry: bool | None = None,
+        chunk_size: int = ROWS,
     ) -> None:
         """Write the whole file this result was read from to `path`.
 
@@ -480,7 +482,9 @@ class ReadResult:
         read again by the reader it was read with. A column of the file
         that no convention writes, and a block no canonical table covers,
         are carried over untouched when the destination's writer is the
-        source's, and left out when it is not. A column `updated` gave that
+        source's, and left out when it is not; `carry` says which instead,
+        True to carry them or False to leave them out. The source is read
+        `chunk_size` rows at a time. A column `updated` gave that
         no write convention consumes raises, and so does a write that would
         hold nothing. The file is written beside the destination
         and moved over it at the end.
@@ -491,10 +495,12 @@ class ReadResult:
         bundles = as_bundles(bundle)
         if bundles is None:
             bundles = registry.bundles_for(path)
+        _check_size(chunk_size)
         name = None
         if self._rows is not None or self._updates is not None:
             name = self._one_name(self._raw._schemas())
-        rewrite = Rewrite(self._source, self._joined, writer, bundles)
+        destination = Destination(writer, bundles, carry, chunk_size)
+        rewrite = Rewrite(self._source, self._joined, destination)
         rewrite.write(path, name, self._updates, self._rows)
 
     def _selecting(self, rows: pa.Array) -> ReadResult:

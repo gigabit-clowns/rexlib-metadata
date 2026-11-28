@@ -154,8 +154,11 @@ particles.take(good.index).updated(good[["coord_x"]]).write("good.star")
 - A write rereads the source, so the source must still be where it was. It
   writes every table of the file, whatever the result shows.
 - Columns and blocks no convention covers are carried over when the
-  destination has the source's format. Converting to XMD, which has no
-  optics table, joins the optics into each particle.
+  destination has the source's format; `carry=True` or `carry=False` says
+  otherwise. Converting to XMD, which has no optics table, joins the optics
+  into each particle.
+- `chunk_size=` sets how many rows a write reads at a time; 100 000 unless
+  given.
 - A joined view writes back its particles' columns; a changed optics column
   is refused — write it through `result["optics"]`.
 - Writes go through a temporary file, so writing over the source is safe and
