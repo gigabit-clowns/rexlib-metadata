@@ -7,10 +7,10 @@ import pyarrow as pa
 import pytest
 
 from rexlib_metadata._arrow import (
-    ArrowArrayExportable,
-    as_arrow_table,
-    to_pandas,
-    to_pyarrow_table,
+	ArrowArrayExportable,
+	as_arrow_table,
+	to_pandas,
+	to_pyarrow_table,
 )
 from rexlib_metadata._rexlib import _star_read_chunks, _star_read_tables
 
@@ -21,83 +21,83 @@ ONE_LOOP_ROWS = 16
 
 
 def _first_batch():
-    _, batches = _star_read_tables(str(ONE_LOOP))[0]
-    return batches[0]
+	_, batches = _star_read_tables(str(ONE_LOOP))[0]
+	return batches[0]
 
 
 def test_what_rust_hands_back_speaks_the_protocol_the_stub_promises():
-    assert isinstance(_first_batch(), ArrowArrayExportable)
+	assert isinstance(_first_batch(), ArrowArrayExportable)
 
 
 def test_a_batch_crosses_over_as_a_pyarrow_table():
-    table = to_pyarrow_table([_first_batch()])
+	table = to_pyarrow_table([_first_batch()])
 
-    assert isinstance(table, pa.Table)
-    assert table.num_rows == ONE_LOOP_ROWS
+	assert isinstance(table, pa.Table)
+	assert table.num_rows == ONE_LOOP_ROWS
 
 
 def test_chunks_cross_over_a_few_rows_at_a_time():
-    chunks = list(_star_read_chunks(str(ONE_LOOP), 10))
+	chunks = list(_star_read_chunks(str(ONE_LOOP), 10))
 
-    assert [name for name, _, _ in chunks] == ["particles", "particles"]
-    rows = [to_pyarrow_table([c]).num_rows for _, _, c in chunks]
-    assert rows == [10, ONE_LOOP_ROWS - 10]
-    assert all(isinstance(c, ArrowArrayExportable) for _, _, c in chunks)
+	assert [name for name, _, _ in chunks] == ["particles", "particles"]
+	rows = [to_pyarrow_table([c]).num_rows for _, _, c in chunks]
+	assert rows == [10, ONE_LOOP_ROWS - 10]
+	assert all(isinstance(c, ArrowArrayExportable) for _, _, c in chunks)
 
 
 def test_every_chunk_says_which_block_it_came_from():
-    chunks = list(_star_read_chunks(str(ONE_LOOP), 10))
+	chunks = list(_star_read_chunks(str(ONE_LOOP), 10))
 
-    assert [ordinal for _, ordinal, _ in chunks] == [0, 0]
+	assert [ordinal for _, ordinal, _ in chunks] == [0, 0]
 
 
 def test_chunks_carry_only_the_columns_asked_for():
-    ((_, _, chunk),) = _star_read_chunks(
-        str(ONE_LOOP), ONE_LOOP_ROWS, {"_rlnAngleTilt"}
-    )
+	((_, _, chunk),) = _star_read_chunks(
+		str(ONE_LOOP), ONE_LOOP_ROWS, {"_rlnAngleTilt"}
+	)
 
-    assert to_pyarrow_table([chunk]).column_names == ["_rlnAngleTilt"]
+	assert to_pyarrow_table([chunk]).column_names == ["_rlnAngleTilt"]
 
 
 def test_chunks_that_ran_out_stay_out():
-    chunks = _star_read_chunks(str(ONE_LOOP), 10)
-    list(chunks)
+	chunks = _star_read_chunks(str(ONE_LOOP), 10)
+	list(chunks)
 
-    assert next(chunks, None) is None
+	assert next(chunks, None) is None
 
 
 def test_a_chunk_of_no_rows_is_refused():
-    with pytest.raises(ValueError, match="at least one row"):
-        _star_read_chunks(str(ONE_LOOP), 0)
+	with pytest.raises(ValueError, match="at least one row"):
+		_star_read_chunks(str(ONE_LOOP), 0)
 
 
 def test_a_missing_file_is_found_missing_when_chunks_are_asked_for(tmp_path):
-    with pytest.raises(FileNotFoundError):
-        _star_read_chunks(str(tmp_path / "missing.star"), 10)
+	with pytest.raises(FileNotFoundError):
+		_star_read_chunks(str(tmp_path / "missing.star"), 10)
 
 
 @pytest.mark.parametrize(
-    "frame",
-    [
-        pytest.param(pd.DataFrame({"a": [1, 2]}), id="pandas"),
-        pytest.param(pl.DataFrame({"a": [1, 2]}), id="polars"),
-        pytest.param(pa.table({"a": [1, 2]}), id="arrow"),
-    ],
+	"frame",
+	[
+		pytest.param(pd.DataFrame({"a": [1, 2]}), id="pandas"),
+		pytest.param(pl.DataFrame({"a": [1, 2]}), id="polars"),
+		pytest.param(pa.table({"a": [1, 2]}), id="arrow"),
+	],
 )
 def test_every_kind_of_frame_becomes_the_same_arrow_table(frame):
-    assert as_arrow_table(frame).to_pydict() == {"a": [1, 2]}
+	assert as_arrow_table(frame).to_pydict() == {"a": [1, 2]}
 
 
 def test_anything_else_is_not_a_table():
-    with pytest.raises(TypeError, match="not dict"):
-        as_arrow_table({"a": [1, 2]})
+	with pytest.raises(TypeError, match="not dict"):
+		as_arrow_table({"a": [1, 2]})
 
 
 def test_a_fixed_size_list_reaches_pandas_as_arrow_holds_it():
-    lists = pa.array([[1.0, 2.0]], pa.list_(pa.float32(), 2))
-    table = pa.table({"lists": lists, "x": [1.0]})
+	lists = pa.array([[1.0, 2.0]], pa.list_(pa.float32(), 2))
+	table = pa.table({"lists": lists, "x": [1.0]})
 
-    frame = to_pandas(table)
+	frame = to_pandas(table)
 
-    assert frame["lists"].dtype == pd.ArrowDtype(lists.type)
-    assert frame["x"].dtype == "float64"
+	assert frame["lists"].dtype == pd.ArrowDtype(lists.type)
+	assert frame["x"].dtype == "float64"

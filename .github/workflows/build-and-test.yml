@@ -80,6 +80,9 @@ jobs:
       - name: Run ruff
         run: ruff check .
 
+      - name: Check formatting
+        run: ruff format --check .
+
       - name: Check cognitive complexity
         run: complexipy python tests benchmarks scripts --max-complexity-allowed 7 --quiet
 

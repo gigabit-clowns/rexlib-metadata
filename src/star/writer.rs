@@ -13,669 +13,669 @@ const BUFFER: usize = 1 << 20;
 
 /// A value refused while writing removes the half-written file.
 pub(crate) fn write_tables(
-    path: &str,
-    header: Option<&str>,
-    tables: &[Table],
+	path: &str,
+	header: Option<&str>,
+	tables: &[Table],
 ) -> Result<(), Error> {
-    let mut stream = Stream::create(path, header)?;
-    for (name, batches) in tables {
-        let columns = first(name, batches)
-            .map_err(|error| error.within(&format!("'{path}'")))?
-            .schema()
-            .fields()
-            .iter()
-            .map(|field| field.name().clone())
-            .collect();
-        stream.begin(name, columns)?;
-        for batch in batches {
-            stream.write(batch)?;
-        }
-    }
-    stream.finish()
+	let mut stream = Stream::create(path, header)?;
+	for (name, batches) in tables {
+		let columns = first(name, batches)
+			.map_err(|error| error.within(&format!("'{path}'")))?
+			.schema()
+			.fields()
+			.iter()
+			.map(|field| field.name().clone())
+			.collect();
+		stream.begin(name, columns)?;
+		for batch in batches {
+			stream.write(batch)?;
+		}
+	}
+	stream.finish()
 }
 
 /// A STAR file written a block at a time and a batch at a time. Until
 /// `finish` succeeds, a failure or a drop removes what was written.
 pub(crate) struct Stream {
-    path: String,
-    out: Option<BufWriter<File>>,
-    block: Option<(String, Vec<String>)>,
+	path: String,
+	out: Option<BufWriter<File>>,
+	block: Option<(String, Vec<String>)>,
 }
 
 impl Stream {
-    pub(crate) fn create(path: &str, header: Option<&str>) -> Result<Self, Error> {
-        if let Some(header) = header {
-            check_header(header).map_err(|error| error.within(&format!("'{path}'")))?;
-        }
-        let file = File::create(path).map_err(|source| io_error(path, source))?;
-        let mut stream = Self {
-            path: path.to_string(),
-            out: Some(BufWriter::with_capacity(BUFFER, file)),
-            block: None,
-        };
-        if let Some(header) = header {
-            stream.guarded(|out, path| writeln!(out, "{header}").map_err(|s| io_error(path, s)))?;
-        }
-        Ok(stream)
-    }
+	pub(crate) fn create(path: &str, header: Option<&str>) -> Result<Self, Error> {
+		if let Some(header) = header {
+			check_header(header).map_err(|error| error.within(&format!("'{path}'")))?;
+		}
+		let file = File::create(path).map_err(|source| io_error(path, source))?;
+		let mut stream = Self {
+			path: path.to_string(),
+			out: Some(BufWriter::with_capacity(BUFFER, file)),
+			block: None,
+		};
+		if let Some(header) = header {
+			stream.guarded(|out, path| writeln!(out, "{header}").map_err(|s| io_error(path, s)))?;
+		}
+		Ok(stream)
+	}
 
-    pub(crate) fn begin(&mut self, name: &str, columns: Vec<String>) -> Result<(), Error> {
-        let ended = self.block.is_some();
-        self.guarded(|out, path| {
-            check_names(name, &columns)?;
-            let io = |source| io_error(path, source);
-            if ended {
-                writeln!(out).map_err(io)?;
-            }
-            writeln!(out, "data_{name}\n\nloop_").map_err(io)?;
-            for (index, column) in columns.iter().enumerate() {
-                writeln!(out, "{column} #{}", index + 1).map_err(io)?;
-            }
-            Ok(())
-        })?;
-        self.block = Some((name.to_string(), columns));
-        Ok(())
-    }
+	pub(crate) fn begin(&mut self, name: &str, columns: Vec<String>) -> Result<(), Error> {
+		let ended = self.block.is_some();
+		self.guarded(|out, path| {
+			check_names(name, &columns)?;
+			let io = |source| io_error(path, source);
+			if ended {
+				writeln!(out).map_err(io)?;
+			}
+			writeln!(out, "data_{name}\n\nloop_").map_err(io)?;
+			for (index, column) in columns.iter().enumerate() {
+				writeln!(out, "{column} #{}", index + 1).map_err(io)?;
+			}
+			Ok(())
+		})?;
+		self.block = Some((name.to_string(), columns));
+		Ok(())
+	}
 
-    pub(crate) fn write(&mut self, batch: &RecordBatch) -> Result<(), Error> {
-        let block = self.block.take();
-        let written = self.guarded(|out, path| {
-            let (name, columns) = block
-                .as_ref()
-                .ok_or_else(|| unwritable("rows came before the block they belong to was begun"))?;
-            check_columns(name, columns, batch)?;
-            let values = string_columns(batch)?;
-            for row in 0..batch.num_rows() {
-                write_row(out, path, &values, row).map_err(|(error, column)| {
-                    let column = columns.get(column).map_or("", String::as_str);
-                    error.within(&format!("block '{name}', column '{column}', row {row}"))
-                })?;
-            }
-            Ok(())
-        });
-        self.block = block;
-        written
-    }
+	pub(crate) fn write(&mut self, batch: &RecordBatch) -> Result<(), Error> {
+		let block = self.block.take();
+		let written = self.guarded(|out, path| {
+			let (name, columns) = block
+				.as_ref()
+				.ok_or_else(|| unwritable("rows came before the block they belong to was begun"))?;
+			check_columns(name, columns, batch)?;
+			let values = string_columns(batch)?;
+			for row in 0..batch.num_rows() {
+				write_row(out, path, &values, row).map_err(|(error, column)| {
+					let column = columns.get(column).map_or("", String::as_str);
+					error.within(&format!("block '{name}', column '{column}', row {row}"))
+				})?;
+			}
+			Ok(())
+		});
+		self.block = block;
+		written
+	}
 
-    pub(crate) fn finish(mut self) -> Result<(), Error> {
-        let ended = self.block.is_some();
-        self.guarded(|out, path| {
-            let io = |source| io_error(path, source);
-            if ended {
-                writeln!(out).map_err(io)?;
-            }
-            out.flush().map_err(io)
-        })?;
-        self.out = None;
-        Ok(())
-    }
+	pub(crate) fn finish(mut self) -> Result<(), Error> {
+		let ended = self.block.is_some();
+		self.guarded(|out, path| {
+			let io = |source| io_error(path, source);
+			if ended {
+				writeln!(out).map_err(io)?;
+			}
+			out.flush().map_err(io)
+		})?;
+		self.out = None;
+		Ok(())
+	}
 
-    pub(crate) fn abandon(&mut self) {
-        if self.out.take().is_some() {
-            let _ = std::fs::remove_file(&self.path);
-        }
-    }
+	pub(crate) fn abandon(&mut self) {
+		if self.out.take().is_some() {
+			let _ = std::fs::remove_file(&self.path);
+		}
+	}
 
-    fn guarded(
-        &mut self,
-        step: impl FnOnce(&mut BufWriter<File>, &str) -> Result<(), Error>,
-    ) -> Result<(), Error> {
-        let Some(out) = self.out.as_mut() else {
-            return Err(unwritable(format!(
-                "{} was already closed, or abandoned after a failure",
-                self.path
-            )));
-        };
-        let done = step(out, &self.path).map_err(|error| error.within(&format!("'{}'", self.path)));
-        if done.is_err() {
-            self.abandon();
-        }
-        done
-    }
+	fn guarded(
+		&mut self,
+		step: impl FnOnce(&mut BufWriter<File>, &str) -> Result<(), Error>,
+	) -> Result<(), Error> {
+		let Some(out) = self.out.as_mut() else {
+			return Err(unwritable(format!(
+				"{} was already closed, or abandoned after a failure",
+				self.path
+			)));
+		};
+		let done = step(out, &self.path).map_err(|error| error.within(&format!("'{}'", self.path)));
+		if done.is_err() {
+			self.abandon();
+		}
+		done
+	}
 }
 
 impl Drop for Stream {
-    fn drop(&mut self) {
-        self.abandon();
-    }
+	fn drop(&mut self) {
+		self.abandon();
+	}
 }
 
 fn first<'a>(name: &str, batches: &'a [RecordBatch]) -> Result<&'a RecordBatch, Error> {
-    batches.first().ok_or_else(|| {
-        unwritable(format!(
-            "table '{name}' came with no batch, and so with no columns to write"
-        ))
-    })
+	batches.first().ok_or_else(|| {
+		unwritable(format!(
+			"table '{name}' came with no batch, and so with no columns to write"
+		))
+	})
 }
 
 fn io_error(path: &str, source: std::io::Error) -> Error {
-    Error::Io {
-        path: path.to_string(),
-        source,
-    }
+	Error::Io {
+		path: path.to_string(),
+		source,
+	}
 }
 
 fn check_header(header: &str) -> Result<(), Error> {
-    match header.lines().find(|line| !line.starts_with('#')) {
-        Some(line) => Err(unwritable(format!(
-            "the header line {line:?} is not a comment, and a STAR file would \
+	match header.lines().find(|line| !line.starts_with('#')) {
+		Some(line) => Err(unwritable(format!(
+			"the header line {line:?} is not a comment, and a STAR file would \
              read it as data"
-        ))),
-        None => Ok(()),
-    }
+		))),
+		None => Ok(()),
+	}
 }
 
 fn check_names(name: &str, columns: &[String]) -> Result<(), Error> {
-    if columns.is_empty() {
-        return Err(unwritable(format!(
-            "block '{name}' has no columns, and its rows would read back as none"
-        )));
-    }
-    if !is_one_word(name) {
-        return Err(unwritable(format!(
-            "the block name {name:?} holds whitespace or '#', and a STAR file \
+	if columns.is_empty() {
+		return Err(unwritable(format!(
+			"block '{name}' has no columns, and its rows would read back as none"
+		)));
+	}
+	if !is_one_word(name) {
+		return Err(unwritable(format!(
+			"the block name {name:?} holds whitespace or '#', and a STAR file \
              would not read it back as one name"
-        )));
-    }
-    match columns
-        .iter()
-        .find(|column| !column.starts_with('_') || !is_one_word(column))
-    {
-        Some(column) => Err(unwritable(format!(
-            "column {column:?} does not start with '_' or holds whitespace or \
+		)));
+	}
+	match columns
+		.iter()
+		.find(|column| !column.starts_with('_') || !is_one_word(column))
+	{
+		Some(column) => Err(unwritable(format!(
+			"column {column:?} does not start with '_' or holds whitespace or \
              '#', and a STAR file would not read it back as that column"
-        ))),
-        None => Ok(()),
-    }
+		))),
+		None => Ok(()),
+	}
 }
 
 fn check_columns(name: &str, columns: &[String], batch: &RecordBatch) -> Result<(), Error> {
-    let schema = batch.schema();
-    let found: Vec<&String> = schema.fields().iter().map(|field| field.name()).collect();
-    if found.iter().copied().eq(columns.iter()) {
-        return Ok(());
-    }
-    Err(unwritable(format!(
-        "a batch of block '{name}' holds the columns {found:?}, where the \
+	let schema = batch.schema();
+	let found: Vec<&String> = schema.fields().iter().map(|field| field.name()).collect();
+	if found.iter().copied().eq(columns.iter()) {
+		return Ok(());
+	}
+	Err(unwritable(format!(
+		"a batch of block '{name}' holds the columns {found:?}, where the \
          block was begun with {columns:?}"
-    )))
+	)))
 }
 
 fn is_one_word(name: &str) -> bool {
-    !name.contains(|ch: char| ch == '#' || ch.is_whitespace())
+	!name.contains(|ch: char| ch == '#' || ch.is_whitespace())
 }
 
 /// One row, or the error and the index of the column it came from.
 fn write_row<W: Write>(
-    out: &mut W,
-    path: &str,
-    columns: &[&StringArray],
-    row: usize,
+	out: &mut W,
+	path: &str,
+	columns: &[&StringArray],
+	row: usize,
 ) -> Result<(), (Error, usize)> {
-    for (index, column) in columns.iter().enumerate() {
-        if index > 0 {
-            out.write_all(b" ")
-                .map_err(|source| (io_error(path, source), index))?;
-        }
-        let value = if column.is_null(row) {
-            ""
-        } else {
-            column.value(row)
-        };
-        write_value(out, path, value).map_err(|error| (error, index))?;
-    }
-    out.write_all(b"\n")
-        .map_err(|source| (io_error(path, source), 0))
+	for (index, column) in columns.iter().enumerate() {
+		if index > 0 {
+			out.write_all(b" ")
+				.map_err(|source| (io_error(path, source), index))?;
+		}
+		let value = if column.is_null(row) {
+			""
+		} else {
+			column.value(row)
+		};
+		write_value(out, path, value).map_err(|error| (error, index))?;
+	}
+	out.write_all(b"\n")
+		.map_err(|source| (io_error(path, source), 0))
 }
 
 fn write_value<W: Write>(out: &mut W, path: &str, value: &str) -> Result<(), Error> {
-    let io = |source| io_error(path, source);
-    if !needs_quotes(value) {
-        return out.write_all(value.as_bytes()).map_err(io);
-    }
-    let quote = quote_for(value)?;
-    out.write_all(quote).map_err(io)?;
-    out.write_all(value.as_bytes()).map_err(io)?;
-    out.write_all(quote).map_err(io)
+	let io = |source| io_error(path, source);
+	if !needs_quotes(value) {
+		return out.write_all(value.as_bytes()).map_err(io);
+	}
+	let quote = quote_for(value)?;
+	out.write_all(quote).map_err(io)?;
+	out.write_all(value.as_bytes()).map_err(io)?;
+	out.write_all(quote).map_err(io)
 }
 
 fn quote_for(value: &str) -> Result<&'static [u8], Error> {
-    if value.contains(['\n', '\r']) {
-        return Err(unwritable(format!(
-            "the value {value:?} holds a line break, which a STAR value, \
+	if value.contains(['\n', '\r']) {
+		return Err(unwritable(format!(
+			"the value {value:?} holds a line break, which a STAR value, \
              read one line at a time, cannot"
-        )));
-    }
-    if closes_inside(value, '"') {
-        if closes_inside(value, '\'') {
-            return Err(unwritable(format!(
-                "the value {value:?} would end early inside either kind of \
+		)));
+	}
+	if closes_inside(value, '"') {
+		if closes_inside(value, '\'') {
+			return Err(unwritable(format!(
+				"the value {value:?} would end early inside either kind of \
                  quote, which STAR has no way to escape"
-            )));
-        }
-        return Ok(b"'");
-    }
-    Ok(b"\"")
+			)));
+		}
+		return Ok(b"'");
+	}
+	Ok(b"\"")
 }
 
 /// Whether `quote` would end a value quoted with it before its end: a quote
 /// closes where whitespace follows it, or where the value ends.
 fn closes_inside(value: &str, quote: char) -> bool {
-    value.ends_with(quote)
-        || value
-            .char_indices()
-            .any(|(at, ch)| ch == quote && value[at + 1..].starts_with(char::is_whitespace))
+	value.ends_with(quote)
+		|| value
+			.char_indices()
+			.any(|(at, ch)| ch == quote && value[at + 1..].starts_with(char::is_whitespace))
 }
 
 const RESERVED: [&str; 5] = ["data_", "loop_", "global_", "save_", "stop_"];
 
 fn needs_quotes(value: &str) -> bool {
-    value.is_empty()
-        || value.starts_with(['#', '_', ';', '"', '\''])
-        || RESERVED.iter().any(|word| {
-            value
-                .get(..word.len())
-                .is_some_and(|head| head.eq_ignore_ascii_case(word))
-        })
-        || value.contains(char::is_whitespace)
+	value.is_empty()
+		|| value.starts_with(['#', '_', ';', '"', '\''])
+		|| RESERVED.iter().any(|word| {
+			value
+				.get(..word.len())
+				.is_some_and(|head| head.eq_ignore_ascii_case(word))
+		})
+		|| value.contains(char::is_whitespace)
 }
 
 #[cfg(test)]
 mod tests {
-    use arrow::array::{Array, Int32Array, StringArray};
-    use arrow::datatypes::{DataType, Field, Schema};
-    use std::sync::Arc;
-    use tempfile::TempDir;
+	use arrow::array::{Array, Int32Array, StringArray};
+	use arrow::datatypes::{DataType, Field, Schema};
+	use std::sync::Arc;
+	use tempfile::TempDir;
 
-    use super::*;
-    use crate::star::read_tables;
-    use crate::text::builder::{build_record_batch, single};
+	use super::*;
+	use crate::star::read_tables;
+	use crate::text::builder::{build_record_batch, single};
 
-    fn batch(columns: &[&str], rows: &[&[&str]]) -> RecordBatch {
-        let names: Vec<String> = columns.iter().map(ToString::to_string).collect();
-        let values: Vec<Vec<String>> = rows
-            .iter()
-            .map(|row| row.iter().map(ToString::to_string).collect())
-            .collect();
-        build_record_batch(&names, &values).unwrap()
-    }
+	fn batch(columns: &[&str], rows: &[&[&str]]) -> RecordBatch {
+		let names: Vec<String> = columns.iter().map(ToString::to_string).collect();
+		let values: Vec<Vec<String>> = rows
+			.iter()
+			.map(|row| row.iter().map(ToString::to_string).collect())
+			.collect();
+		build_record_batch(&names, &values).unwrap()
+	}
 
-    fn round_trip(tables: &[Table]) -> Vec<(String, RecordBatch)> {
-        let directory = TempDir::new().unwrap();
-        let path = directory.path().join("out.star");
-        let path = path.to_str().unwrap();
+	fn round_trip(tables: &[Table]) -> Vec<(String, RecordBatch)> {
+		let directory = TempDir::new().unwrap();
+		let path = directory.path().join("out.star");
+		let path = path.to_str().unwrap();
 
-        write_tables(path, None, tables).unwrap();
-        single(read_tables(path, None).unwrap())
-    }
+		write_tables(path, None, tables).unwrap();
+		single(read_tables(path, None).unwrap())
+	}
 
-    fn one(name: &str, columns: &[&str], rows: &[&[&str]]) -> Vec<Table> {
-        vec![(name.to_string(), vec![batch(columns, rows)])]
-    }
+	fn one(name: &str, columns: &[&str], rows: &[&[&str]]) -> Vec<Table> {
+		vec![(name.to_string(), vec![batch(columns, rows)])]
+	}
 
-    fn written(tables: &[Table]) -> Result<(), Error> {
-        let directory = TempDir::new().unwrap();
-        let path = directory.path().join("out.star");
-        write_tables(path.to_str().unwrap(), None, tables)
-    }
+	fn written(tables: &[Table]) -> Result<(), Error> {
+		let directory = TempDir::new().unwrap();
+		let path = directory.path().join("out.star");
+		write_tables(path.to_str().unwrap(), None, tables)
+	}
 
-    fn values_of(batch: &RecordBatch, column: usize) -> Vec<String> {
-        let array = batch
-            .column(column)
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .unwrap();
-        (0..array.len())
-            .map(|row| array.value(row).to_string())
-            .collect()
-    }
+	fn values_of(batch: &RecordBatch, column: usize) -> Vec<String> {
+		let array = batch
+			.column(column)
+			.as_any()
+			.downcast_ref::<StringArray>()
+			.unwrap();
+		(0..array.len())
+			.map(|row| array.value(row).to_string())
+			.collect()
+	}
 
-    #[test]
-    fn what_was_written_reads_back_the_same() {
-        let read = round_trip(&one(
-            "particles",
-            &["_rlnCoordinateX", "_rlnCoordinateY"],
-            &[&["1024.0", "2048.0"], &["512.0", "256.0"]],
-        ));
+	#[test]
+	fn what_was_written_reads_back_the_same() {
+		let read = round_trip(&one(
+			"particles",
+			&["_rlnCoordinateX", "_rlnCoordinateY"],
+			&[&["1024.0", "2048.0"], &["512.0", "256.0"]],
+		));
 
-        assert_eq!(read.len(), 1);
-        assert_eq!(read[0].0, "particles");
-        assert_eq!(read[0].1.num_rows(), 2);
-        assert_eq!(values_of(&read[0].1, 0), ["1024.0", "512.0"]);
-        assert_eq!(read[0].1.schema().field(1).name(), "_rlnCoordinateY");
-    }
+		assert_eq!(read.len(), 1);
+		assert_eq!(read[0].0, "particles");
+		assert_eq!(read[0].1.num_rows(), 2);
+		assert_eq!(values_of(&read[0].1, 0), ["1024.0", "512.0"]);
+		assert_eq!(read[0].1.schema().field(1).name(), "_rlnCoordinateY");
+	}
 
-    #[test]
-    fn every_block_comes_back_in_order() {
-        let read = round_trip(&[
-            (
-                "optics".to_string(),
-                vec![batch(&["_rlnVoltage"], &[&["300.0"]])],
-            ),
-            (
-                "particles".to_string(),
-                vec![batch(&["_rlnAngleRot"], &[&["10.5"]])],
-            ),
-        ]);
+	#[test]
+	fn every_block_comes_back_in_order() {
+		let read = round_trip(&[
+			(
+				"optics".to_string(),
+				vec![batch(&["_rlnVoltage"], &[&["300.0"]])],
+			),
+			(
+				"particles".to_string(),
+				vec![batch(&["_rlnAngleRot"], &[&["10.5"]])],
+			),
+		]);
 
-        assert_eq!(read.len(), 2);
-        assert_eq!(read[0].0, "optics");
-        assert_eq!(read[1].0, "particles");
-    }
+		assert_eq!(read.len(), 2);
+		assert_eq!(read[0].0, "optics");
+		assert_eq!(read[1].0, "particles");
+	}
 
-    #[test]
-    fn a_value_with_spaces_survives() {
-        let read = round_trip(&one(
-            "p",
-            &["_rlnMicrographName"],
-            &[&["folder with spaces/mic 001.mrcs"]],
-        ));
+	#[test]
+	fn a_value_with_spaces_survives() {
+		let read = round_trip(&one(
+			"p",
+			&["_rlnMicrographName"],
+			&[&["folder with spaces/mic 001.mrcs"]],
+		));
 
-        assert_eq!(
-            values_of(&read[0].1, 0),
-            ["folder with spaces/mic 001.mrcs"]
-        );
-    }
+		assert_eq!(
+			values_of(&read[0].1, 0),
+			["folder with spaces/mic 001.mrcs"]
+		);
+	}
 
-    #[test]
-    fn a_value_that_looks_structural_survives() {
-        let read = round_trip(&one(
-            "p",
-            &["_rlnName"],
-            &[&["data_particles"], &["loop_"], &["_rlnAngleRot"], &["#1"]],
-        ));
+	#[test]
+	fn a_value_that_looks_structural_survives() {
+		let read = round_trip(&one(
+			"p",
+			&["_rlnName"],
+			&[&["data_particles"], &["loop_"], &["_rlnAngleRot"], &["#1"]],
+		));
 
-        assert_eq!(
-            values_of(&read[0].1, 0),
-            ["data_particles", "loop_", "_rlnAngleRot", "#1"]
-        );
-    }
+		assert_eq!(
+			values_of(&read[0].1, 0),
+			["data_particles", "loop_", "_rlnAngleRot", "#1"]
+		);
+	}
 
-    #[test]
-    fn a_value_holding_one_kind_of_quote_takes_the_other() {
-        let read = round_trip(&one(
-            "p",
-            &["_rlnName"],
-            &[&["it's here"], &["say \"what\""]],
-        ));
+	#[test]
+	fn a_value_holding_one_kind_of_quote_takes_the_other() {
+		let read = round_trip(&one(
+			"p",
+			&["_rlnName"],
+			&[&["it's here"], &["say \"what\""]],
+		));
 
-        assert_eq!(values_of(&read[0].1, 0), ["it's here", "say \"what\""]);
-    }
+		assert_eq!(values_of(&read[0].1, 0), ["it's here", "say \"what\""]);
+	}
 
-    #[test]
-    fn an_empty_value_survives() {
-        let read = round_trip(&one("p", &["_rlnA", "_rlnB"], &[&["", "1.0"]]));
+	#[test]
+	fn an_empty_value_survives() {
+		let read = round_trip(&one("p", &["_rlnA", "_rlnB"], &[&["", "1.0"]]));
 
-        assert_eq!(values_of(&read[0].1, 0), [""]);
-        assert_eq!(values_of(&read[0].1, 1), ["1.0"]);
-    }
+		assert_eq!(values_of(&read[0].1, 0), [""]);
+		assert_eq!(values_of(&read[0].1, 1), ["1.0"]);
+	}
 
-    #[test]
-    fn a_value_either_quote_would_end_early_says_where_it_is() {
-        let directory = TempDir::new().unwrap();
-        let path = directory.path().join("out.star");
-        let path = path.to_str().unwrap();
-        let tables = one("p", &["_rlnA", "_rlnB"], &[&["1", "2"], &["3", "a' b\" c"]]);
+	#[test]
+	fn a_value_either_quote_would_end_early_says_where_it_is() {
+		let directory = TempDir::new().unwrap();
+		let path = directory.path().join("out.star");
+		let path = path.to_str().unwrap();
+		let tables = one("p", &["_rlnA", "_rlnB"], &[&["1", "2"], &["3", "a' b\" c"]]);
 
-        let error = write_tables(path, None, &tables).unwrap_err();
+		let error = write_tables(path, None, &tables).unwrap_err();
 
-        assert!(matches!(error, Error::Unwritable { .. }));
-        let message = error.to_string();
-        assert!(message.contains("either kind of quote"), "{message}");
-        assert!(message.contains(path), "{message}");
-        assert!(
-            message.contains("block 'p', column '_rlnB', row 1"),
-            "{message}"
-        );
-    }
+		assert!(matches!(error, Error::Unwritable { .. }));
+		let message = error.to_string();
+		assert!(message.contains("either kind of quote"), "{message}");
+		assert!(message.contains(path), "{message}");
+		assert!(
+			message.contains("block 'p', column '_rlnB', row 1"),
+			"{message}"
+		);
+	}
 
-    #[test]
-    fn a_value_holding_quotes_that_would_not_end_it_survives() {
-        let values = ["a'b\"c", "it's \"this\"", "'lead", "\"lead", "tail'"];
-        let rows: Vec<&[&str]> = values.iter().map(std::slice::from_ref).collect();
+	#[test]
+	fn a_value_holding_quotes_that_would_not_end_it_survives() {
+		let values = ["a'b\"c", "it's \"this\"", "'lead", "\"lead", "tail'"];
+		let rows: Vec<&[&str]> = values.iter().map(std::slice::from_ref).collect();
 
-        let read = round_trip(&one("p", &["_rlnA"], &rows));
+		let read = round_trip(&one("p", &["_rlnA"], &rows));
 
-        assert_eq!(values_of(&read[0].1, 0), values);
-    }
+		assert_eq!(values_of(&read[0].1, 0), values);
+	}
 
-    #[test]
-    fn a_value_that_reads_as_a_keyword_or_a_text_field_survives() {
-        let values = [
-            "loop_#1", "loop_", "data_x", "global_", "save_a", "stop_", "LOOP_", ";text",
-        ];
-        let rows: Vec<&[&str]> = values.iter().map(std::slice::from_ref).collect();
+	#[test]
+	fn a_value_that_reads_as_a_keyword_or_a_text_field_survives() {
+		let values = [
+			"loop_#1", "loop_", "data_x", "global_", "save_a", "stop_", "LOOP_", ";text",
+		];
+		let rows: Vec<&[&str]> = values.iter().map(std::slice::from_ref).collect();
 
-        let read = round_trip(&one("p", &["_rlnA"], &rows));
+		let read = round_trip(&one("p", &["_rlnA"], &rows));
 
-        assert_eq!(values_of(&read[0].1, 0), values);
-    }
+		assert_eq!(values_of(&read[0].1, 0), values);
+	}
 
-    #[test]
-    fn a_block_with_no_columns_is_refused() {
-        let empty = Arc::new(Schema::empty());
-        let batch = RecordBatch::try_new_with_options(
-            empty,
-            vec![],
-            &arrow::record_batch::RecordBatchOptions::new().with_row_count(Some(3)),
-        )
-        .unwrap();
+	#[test]
+	fn a_block_with_no_columns_is_refused() {
+		let empty = Arc::new(Schema::empty());
+		let batch = RecordBatch::try_new_with_options(
+			empty,
+			vec![],
+			&arrow::record_batch::RecordBatchOptions::new().with_row_count(Some(3)),
+		)
+		.unwrap();
 
-        let error = written(&[("p".to_string(), vec![batch])]).unwrap_err();
+		let error = written(&[("p".to_string(), vec![batch])]).unwrap_err();
 
-        assert!(error.to_string().contains("no columns"));
-    }
+		assert!(error.to_string().contains("no columns"));
+	}
 
-    #[test]
-    fn a_header_comes_first_and_reads_as_a_comment() {
-        let directory = TempDir::new().unwrap();
-        let path = directory.path().join("out.xmd");
-        let path = path.to_str().unwrap();
-        let tables = one("noname", &["_image"], &[&["1@a.stk"]]);
+	#[test]
+	fn a_header_comes_first_and_reads_as_a_comment() {
+		let directory = TempDir::new().unwrap();
+		let path = directory.path().join("out.xmd");
+		let path = path.to_str().unwrap();
+		let tables = one("noname", &["_image"], &[&["1@a.stk"]]);
 
-        write_tables(path, Some("# XMIPP_STAR_1 *"), &tables).unwrap();
+		write_tables(path, Some("# XMIPP_STAR_1 *"), &tables).unwrap();
 
-        let text = std::fs::read_to_string(path).unwrap();
-        assert!(text.starts_with(
-            "# XMIPP_STAR_1 *
+		let text = std::fs::read_to_string(path).unwrap();
+		assert!(text.starts_with(
+			"# XMIPP_STAR_1 *
 data_noname
 "
-        ));
-        assert_eq!(
-            values_of(&single(read_tables(path, None).unwrap())[0].1, 0),
-            ["1@a.stk"]
-        );
-    }
+		));
+		assert_eq!(
+			values_of(&single(read_tables(path, None).unwrap())[0].1, 0),
+			["1@a.stk"]
+		);
+	}
 
-    #[test]
-    fn a_header_that_is_not_a_comment_says_so() {
-        let directory = TempDir::new().unwrap();
-        let path = directory.path().join("out.star");
-        let tables = one("p", &["_rlnA"], &[&["1"]]);
+	#[test]
+	fn a_header_that_is_not_a_comment_says_so() {
+		let directory = TempDir::new().unwrap();
+		let path = directory.path().join("out.star");
+		let tables = one("p", &["_rlnA"], &[&["1"]]);
 
-        let error = write_tables(
-            path.to_str().unwrap(),
-            Some(
-                "# fine
+		let error = write_tables(
+			path.to_str().unwrap(),
+			Some(
+				"# fine
 data_",
-            ),
-            &tables,
-        )
-        .unwrap_err();
+			),
+			&tables,
+		)
+		.unwrap_err();
 
-        assert!(error.to_string().contains("\"data_\""));
-        assert!(!path.exists());
-    }
+		assert!(error.to_string().contains("\"data_\""));
+		assert!(!path.exists());
+	}
 
-    #[test]
-    fn a_value_refused_while_writing_leaves_no_file_behind() {
-        let directory = TempDir::new().unwrap();
-        let path = directory.path().join("out.star");
-        let mut tables = one("first", &["_rlnA"], &[&["fine"]]);
-        tables.extend(one("second", &["_rlnA"], &[&["a' b\" c"]]));
+	#[test]
+	fn a_value_refused_while_writing_leaves_no_file_behind() {
+		let directory = TempDir::new().unwrap();
+		let path = directory.path().join("out.star");
+		let mut tables = one("first", &["_rlnA"], &[&["fine"]]);
+		tables.extend(one("second", &["_rlnA"], &[&["a' b\" c"]]));
 
-        let error = write_tables(path.to_str().unwrap(), None, &tables).unwrap_err();
+		let error = write_tables(path.to_str().unwrap(), None, &tables).unwrap_err();
 
-        assert!(error.to_string().contains("either kind of quote"));
-        assert!(!path.exists());
-    }
+		assert!(error.to_string().contains("either kind of quote"));
+		assert!(!path.exists());
+	}
 
-    #[test]
-    fn a_value_holding_a_line_break_says_so() {
-        for value in ["a\nb", "a\r\nb"] {
-            let error = written(&one("p", &["_rlnA"], &[&[value]])).unwrap_err();
+	#[test]
+	fn a_value_holding_a_line_break_says_so() {
+		for value in ["a\nb", "a\r\nb"] {
+			let error = written(&one("p", &["_rlnA"], &[&[value]])).unwrap_err();
 
-            assert!(error.to_string().contains("line break"), "{value:?}");
-        }
-    }
+			assert!(error.to_string().contains("line break"), "{value:?}");
+		}
+	}
 
-    #[test]
-    fn a_name_the_reader_would_split_or_cut_says_so() {
-        for column in ["_rln A", "_rlnA#1"] {
-            let error = written(&one("p", &[column], &[&["1"]])).unwrap_err();
+	#[test]
+	fn a_name_the_reader_would_split_or_cut_says_so() {
+		for column in ["_rln A", "_rlnA#1"] {
+			let error = written(&one("p", &[column], &[&["1"]])).unwrap_err();
 
-            assert!(
-                error.to_string().contains("whitespace or '#'"),
-                "{column:?}"
-            );
-        }
-        for block in ["two words", "a#b"] {
-            let error = written(&one(block, &["_rlnA"], &[&["1"]])).unwrap_err();
+			assert!(
+				error.to_string().contains("whitespace or '#'"),
+				"{column:?}"
+			);
+		}
+		for block in ["two words", "a#b"] {
+			let error = written(&one(block, &["_rlnA"], &[&["1"]])).unwrap_err();
 
-            assert!(error.to_string().contains("block name"), "{block:?}");
-        }
-    }
+			assert!(error.to_string().contains("block name"), "{block:?}");
+		}
+	}
 
-    #[test]
-    fn a_value_with_a_quote_inside_comes_back_as_it_was() {
-        let read = round_trip(&one("p", &["_rlnA"], &[&["John's_data/mic.mrc"]]));
+	#[test]
+	fn a_value_with_a_quote_inside_comes_back_as_it_was() {
+		let read = round_trip(&one("p", &["_rlnA"], &[&["John's_data/mic.mrc"]]));
 
-        assert_eq!(values_of(&read[0].1, 0), ["John's_data/mic.mrc"]);
-    }
+		assert_eq!(values_of(&read[0].1, 0), ["John's_data/mic.mrc"]);
+	}
 
-    #[test]
-    fn a_column_name_a_reader_would_not_see_says_so() {
-        let error = written(&one("p", &["coord_x"], &[&["1.0"]])).unwrap_err();
+	#[test]
+	fn a_column_name_a_reader_would_not_see_says_so() {
+		let error = written(&one("p", &["coord_x"], &[&["1.0"]])).unwrap_err();
 
-        assert!(error.to_string().contains("coord_x"));
-        assert!(error.to_string().contains("'_'"));
-    }
+		assert!(error.to_string().contains("coord_x"));
+		assert!(error.to_string().contains("'_'"));
+	}
 
-    #[test]
-    fn a_column_that_is_not_text_says_which_one() {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "_rlnClassNumber",
-            DataType::Int32,
-            false,
-        )]));
-        let column = Arc::new(Int32Array::from(vec![1, 2]));
-        let numbers = RecordBatch::try_new(schema, vec![column]).unwrap();
+	#[test]
+	fn a_column_that_is_not_text_says_which_one() {
+		let schema = Arc::new(Schema::new(vec![Field::new(
+			"_rlnClassNumber",
+			DataType::Int32,
+			false,
+		)]));
+		let column = Arc::new(Int32Array::from(vec![1, 2]));
+		let numbers = RecordBatch::try_new(schema, vec![column]).unwrap();
 
-        let error = written(&[("p".to_string(), vec![numbers])]).unwrap_err();
+		let error = written(&[("p".to_string(), vec![numbers])]).unwrap_err();
 
-        assert!(error.to_string().contains("_rlnClassNumber"));
-        assert!(error.to_string().contains("Utf8"));
-    }
+		assert!(error.to_string().contains("_rlnClassNumber"));
+		assert!(error.to_string().contains("Utf8"));
+	}
 
-    #[test]
-    fn a_file_that_cannot_be_opened_is_left_as_it_was() {
-        let directory = TempDir::new().unwrap();
-        let path = directory.path().join("out.star");
-        std::fs::write(&path, "kept").unwrap();
-        let mut permissions = std::fs::metadata(&path).unwrap().permissions();
-        permissions.set_readonly(true);
-        std::fs::set_permissions(&path, permissions).unwrap();
+	#[test]
+	fn a_file_that_cannot_be_opened_is_left_as_it_was() {
+		let directory = TempDir::new().unwrap();
+		let path = directory.path().join("out.star");
+		std::fs::write(&path, "kept").unwrap();
+		let mut permissions = std::fs::metadata(&path).unwrap().permissions();
+		permissions.set_readonly(true);
+		std::fs::set_permissions(&path, permissions).unwrap();
 
-        let written = write_tables(
-            path.to_str().unwrap(),
-            None,
-            &one("p", &["_rlnA"], &[&["1"]]),
-        );
+		let written = write_tables(
+			path.to_str().unwrap(),
+			None,
+			&one("p", &["_rlnA"], &[&["1"]]),
+		);
 
-        assert!(written.is_err());
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "kept");
-    }
+		assert!(written.is_err());
+		assert_eq!(std::fs::read_to_string(&path).unwrap(), "kept");
+	}
 
-    #[test]
-    fn a_block_written_a_batch_at_a_time_is_the_block_written_whole() {
-        let directory = TempDir::new().unwrap();
-        let whole = directory.path().join("whole.star");
-        let streamed = directory.path().join("streamed.star");
-        let columns = ["_rlnA", "_rlnB"];
-        let tables = vec![
-            ("optics".to_string(), vec![batch(&["_rlnV"], &[&["300"]])]),
-            (
-                "particles".to_string(),
-                vec![batch(&columns, &[&["1", "a b"]]), batch(&columns, &[])],
-            ),
-        ];
-        write_tables(whole.to_str().unwrap(), Some("# h"), &tables).unwrap();
+	#[test]
+	fn a_block_written_a_batch_at_a_time_is_the_block_written_whole() {
+		let directory = TempDir::new().unwrap();
+		let whole = directory.path().join("whole.star");
+		let streamed = directory.path().join("streamed.star");
+		let columns = ["_rlnA", "_rlnB"];
+		let tables = vec![
+			("optics".to_string(), vec![batch(&["_rlnV"], &[&["300"]])]),
+			(
+				"particles".to_string(),
+				vec![batch(&columns, &[&["1", "a b"]]), batch(&columns, &[])],
+			),
+		];
+		write_tables(whole.to_str().unwrap(), Some("# h"), &tables).unwrap();
 
-        let mut stream = Stream::create(streamed.to_str().unwrap(), Some("# h")).unwrap();
-        for (name, batches) in &tables {
-            let schema = batches[0].schema();
-            let names = schema.fields().iter().map(|f| f.name().clone());
-            stream.begin(name, names.collect()).unwrap();
-            for one in batches {
-                stream.write(one).unwrap();
-            }
-        }
-        stream.finish().unwrap();
+		let mut stream = Stream::create(streamed.to_str().unwrap(), Some("# h")).unwrap();
+		for (name, batches) in &tables {
+			let schema = batches[0].schema();
+			let names = schema.fields().iter().map(|f| f.name().clone());
+			stream.begin(name, names.collect()).unwrap();
+			for one in batches {
+				stream.write(one).unwrap();
+			}
+		}
+		stream.finish().unwrap();
 
-        assert_eq!(
-            std::fs::read(&whole).unwrap(),
-            std::fs::read(&streamed).unwrap()
-        );
-    }
+		assert_eq!(
+			std::fs::read(&whole).unwrap(),
+			std::fs::read(&streamed).unwrap()
+		);
+	}
 
-    #[test]
-    fn a_batch_of_other_columns_says_so_and_leaves_no_file() {
-        let directory = TempDir::new().unwrap();
-        let path = directory.path().join("out.star");
-        let mut stream = Stream::create(path.to_str().unwrap(), None).unwrap();
-        stream.begin("p", vec!["_rlnA".to_string()]).unwrap();
+	#[test]
+	fn a_batch_of_other_columns_says_so_and_leaves_no_file() {
+		let directory = TempDir::new().unwrap();
+		let path = directory.path().join("out.star");
+		let mut stream = Stream::create(path.to_str().unwrap(), None).unwrap();
+		stream.begin("p", vec!["_rlnA".to_string()]).unwrap();
 
-        let error = stream.write(&batch(&["_rlnB"], &[&["1"]])).unwrap_err();
+		let error = stream.write(&batch(&["_rlnB"], &[&["1"]])).unwrap_err();
 
-        assert!(error.to_string().contains("_rlnB"));
-        assert!(!path.exists());
-        assert!(stream.write(&batch(&["_rlnA"], &[&["1"]])).is_err());
-    }
+		assert!(error.to_string().contains("_rlnB"));
+		assert!(!path.exists());
+		assert!(stream.write(&batch(&["_rlnA"], &[&["1"]])).is_err());
+	}
 
-    #[test]
-    fn rows_before_a_block_say_so() {
-        let directory = TempDir::new().unwrap();
-        let path = directory.path().join("out.star");
-        let mut stream = Stream::create(path.to_str().unwrap(), None).unwrap();
+	#[test]
+	fn rows_before_a_block_say_so() {
+		let directory = TempDir::new().unwrap();
+		let path = directory.path().join("out.star");
+		let mut stream = Stream::create(path.to_str().unwrap(), None).unwrap();
 
-        let error = stream.write(&batch(&["_rlnA"], &[&["1"]])).unwrap_err();
+		let error = stream.write(&batch(&["_rlnA"], &[&["1"]])).unwrap_err();
 
-        assert!(error.to_string().contains("before the block"));
-        assert!(!path.exists());
-    }
+		assert!(error.to_string().contains("before the block"));
+		assert!(!path.exists());
+	}
 
-    #[test]
-    fn a_stream_dropped_unfinished_leaves_no_file() {
-        let directory = TempDir::new().unwrap();
-        let path = directory.path().join("out.star");
-        let mut stream = Stream::create(path.to_str().unwrap(), None).unwrap();
-        stream.begin("p", vec!["_rlnA".to_string()]).unwrap();
+	#[test]
+	fn a_stream_dropped_unfinished_leaves_no_file() {
+		let directory = TempDir::new().unwrap();
+		let path = directory.path().join("out.star");
+		let mut stream = Stream::create(path.to_str().unwrap(), None).unwrap();
+		stream.begin("p", vec!["_rlnA".to_string()]).unwrap();
 
-        drop(stream);
+		drop(stream);
 
-        assert!(!path.exists());
-    }
+		assert!(!path.exists());
+	}
 
-    #[test]
-    fn a_path_that_cannot_be_opened_says_which() {
-        let error = write_tables(
-            "no/such/place/out.star",
-            None,
-            &one("p", &["_rlnA"], &[&["1"]]),
-        )
-        .unwrap_err();
+	#[test]
+	fn a_path_that_cannot_be_opened_says_which() {
+		let error = write_tables(
+			"no/such/place/out.star",
+			None,
+			&one("p", &["_rlnA"], &[&["1"]]),
+		)
+		.unwrap_err();
 
-        assert!(matches!(error, Error::Io { .. }));
-        assert!(error.to_string().contains("no/such/place/out.star"));
-    }
+		assert!(matches!(error, Error::Io { .. }));
+		assert!(error.to_string().contains("no/such/place/out.star"));
+	}
 }

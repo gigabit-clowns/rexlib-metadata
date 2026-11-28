@@ -24,7 +24,7 @@ matching `v[0-9]*.[0-9]*.[0-9]*`, the closest its patterns come.
 
 | Job | Does |
 |---|---|
-| `lint` | `ruff check .`, complexipy (≤ 7) and `mypy`, once, from the `lint` group without building the crate |
+| `lint` | `ruff check .`, `ruff format --check .`, complexipy (≤ 7) and `mypy`, once, from the `lint` group without building the crate |
 | `build_with_cargo` | `cargo fmt --check`, clippy at `-D warnings`, `cargo build`, `cargo test`, `--locked`, on Linux, macOS and Windows |
 | `build_with_pip` | `pip install . --group test` and `pytest`, three platforms × Python 3.10–3.15 |
 | `coverage` | `cargo llvm-cov` over the Rust tests, clippy as JSON, `pytest --cov` over an editable install |

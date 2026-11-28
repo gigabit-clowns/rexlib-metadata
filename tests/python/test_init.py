@@ -10,13 +10,13 @@ from rexlib_metadata.convention import ConventionBundle
 
 
 def test_the_version_is_the_installed_distributions():
-    assert rexlib_metadata.__version__ == version("rexlib-metadata")
+	assert rexlib_metadata.__version__ == version("rexlib-metadata")
 
 
 def test_the_public_signature_resolves_at_runtime():
-    signature = inspect.signature(rexlib_metadata.read, eval_str=True)
+	signature = inspect.signature(rexlib_metadata.read, eval_str=True)
 
-    assert signature.parameters["bundle"].annotation == (
-        ConventionBundle | Iterable[ConventionBundle] | None
-    )
-    assert signature.parameters["reader"].annotation == Reader | None
+	assert signature.parameters["bundle"].annotation == (
+		ConventionBundle | Iterable[ConventionBundle] | None
+	)
+	assert signature.parameters["reader"].annotation == Reader | None
