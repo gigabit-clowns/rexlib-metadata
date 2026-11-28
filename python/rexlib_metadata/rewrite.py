@@ -122,7 +122,7 @@ class Rewrite:
         changes = edit.updates_of(table.num_rows)
         if changes is not None:
             self._check_folded(edit.name, changes, plan)
-        return _merged(table, changes, self._schema[edit.name])
+        return _merged(table, changes)
 
     def _check_folded(self, name: str, changes: pa.Table, plan: _Plan) -> None:
         folders = [
@@ -389,7 +389,7 @@ class Rewrite:
             if editing is None
             else self._updates_of(editing, canonical, sources.whole)
         )
-        table = _merged(canonical, updates, schema)
+        table = _merged(canonical, updates)
         table = joined_all(
             table, ((r, sources.whole[r.related]) for r in plan.folds[name])
         )
@@ -629,9 +629,7 @@ def _carried(
     }
 
 
-def _merged(
-    canonical: pa.Table, updates: pa.Table | None, schema: TableSchema
-) -> pa.Table:
+def _merged(canonical: pa.Table, updates: pa.Table | None) -> pa.Table:
     """Return `canonical` with the columns of `updates` in place of its own."""
     if updates is None:
         return canonical
