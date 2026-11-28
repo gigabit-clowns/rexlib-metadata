@@ -155,6 +155,19 @@ earlier.
 | `voltage`, `spherical_aberration`, `amplitude_contrast`, `pixel_size` | `ctf_params.akv`, `cs`, `wgh`, `psize` | |
 | `optics` | the particles' own rows | one row per group |
 
+## FREALIGN
+
+Read only (`conventions/frealign.py`), from `.par`.
+
+| Canonical | FREALIGN | Note |
+|---|---|---|
+| `image_path`, `image_index` | the stack `frealign_bundle(stack=...)` names, `C` | `C` counts from one; a read with no stack raises |
+| `transform` | `PHI`, `THETA`, `PSI`, `SHX`, `SHY` | Relion's rot, tilt and psi; the origin is minus the shift, in Ångström |
+| `defocus_u`, `defocus_v`, `defocus_angle` | `DF1`, `DF2`, `ANGAST` | |
+
+`MAG`, `FILM`, `OCC`, `-LogP`, `SIGMA`, `SCORE` and `CHANGE` have no canonical
+column, so a conversion leaves them out unless `carry=True`.
+
 A single-precision scalar field is read as its shortest decimal (2.7, not
 2.700000047683716).
 

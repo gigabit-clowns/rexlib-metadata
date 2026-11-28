@@ -54,7 +54,7 @@ groups as optics.
 
 - [ ] Writing `.cs`, if a user asks for it
 - Done: the `.csv` of cryoSPARC v0.65 and earlier, read only, as
-  `cryosparc_csv` (#195).
+  `cryosparc_csv`, and FREALIGN's `.par`, as `frealign` (#195).
 - [ ] `alignments2D` (in-plane pose and shift): a second bundle, since one
       bundle cannot produce `transform` twice
 

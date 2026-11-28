@@ -357,8 +357,7 @@ rxm.write("new.star", {"particles": frame})  # canonical tables from memory
 | `.sqlite`, `.db` | `SqliteReader` / `SqliteWriter` | — |
 | `.cs` | `CsReader` / — | `cryosparc` (read only) |
 | `.csv` | `CsvReader` / — | `cryosparc_csv` (read only) |
-
-FREALIGN `.par`, not read yet, is in [formats.md](formats.md).
+| `.par` | `ParReader` / — | `frealign` (read only; `frealign_bundle(stack=...)` names the stack) |
 
 ## Open questions
 
