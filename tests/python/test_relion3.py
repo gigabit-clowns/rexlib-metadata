@@ -280,3 +280,38 @@ def test_joined_micrographs_carry_their_optics_on_each_row():
 	assert_same(joined[micrographs.columns], micrographs)
 	for name, value in optics.items():
 		assert joined[name].tolist() == [value] * len(micrographs)
+
+
+@pytest.mark.parametrize(
+	("canonical", "raw"),
+	[
+		pytest.param("defocus_u", "_rlnDefocusU", id="defocus-u"),
+		pytest.param("defocus_v", "_rlnDefocusV", id="defocus-v"),
+		pytest.param("defocus_angle", "_rlnDefocusAngle", id="defocus-angle"),
+		pytest.param("phase_shift", "_rlnPhaseShift", id="phase-shift"),
+	],
+)
+def test_a_particle_carries_its_ctf(canonical, raw):
+	result = rxm.read(str(POLISHED))
+	file = result.raw.to_pandas()
+
+	particles = result["particles"].to_pandas()
+
+	assert particles[canonical].tolist() == pytest.approx(
+		file[raw].astype(float).tolist()
+	)
+
+
+def test_a_particles_ctf_is_written_once_and_reads_back(tmp_path):
+	out = tmp_path / "out.star"
+	source = rxm.read(str(POLISHED))
+
+	source.write(str(out))
+
+	written = rxm.read(str(out)).raw["particles"].to_pandas()
+	assert not written.columns.duplicated().any()
+	ctf = ["defocus_u", "defocus_v", "defocus_angle", "phase_shift"]
+	assert_same(
+		rxm.read(str(out))["particles"].to_pandas()[ctf],
+		source["particles"].to_pandas()[ctf],
+	)

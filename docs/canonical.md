@@ -60,6 +60,8 @@ run.
 | `micrograph_path` | `string` | | |
 | `coord_x`, `coord_y`, `coord_z` | `float64` | `px` | |
 | `transform` | `fixed_size_list<float32>[12]` | `A` (of `t`) | |
+| `defocus_u`, `defocus_v` | `float64` | `A` | |
+| `defocus_angle`, `phase_shift` | `float64` | `degrees` | |
 | `ctf_max_resolution` | `float64` | `A` | |
 | `optics_group` | `int32` | | |
 
@@ -81,14 +83,13 @@ run.
 |---|---|---|---|
 | `micrograph_path` | `string` | | yes |
 | `defocus_u`, `defocus_v` | `float64` | `A` | |
-| `defocus_angle` | `float64` | `degrees` | |
+| `defocus_angle`, `phase_shift` | `float64` | `degrees` | |
 | `ctf_max_resolution` | `float64` | `A` | |
 | `optics_group` | `int32` | | |
 
 A column is added when a convention produces it. Names reserved for then:
 
-- `particles`: `defocus_u`, `defocus_v` (Å), `defocus_angle`, `phase_shift`
-  (degrees), `ctf_bfactor` (Å²), `ctf_scale`, `ctf_figure_of_merit`,
+- `particles`: `ctf_bfactor` (Å²), `ctf_scale`, `ctf_figure_of_merit`,
   `class_id`, `random_subset`, `group_id`, `norm_correction`,
   `log_likelihood`, `max_probability`.
 - `optics`: `optics_group_name`, `micrograph_pixel_size` (Å/px),
@@ -132,6 +133,8 @@ Read only (`conventions/cryosparc.py`).
 | `micrograph_path` | `location/micrograph_path` | the same |
 | `coord_x`, `coord_y` | `location/center_x_frac`, `…_y_frac`, `location/micrograph_shape` | fraction times columns, rows |
 | `transform` | `alignments3D/pose`, `…/shift`, `…/psize_A` | rotation vector (rad) → `A`; shift in pixels times that pixel size, or `blob/psize_A` where it is missing |
+| `defocus_u`, `defocus_v`, `defocus_angle` | `ctf/df1_A`, `ctf/df2_A`, `ctf/df_angle_rad` | the angle in degrees |
+| `phase_shift` | `ctf/phase_shift_rad` | in degrees |
 | `optics_group` | `ctf/exp_group_id` | plus one |
 | `voltage`, `spherical_aberration`, `amplitude_contrast` | `ctf/accel_kv`, `ctf/cs_mm`, `ctf/amp_contrast` | |
 | `pixel_size`, `image_size`, `image_dimensionality` | `blob/psize_A`, `blob/shape` | |
