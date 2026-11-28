@@ -8,19 +8,7 @@ import pytest
 
 from rexlib_metadata import pose
 
-
-def _relion_matrix(rot, tilt, psi):
-    a, b, g = np.radians([rot, tilt, psi])
-    ca, sa, cb, sb, cg, sg = (
-        np.cos(a), np.sin(a), np.cos(b), np.sin(b), np.cos(g), np.sin(g)
-    )
-    return np.array(
-        [
-            [cg * cb * ca - sg * sa, cg * cb * sa + sg * ca, -cg * sb],
-            [-sg * cb * ca - cg * sa, -sg * cb * sa + cg * ca, sg * sb],
-            [sb * ca, sb * sa, cb],
-        ]
-    )
+from .support import relion_matrix
 
 
 def _one(values):
@@ -37,7 +25,7 @@ def test_a_transform_is_the_inverse_of_relions_projection():
     got = pose.matrices(_transform(angles, origin))[0]
 
     projection = np.eye(4)
-    projection[:3, :3] = _relion_matrix(*angles)
+    projection[:3, :3] = relion_matrix(*angles)
     projection[:3, 3] = -np.array(origin)
     np.testing.assert_allclose(got, np.linalg.inv(projection)[:3], atol=1e-6)
 

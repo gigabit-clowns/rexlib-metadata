@@ -1,7 +1,7 @@
 # STAR fixtures
 
 Files written by other programs. Hand-written cases no real file contains live
-in `tests/python/fixtures/`; `tests/python/test_real_star_files.py` asserts
+in `tests/python/fixtures/`; `tests/python/test_star.py` asserts
 what each of these produces.
 
 Licence: BSD 3-Clause, copyright 2020 Alister Burt, in `LICENSE`, except

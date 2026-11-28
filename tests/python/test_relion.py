@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 import math
-from pathlib import Path
 
 import numpy as np
 import pyarrow as pa
@@ -19,22 +18,22 @@ from rexlib_metadata.conventions.relion import (
 )
 from rexlib_metadata.engine import read_canonical
 
-FILES = Path(__file__).parent.parent / "files" / "star"
+from .support import STAR
 
 
-def canonical(file, table):
-    return rxm.read(str(FILES / file))[table].to_pandas()
+def _canonical(file, table):
+    return rxm.read(str(STAR / file))[table].to_pandas()
 
 
 def test_a_relion_file_is_read_without_being_told_what_it_is():
-    assert rxm.read(str(FILES / "rln3.1_data_style.star")).names == (
+    assert rxm.read(str(STAR / "rln3.1_data_style.star")).names == (
         "particles",
         "optics",
     )
 
 
 def test_a_relion_particle_table_becomes_canonical():
-    df = canonical("rln3.1_data_style.star", "particles")
+    df = _canonical("rln3.1_data_style.star", "particles")
 
     assert list(df.columns) == [
         "image_path",
@@ -50,21 +49,21 @@ def test_a_relion_particle_table_becomes_canonical():
 
 
 def test_a_bare_path_is_an_image_reference_too():
-    df = canonical("one_loop.star", "particles")
+    df = _canonical("one_loop.star", "particles")
 
     assert df["image_index"].tolist() == [0] * 16
     assert df["image_path"][0].endswith("tomo_ts01.mrc_0000000_5.00A.mrc")
 
 
 def test_the_pose_and_the_resolution_come_through_as_numbers():
-    df = canonical("one_loop.star", "particles")
+    df = _canonical("one_loop.star", "particles")
 
     assert pose.euler(df["transform"])[0].tolist() == [0.0] * 16
     assert df["ctf_max_resolution"][0] == pytest.approx(7.4)
 
 
 def test_the_angles_come_back_as_the_file_holds_them():
-    path = str(FILES / "relion3.1_subtomo.star")
+    path = str(STAR / "relion3.1_subtomo.star")
     raw = rxm.read(path).raw["particles"].to_pandas()
 
     angles = pose.euler(rxm.read(path)["particles"].to_pandas()["transform"])
@@ -74,8 +73,8 @@ def test_the_angles_come_back_as_the_file_holds_them():
 
 
 def test_the_origin_comes_back_in_angstrom():
-    df = canonical("relion3.1_subtomo.star", "particles")
-    raw = rxm.read(str(FILES / "relion3.1_subtomo.star")).raw
+    df = _canonical("relion3.1_subtomo.star", "particles")
+    raw = rxm.read(str(STAR / "relion3.1_subtomo.star")).raw
     angstrom = raw["particles"].to_pandas()
 
     _, origin = pose.relion(df["transform"])
@@ -101,7 +100,7 @@ def test_an_in_plane_angle_alone_turns_about_z():
 
 
 def test_a_relion_optics_table_becomes_canonical():
-    df = canonical("rln3.1_data_style.star", "optics")
+    df = _canonical("rln3.1_data_style.star", "optics")
 
     assert df["optics_group"][0] == 1
     assert df["voltage"][0] == 300.0
@@ -132,7 +131,7 @@ def test_an_image_size_is_read_and_written_without_its_dimensionality(
 
 
 def test_a_column_nobody_wrote_is_left_out():
-    df = canonical("rln3.1_data_style.star", "particles")
+    df = _canonical("rln3.1_data_style.star", "particles")
 
     assert "transform" not in df.columns
     assert "optics_group" not in df.columns
@@ -155,7 +154,7 @@ def test_a_convention_of_another_table_is_never_offered_this_one():
             "optics": [Exploding()],
         },
     )
-    tables = rxm.read(str(FILES / "rln3.1_data_style.star")).raw.tables()
+    tables = rxm.read(str(STAR / "rln3.1_data_style.star")).raw.tables()
 
     df = read_canonical(tables, [bundle], SCHEMA, "particles").to_pandas()
 
@@ -165,14 +164,14 @@ def test_a_convention_of_another_table_is_never_offered_this_one():
 
 def test_a_bundle_of_your_own_replaces_the_registered_ones():
     result = rxm.read(
-        str(FILES / "rln3.1_data_style.star"), bundle=ConventionBundle("empty")
+        str(STAR / "rln3.1_data_style.star"), bundle=ConventionBundle("empty")
     )
 
     assert result.names == ()
 
 
 def test_a_file_no_convention_understands_says_so():
-    result = rxm.read(str(FILES / "postprocess.star"))
+    result = rxm.read(str(STAR / "postprocess.star"))
 
     assert result.names == ()
     with pytest.raises(ValueError, match=r"through \.raw"):
@@ -180,7 +179,7 @@ def test_a_file_no_convention_understands_says_so():
 
 
 def test_a_file_of_rows_that_a_bundle_misreads_is_not_an_empty_table():
-    tables = rxm.read(str(FILES / "one_loop.star")).raw.tables()
+    tables = rxm.read(str(STAR / "one_loop.star")).raw.tables()
     nothing = ConventionBundle("empty")
 
     with pytest.raises(ValueError, match="understood a single column"):
@@ -188,24 +187,24 @@ def test_a_file_of_rows_that_a_bundle_misreads_is_not_an_empty_table():
 
 
 def test_the_canonical_view_and_the_file_view_are_both_there():
-    result = rxm.read(str(FILES / "one_loop.star"))
+    result = rxm.read(str(STAR / "one_loop.star"))
 
     assert "image_path" in result["particles"].to_pandas().columns
     assert "_rlnImageName" in result.raw["particles"].to_pandas().columns
 
 
 REFERENCES = [
-    "000012@Extract/a.mrcs",
-    "a.mrcs",
-    "abc@x.mrcs",
-    "@x",
-    "1@2@3",
-    "",
-    "٣@x",
-    "007@",
-    "123",
-    "1a@b",
-    None,
+    pytest.param("000012@Extract/a.mrcs", id="indexed"),
+    pytest.param("a.mrcs", id="bare-path"),
+    pytest.param("abc@x.mrcs", id="letters-before-the-at"),
+    pytest.param("@x", id="nothing-before-the-at"),
+    pytest.param("1@2@3", id="two-ats"),
+    pytest.param("", id="empty"),
+    pytest.param("٣@x", id="non-ascii-digit"),
+    pytest.param("007@", id="nothing-after-the-at"),
+    pytest.param("123", id="digits-only"),
+    pytest.param("1a@b", id="digits-then-letters"),
+    pytest.param(None, id="null"),
 ]
 
 
@@ -240,7 +239,7 @@ def test_a_value_that_does_not_parse_names_the_file_and_the_table(tmp_path):
 
 
 def test_a_microscope_setting_missing_from_the_file_leaves_the_rest():
-    result = rxm.read(str(FILES / "relion3.1_subtomo.star"))
+    result = rxm.read(str(STAR / "relion3.1_subtomo.star"))
     raw = result.raw["optics"].to_pandas()
 
     optics = result["optics"].to_pandas()
@@ -254,7 +253,7 @@ def test_a_microscope_setting_missing_from_the_file_leaves_the_rest():
 
 
 def test_a_pose_read_a_slice_at_a_time_is_the_pose_read_whole(monkeypatch):
-    raw = rxm.read(str(FILES / "relion3.1_subtomo.star")).raw["particles"]
+    raw = rxm.read(str(STAR / "relion3.1_subtomo.star")).raw["particles"]
     table = pa.Table.from_pandas(raw.to_pandas(), preserve_index=False)
     (whole,) = Pose().load(table).values()
 

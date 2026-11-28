@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -13,16 +12,18 @@ from rexlib_metadata.convention import RawTable
 from rexlib_metadata.conventions.xmipp import Pose
 from rexlib_metadata.formats.star import StarWriter
 
-FILES = Path(__file__).parent.parent / "files" / "xmd"
+from .support import XMD
 
 
-def read(name):
-    return rxm.read(str(FILES / name))
+def _read(name):
+    return rxm.read(str(XMD / name))
 
 
-@pytest.mark.parametrize("name", ["c3_stk.xmd", "i222.xmd"])
+@pytest.mark.parametrize(
+    "name", ["c3_stk.xmd", "i222.xmd"], ids=["c3-stack", "i222"]
+)
 def test_an_xmipp_file_is_read_without_being_told_what_it_is(name):
-    result = read(name)
+    result = _read(name)
 
     assert result.names == ("particles",)
     assert result.raw.names == ("noname",)
@@ -34,15 +35,17 @@ def test_an_xmipp_file_is_read_without_being_told_what_it_is(name):
 
 
 def test_an_xmipp_image_reference_counts_from_zero():
-    df = read("c3_stk.xmd")["particles"].to_pandas()
+    df = _read("c3_stk.xmd")["particles"].to_pandas()
 
     assert df["image_path"][0] == "c3_stk.mrc"
     assert df["image_index"].tolist() == list(range(10))
 
 
-@pytest.mark.parametrize("name", ["c3_stk.xmd", "i222.xmd"])
+@pytest.mark.parametrize(
+    "name", ["c3_stk.xmd", "i222.xmd"], ids=["c3-stack", "i222"]
+)
 def test_the_angles_are_the_ones_the_file_holds(name):
-    result = read(name)
+    result = _read(name)
     raw = result.raw.to_pandas()
     df = result["particles"].to_pandas()
 
@@ -54,7 +57,7 @@ def test_the_angles_are_the_ones_the_file_holds(name):
 
 
 def test_an_xmipp_pose_has_no_shift():
-    df = read("c3_stk.xmd")["particles"].to_pandas()
+    df = _read("c3_stk.xmd")["particles"].to_pandas()
 
     shift = pose.matrices(df["transform"])[:, :, 3]
 
@@ -62,7 +65,7 @@ def test_an_xmipp_pose_has_no_shift():
 
 
 def test_an_xmd_is_written_with_the_header_xmipp_looks_for(tmp_path):
-    source = read("c3_stk.xmd")
+    source = _read("c3_stk.xmd")
     out = tmp_path / "out.xmd"
 
     source.write(str(out))
@@ -80,7 +83,7 @@ def test_an_xmd_is_written_with_the_header_xmipp_looks_for(tmp_path):
 def test_an_xmd_written_as_star_speaks_relion(tmp_path):
     out = tmp_path / "out.star"
 
-    read("c3_stk.xmd").write(str(out))
+    _read("c3_stk.xmd").write(str(out))
     raw = rxm.read(str(out)).raw.to_pandas()
 
     assert raw["_rlnImageName"][0] == "000001@c3_stk.mrc"
@@ -96,11 +99,13 @@ def test_a_header_that_is_not_a_comment_is_refused(tmp_path):
         writer.write_tables(str(tmp_path / "out.xmd"), [table])
 
 
-@pytest.mark.parametrize("extension", [".doc", ".pos", ".sel"])
+@pytest.mark.parametrize(
+    "extension", [".doc", ".pos", ".sel"], ids=["doc", "pos", "sel"]
+)
 def test_xmipps_other_extensions_are_xmd(tmp_path, extension):
-    source = read("c3_stk.xmd")
+    source = _read("c3_stk.xmd")
     renamed = tmp_path / f"renamed{extension}"
-    renamed.write_bytes((FILES / "c3_stk.xmd").read_bytes())
+    renamed.write_bytes((XMD / "c3_stk.xmd").read_bytes())
     out = tmp_path / f"out{extension}"
 
     rxm.read(str(renamed)).write(str(out))
