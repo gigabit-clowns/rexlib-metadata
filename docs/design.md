@@ -251,12 +251,12 @@ undeclared output raises, and a table nothing writes raises.
   anew) is decided once from `read_schemas`. A table others point at is read
   whole first, or built a chunk at a time from the raw table it shares, and
   written ahead of that table's chunks. The source is read whole instead when
-  a table others do not point at shares its raw table, or `rows=` holds
+  a table others do not point at shares its raw table, or `take` holds
   positions out of order or selects a table others point at; the two give
-  the same file, `rows=` leaving the tables others point at whole.
-- `updates=` is cast to the declared types before anything is read, and
-  reaches a table the destination folds into others; `rows=` of such a table
-  raises.
+  the same file, a selection leaving the tables others point at whole.
+- `updated` is cast to the declared types before anything is read, and
+  reaches a table the destination folds into others; a selection of such a
+  table raises.
 
 ### Writing a convention
 
@@ -307,13 +307,14 @@ registered. A write rereads its source through the reader it was read with.
   where the filling block ends. Tables a joined view points at are built
   first, as a table others point at is (see the read engine).
 - `result.joined(name)` gives each row the columns of the row it points at.
-  `updates` through it may not change the related table's columns.
+  `updated` through it may not change the related table's columns.
 - A view never narrows a write: `write` writes every canonical table the
   source fills, every column, rereading the whole source. The source must
   still be there.
-- `updates=` replaces columns of the one table the result shows; it holds a
-  row for every row written, in order. `rows=` (positions or a boolean mask)
-  keeps only those rows of that table.
+- `take` (positions) and `where` (a boolean mask) keep only some rows of the
+  one table a view shows; `updated` then replaces its columns, one row per
+  row kept, in order. They are lazy, as `joined` is, and a read of the view
+  shows what its write writes.
 
 Text formats are paginated by the parser; SQLite by a cursor per table.
 
@@ -337,9 +338,9 @@ result.write("out.xmd")                      # converts
 result = rxm.read("particles.star", columns=["coord_x"])
 df = result.to_pandas()
 df["coord_x"] += 10
-result.write("out.star", updates=df)         # every other column forwarded
+result.updated(df).write("out.star")         # every other column forwarded
 kept = df[df["coord_x"] > 0]
-result.write("subset.star", rows=kept.index, updates=kept)
+result.take(kept.index).updated(kept).write("subset.star")
 
 rxm.write("new.star", {"particles": frame})  # canonical tables from memory
 ```

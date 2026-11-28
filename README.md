@@ -135,20 +135,20 @@ rxm.read("particles.star").write("particles.xmd")   # conversion
 rxm.write("picked.star", {"particles": df})          # tables built in memory: pandas, polars or Arrow
 ```
 
-Change some columns and the write carries the rest; `rows=` keeps only some
-particles, by position or mask:
+Change some columns and the write carries the rest; `take` and `where` keep
+only some particles, by position or mask. An edited view reads as it writes:
 
 ```python
 result = rxm.read("particles.star", columns=["coord_x"])
 df = result.to_pandas()
 df["coord_x"] += 10
-result.write("moved.star", updates=df)
+result.updated(df).write("moved.star")
 
 particles = rxm.read("run_data.star")["particles"]
 df = particles.to_pandas()
 good = df[df["ctf_max_resolution"] < 4].copy()
 good["coord_x"] += 10
-particles.write("good.star", rows=good.index, updates=good[["coord_x"]])
+particles.take(good.index).updated(good[["coord_x"]]).write("good.star")
 ```
 
 - A write rereads the source, so the source must still be where it was. It

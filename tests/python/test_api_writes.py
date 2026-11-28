@@ -157,7 +157,7 @@ def test_a_joined_view_writes_its_own_columns_back(tmp_path):
     flat = view.to_pandas()
     flat["coord_x"] += 1.0
 
-    view.write(str(out), updates=flat)
+    view.updated(flat).write(str(out))
 
     again = rxm.read(str(out))
     moved = again["particles"].to_pandas()["coord_x"].tolist()
@@ -170,9 +170,10 @@ def test_a_joined_view_refuses_a_change_to_the_table_it_points_at(tmp_path):
     flat = view.to_pandas()
     flat["pixel_size"] = 6.0
     out = str(tmp_path / "out.star")
+    edited = view.updated(flat)
 
     with pytest.raises(ValueError, match="'pixel_size'"):
-        view.write(out, updates=flat)
+        edited.write(out)
 
 
 _POSIX_ONLY = pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")

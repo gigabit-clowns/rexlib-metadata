@@ -9,11 +9,20 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 import pyarrow as pa
-import pyarrow.compute as pc
 
 from rexlib_metadata import reading
 from rexlib_metadata._arrow import as_arrow_table
 from rexlib_metadata.convention import RawTable
+from rexlib_metadata.editing import (
+    Edit,
+    Mask,
+    Positions,
+    merged,
+    own_updates,
+    positions,
+    shown,
+    streamed,
+)
 from rexlib_metadata.engine import (
     in_context,
     owned,
@@ -28,7 +37,7 @@ from rexlib_metadata.reading import block_chunks, narrowed
 from rexlib_metadata.writing import folded, folds, replaced, typed
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Iterator
+    from collections.abc import Iterable, Iterator
 
     import pandas as pd
     import polars as pl
@@ -44,7 +53,6 @@ if TYPE_CHECKING:
     from rexlib_metadata.registry import MetadataRegistry
     from rexlib_metadata.schema import Relation, TableSchema
 
-    Rows = Collection[int] | Collection[bool] | pa.Array | pa.ChunkedArray
     Updates = pa.Table | pd.DataFrame | pl.DataFrame
 
 _POINTED_AT_ROWS = 1_000
@@ -73,11 +81,15 @@ class Rewrite:
     def write(
         self,
         path: str,
-        shown: str | None,
+        name: str | None,
         updates: Updates | None,
-        rows: Rows | None,
+        rows: pa.Array | None,
     ) -> None:
-        """Write the source to `path`, `shown` edited by `updates`, `rows`."""
+        """Write the source to `path`, table `name` edited.
+
+        `rows` keeps some of its rows, as `positions` reads them, and
+        `updates` replaces columns of the rows kept.
+        """
         raw = self._source.raw
         same_format = _same_writer(
             self._writer, _writer_of(raw.registry, raw.path)
@@ -88,7 +100,7 @@ class Rewrite:
                 f"Nothing of {raw.path} would reach {path}: no convention of "
                 "the destination writes any of its tables"
             )
-        edit = self._edit(plan, shown, updates, rows)
+        edit = self._edit(plan, name, updates, rows)
         sources = self._sources(plan, edit, rows)
         if edit is not None and edit.name in folded(plan.folds):
             sources.whole[edit.name] = self._folded_edit(
@@ -102,10 +114,10 @@ class Rewrite:
 
     def _folded_edit(
         self,
-        edit: _Edit,
+        edit: Edit,
         plan: _Plan,
         whole: dict[str, pa.Table],
-        rows: Rows | None,
+        rows: pa.Array | None,
         path: str,
     ) -> pa.Table:
         """Apply `updates` to a table the destination folds into others.
@@ -115,14 +127,14 @@ class Rewrite:
         """
         if rows is not None:
             raise ValueError(
-                f"rows= selects rows of '{edit.name}', which {path} has no "
-                "table for and joins into the rows that point at it"
+                f"Rows of '{edit.name}' are kept, and {path} has no table for "
+                "it: it joins it into the rows that point at it"
             )
         table = whole[edit.name]
         changes = edit.updates_of(table.num_rows)
         if changes is not None:
             self._check_folded(edit.name, changes, plan)
-        return _merged(table, changes)
+        return merged(table, changes)
 
     def _check_folded(self, name: str, changes: pa.Table, plan: _Plan) -> None:
         folders = [
@@ -190,32 +202,23 @@ class Rewrite:
     def _edit(
         self,
         plan: _Plan,
-        shown: str | None,
+        name: str | None,
         updates: Updates | None,
-        rows: Rows | None,
-    ) -> _Edit | None:
-        if shown is None:
+        rows: pa.Array | None,
+    ) -> Edit | None:
+        if name is None:
             return None
         frame = None
         if updates is not None:
-            frame = as_arrow_table(updates)
-            frame = typed(frame, self._shown(shown), "updates")
+            tables = shown(self._schema, name, self._joined)
+            frame = typed(as_arrow_table(updates), tables, "updates")
         kept = None
         if rows is not None and not self._whole_needed(plan):
-            kept = self._kept(shown, rows)
-        return _Edit(shown, frame, kept)
-
-    def _shown(self, name: str) -> list[TableSchema]:
-        """Name the tables a write of `name` shows: it, and what it joins."""
-        tables = [self._schema[name]]
-        if self._joined:
-            tables += [
-                self._schema[r.related] for r in self._schema.relations_of(name)
-            ]
-        return tables
+            kept = self._kept(name, rows)
+        return Edit(name, frame, kept)
 
     def _sources(
-        self, plan: _Plan, edit: _Edit | None, rows: Rows | None
+        self, plan: _Plan, edit: Edit | None, rows: pa.Array | None
     ) -> _Sources:
         needed = self._needed(plan, edit)
         selects = edit is not None and rows is not None and edit.kept is None
@@ -227,8 +230,8 @@ class Rewrite:
         self,
         plan: _Plan,
         needed: set[str],
-        edit: _Edit | None,
-        rows: Rows | None,
+        edit: Edit | None,
+        rows: pa.Array | None,
     ) -> _Sources:
         """Return the source read whole, as `_streamed` would see it.
 
@@ -312,7 +315,7 @@ class Rewrite:
         raw = narrowed(plan.raw[at], columns)
         return self._source.built(name, raw, at, columns)
 
-    def _needed(self, plan: _Plan, edit: _Edit | None) -> set[str]:
+    def _needed(self, plan: _Plan, edit: Edit | None) -> set[str]:
         """Name the tables a write needs whole: folded or joined in."""
         if not self._joined or edit is None or edit.updates is None:
             return folded(plan.folds)
@@ -322,10 +325,10 @@ class Rewrite:
             if relation.related in plan.chosen
         }
 
-    def _kept(self, name: str, rows: Rows) -> _Mask | _Positions | None:
+    def _kept(self, name: str, rows: pa.Array) -> Mask | Positions | None:
         if self._schema.related_to(name):
             return None
-        return _streamed_rows(rows, name)
+        return streamed(rows, name)
 
     def _read_whole(self, at: int) -> RawTable:
         pieces = list(
@@ -335,7 +338,7 @@ class Rewrite:
         return RawTable(pieces[0].schema, table)
 
     def _rewritten(
-        self, plan: _Plan, sources: _Sources, edit: _Edit | None
+        self, plan: _Plan, sources: _Sources, edit: Edit | None
     ) -> Iterator[tuple[int, RawTable]]:
         seen: set[int] = set()
         for at, raw in sources.chunks:
@@ -352,14 +355,14 @@ class Rewrite:
         block: _Block,
         plan: _Plan,
         sources: _Sources,
-        edit: _Edit | None,
+        edit: Edit | None,
     ) -> RawTable:
         if block.name is None:
             return raw
-        editing = edit if edit is not None and edit.name == block.name else None
-        if editing is not None:
-            raw = editing.rows_of(raw)
-        canonical = self._to_write(raw, block.name, plan, sources, editing)
+        own = edit if edit is not None and edit.name == block.name else None
+        if own is not None:
+            raw = RawTable(raw.schema, own.rows_of(raw.table))
+        canonical = self._to_write(raw, block.name, plan, sources, own)
         columns = write_canonical(
             canonical, self._bundles, self._schema[block.name]
         )
@@ -375,7 +378,7 @@ class Rewrite:
         name: str,
         plan: _Plan,
         sources: _Sources,
-        editing: _Edit | None,
+        edit: Edit | None,
     ) -> pa.Table:
         """Return canonical table `name` as written: updated, folds joined."""
         schema = self._schema[name]
@@ -386,10 +389,10 @@ class Rewrite:
             )
         updates = (
             None
-            if editing is None
-            else self._updates_of(editing, canonical, sources.whole)
+            if edit is None
+            else self._updates_of(edit, canonical, sources.whole)
         )
-        table = _merged(canonical, updates)
+        table = merged(canonical, updates)
         table = joined_all(
             table, ((r, sources.whole[r.related]) for r in plan.folds[name])
         )
@@ -397,20 +400,18 @@ class Rewrite:
         return table
 
     def _updates_of(
-        self, editing: _Edit, canonical: pa.Table, whole: dict[str, pa.Table]
+        self, edit: Edit, canonical: pa.Table, whole: dict[str, pa.Table]
     ) -> pa.Table | None:
-        frame = editing.updates_of(canonical.num_rows)
-        if frame is None or not self._joined:
-            return frame
-        name = editing.name
-        own = [c for c in frame.column_names if c in self._schema[name]]
+        frame = edit.updates_of(canonical.num_rows)
+        if frame is None:
+            return None
         relations = (
             (relation, whole[relation.related])
-            for relation in self._schema.relations_of(name)
+            for relation in self._schema.relations_of(edit.name)
             if relation.related in whole
         )
-        _check_unchanged(frame, joined_all(canonical, relations), own, name)
-        return frame.select(own)
+        current = joined_all(canonical, relations)
+        return own_updates(frame, current, self._schema, edit.name)
 
 
 @dataclass(frozen=True)
@@ -464,120 +465,18 @@ class _Sources:
     built: dict[str, pa.Table]
 
 
-class _Edit:
-    """What `rows=` and `updates=` change of the one table a write shows."""
-
-    def __init__(
-        self,
-        name: str,
-        updates: pa.Table | None,
-        kept: _Mask | _Positions | None,
-    ) -> None:
-        self.name = name
-        self.updates = updates
-        self.kept = kept
-        self._read = 0
-        self._written = 0
-
-    def rows_of(self, raw: RawTable) -> RawTable:
-        """Return the rows of the next chunk that `rows=` keeps."""
-        if self.kept is None:
-            return raw
-        count = raw.table.num_rows
-        picked = self.kept.picked(self._read, count)
-        self._read += count
-        return RawTable(raw.schema, raw.table.take(picked))
-
-    def updates_of(self, rows: int) -> pa.Table | None:
-        """Return the updates of the next `rows` rows written."""
-        if self.updates is None:
-            return None
-        piece = self.updates.slice(self._written, rows)
-        self._written += rows
-        if piece.num_rows < rows:
-            raise _updates_mismatch(
-                self.updates, f"at least {self._written}", self.name
-            )
-        return piece
-
-    def check(self) -> None:
-        """Raise if `rows=` or `updates=` did not fit the rows read."""
-        if self.kept is not None:
-            self.kept.check(self._read)
-        if self.updates is not None and self.updates.num_rows != self._written:
-            raise _updates_mismatch(self.updates, str(self._written), self.name)
-
-
-class _Mask:
-    def __init__(self, mask: pa.Array, table: str) -> None:
-        self._kept = mask
-        self._table = table
-
-    def picked(self, start: int, count: int) -> pa.Array:
-        return pc.indices_nonzero(
-            self._kept.slice(start, count).fill_null(False)
-        )
-
-    def check(self, rows: int) -> None:
-        if len(self._kept) != rows:
-            raise _mask_mismatch(len(self._kept), rows, self._table)
-
-
-class _Positions:
-    def __init__(self, positions: pa.Array, table: str) -> None:
-        self._kept = positions
-        self._table = table
-        self._taken = 0
-
-    def picked(self, start: int, count: int) -> pa.Array:
-        window = self._kept.slice(self._taken, count)
-        inside = len(
-            pc.indices_nonzero(pc.less(window, pa.scalar(start + count)))
-        )
-        self._taken += inside
-        return pc.subtract(window.slice(0, inside), start)
-
-    def check(self, rows: int) -> None:
-        if self._taken < len(self._kept):
-            raise _outside(self._table, rows)
-
-
 def _selected(
     source: tuple[RawTable, ...],
     name: str,
     at: int | None,
-    rows: Rows,
+    rows: pa.Array,
 ) -> tuple[RawTable, ...]:
     if at is None:
         return source
     filling = source[at]
-    positions = _positions(rows, filling.table.num_rows, name)
-    kept = RawTable(filling.schema, filling.table.take(positions))
+    kept_rows = positions(rows, filling.table.num_rows, name)
+    kept = RawTable(filling.schema, filling.table.take(kept_rows))
     return (*source[:at], kept, *source[at + 1 :])
-
-
-def _streamed_rows(rows: Rows, table: str) -> _Mask | _Positions | None:
-    selection = _as_array(rows)
-    if pa.types.is_boolean(selection.type):
-        return _Mask(selection, table)
-    if _increasing(selection):
-        return _Positions(selection.cast(pa.int64()), table)
-    return None
-
-
-def _increasing(selection: pa.Array) -> bool:
-    if not pa.types.is_integer(selection.type) or selection.null_count:
-        return False
-    if not len(selection):
-        return True
-    positions = selection.cast(pa.int64())
-    steps = pc.subtract(
-        positions.slice(1), positions.slice(0, len(positions) - 1)
-    )
-    return (
-        positions[0].as_py() >= 0
-        and pc.all(pc.greater(steps, pa.scalar(0))).as_py()
-    )
 
 
 def _carrying(
@@ -629,59 +528,6 @@ def _carried(
     }
 
 
-def _merged(canonical: pa.Table, updates: pa.Table | None) -> pa.Table:
-    """Return `canonical` with the columns of `updates` in place of its own."""
-    if updates is None:
-        return canonical
-    for name in updates.column_names:
-        column = updates.column(name)
-        if name in canonical.column_names:
-            index = canonical.column_names.index(name)
-            canonical = canonical.set_column(index, name, column)
-        else:
-            canonical = canonical.append_column(name, column)
-    return canonical
-
-
-def _check_unchanged(
-    frame: pa.Table, current: pa.Table, own: list[str], name: str
-) -> None:
-    changed = [
-        column
-        for column in frame.column_names
-        if column not in own
-        and not frame.column(column)
-        .cast(current.column(column).type)
-        .equals(current.column(column))
-    ]
-    if changed:
-        raise ValueError(
-            f"updates changes {', '.join(repr(c) for c in changed)}, which "
-            f"table '{name}' does not hold but points at; write them through "
-            "the table that holds them, as result[name].write(updates=...)"
-        )
-
-
-def _updates_mismatch(updates: pa.Table, written: str, name: str) -> ValueError:
-    return ValueError(
-        f"updates holds {updates.num_rows} rows where {written} of table "
-        f"'{name}' are written; it holds one per row written, in the same "
-        "order: one per row of the table, or one per row rows= keeps"
-    )
-
-
-def _mask_mismatch(length: int, count: int, table: str) -> ValueError:
-    return ValueError(
-        f"rows is a mask of {length} where table '{table}' holds {count} rows"
-    )
-
-
-def _outside(table: str, count: int) -> ValueError:
-    return ValueError(
-        f"rows names a row outside table '{table}', which holds {count}"
-    )
-
-
 def _writer_of(registry: MetadataRegistry, path: str) -> Writer | None:
     try:
         return registry.writer_for(path)
@@ -711,33 +557,3 @@ def _check_written(
             f"no convention writes from table '{schema.name}' as it stands, "
             "so the change would not reach the file"
         )
-
-
-def _positions(rows: Rows, count: int, table: str) -> pa.Array:
-    selection = _as_array(rows)
-    if pa.types.is_boolean(selection.type):
-        if len(selection) != count:
-            raise _mask_mismatch(len(selection), count, table)
-        return pc.indices_nonzero(selection.fill_null(False))
-    if not pa.types.is_integer(selection.type):
-        raise TypeError(
-            f"rows holds {selection.type}; it takes row positions or a mask"
-        )
-    outside = pc.or_(
-        pc.less(selection, pa.scalar(0)),
-        pc.greater_equal(selection, pa.scalar(count)),
-    )
-    if selection.null_count or pc.any(outside).as_py():
-        raise _outside(table, count)
-    return selection.cast(pa.int64())
-
-
-def _as_array(rows: Rows) -> pa.Array:
-    to_arrow = getattr(rows, "to_arrow", None)
-    found = rows if to_arrow is None else to_arrow()
-    if isinstance(found, pa.ChunkedArray):
-        return found.combine_chunks()
-    array = found if isinstance(found, pa.Array) else pa.array(found)
-    if pa.types.is_null(array.type) and not len(array):
-        return array.cast(pa.int64())
-    return array

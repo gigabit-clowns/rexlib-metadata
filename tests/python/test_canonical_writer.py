@@ -59,7 +59,7 @@ def test_a_pose_is_written_as_relion_spells_it(tmp_path):
     moved = pose.transforms(a, (origin[0] + 1.5, origin[1], origin[2]))
     out = tmp_path / "out.star"
 
-    particles.write(str(out), updates=pa.table({"transform": moved}))
+    particles.updated(pa.table({"transform": moved})).write(str(out))
     raw = rxm.read(str(out)).raw["particles"].to_pandas()
 
     assert float(raw["_rlnOriginXAngst"][0]) == pytest.approx(

@@ -60,7 +60,7 @@ def test_two_columns_read_and_one_changed_write_back_all_of_them(tmp_path):
     df["coord_x"] += 10
     out = str(tmp_path / "out.star")
 
-    result.write(out, updates=df)
+    result.updated(df).write(out)
 
     before = rxm.read(source).raw.to_pandas()
     after = rxm.read(out).raw.to_pandas()
@@ -124,10 +124,11 @@ def test_a_view_of_one_table_writes_every_table(tmp_path):
 
 def test_updates_of_another_length_raise(tmp_path):
     result = rxm.read(str(FILES / "one_loop.star"), columns=["coord_x"])
-    df = result.to_pandas().head(1)
+    edited = result.updated(result.to_pandas().head(1))
+    out = str(tmp_path / "out.star")
 
-    with pytest.raises(ValueError, match="one per row rows= keeps"):
-        result.write(str(tmp_path / "out.star"), updates=df)
+    with pytest.raises(ValueError, match="one per row kept"):
+        edited.write(out)
 
 
 def test_updates_go_to_the_table_the_view_shows(tmp_path):
@@ -136,7 +137,7 @@ def test_updates_go_to_the_table_the_view_shows(tmp_path):
     df["voltage"] = 200.0
     out = str(tmp_path / "out.star")
 
-    result.write(out, updates=df)
+    result.updated(df).write(out)
 
     assert rxm.read(out)["optics"].to_pandas()["voltage"].tolist() == [200.0]
 
@@ -146,7 +147,7 @@ def test_updates_may_be_polars(tmp_path):
     df = result.to_polars().with_columns(pl.col("coord_x") * 0)
     out = str(tmp_path / "out.star")
 
-    result.write(out, updates=df)
+    result.updated(df).write(out)
 
     x = rxm.read(out, columns=["coord_x"]).to_pandas()["coord_x"]
     assert set(x) == {0.0}
@@ -158,7 +159,7 @@ def test_a_result_writes_over_its_own_source(tmp_path):
     df = result.to_pandas()
     df["coord_x"] = 1.0
 
-    result.write(path, updates=df)
+    result.updated(df).write(path)
 
     assert set(rxm.read(path).to_pandas()["coord_x"]) == {1.0}
     assert sorted(p.name for p in tmp_path.iterdir()) == ["one_loop.star"]
@@ -292,7 +293,7 @@ def test_a_narrowed_read_writes_back_into_its_own_block(tmp_path):
     frame = view.to_pandas()
     frame["coord_x"] += 0.5
 
-    view.write(out, updates=frame)
+    view.updated(frame).write(out)
 
     written = rxm.read(out).raw
     kept = written["a"].to_pandas()["_rlnCoordinateX"]
@@ -319,9 +320,10 @@ def test_updates_that_cannot_be_written_raise_before_anything_is(
     rows = len(view.to_pandas())
     frame = pa.table({k: v * rows for k, v in updates.items()})
     out = tmp_path / "out.star"
+    edited = view.updated(frame)
 
     with pytest.raises(ValueError, match=error):
-        view.write(str(out), updates=frame)
+        edited.write(str(out))
     assert not out.exists()
 
 
