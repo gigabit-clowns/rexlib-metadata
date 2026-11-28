@@ -173,3 +173,36 @@ def test_a_null_pose_is_written_empty(tmp_path):
 
     again = rxm.read(str(out)).raw["particles"].to_pandas()
     assert again["_rlnAnglePsi"].tolist() == ["", "98"]
+
+
+@pytest.mark.parametrize(
+    ("suffix", "carry", "kept"),
+    [
+        pytest.param(".star", None, True, id="same-format"),
+        pytest.param(".star", False, False, id="left-out"),
+        pytest.param(".xmd", None, False, id="other-format"),
+        pytest.param(".xmd", True, True, id="carried-over"),
+    ],
+)
+def test_carry_says_whether_what_no_convention_covers_reaches_the_file(
+    tmp_path, suffix, carry, kept
+):
+    out = tmp_path / f"out{suffix}"
+    source = rxm.read(str(STAR / "relion3.1_subtomo.star"))
+    before = source.raw["particles"].to_pandas()["_rlnCtfImage"]
+
+    source.write(str(out), carry=carry)
+
+    written = rxm.read(str(out)).raw["particles"].to_pandas()
+    assert ("_rlnCtfImage" in written.columns) is kept
+    if kept:
+        assert written["_rlnCtfImage"].tolist() == before.tolist()
+
+
+def test_blocks_no_convention_fills_are_left_out_with_carry_false(tmp_path):
+    out = tmp_path / "out.star"
+    source = rxm.read(str(STAR / "postprocess.star"))
+
+    with pytest.raises(ValueError, match="Nothing of"):
+        source.write(str(out), carry=False)
+    assert not out.exists()

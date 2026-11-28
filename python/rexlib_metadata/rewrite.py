@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 
 import pyarrow as pa
 
-from rexlib_metadata import reading
 from rexlib_metadata._arrow import as_arrow_table
 from rexlib_metadata.convention import RawTable
 from rexlib_metadata.editing import (
@@ -58,25 +57,37 @@ if TYPE_CHECKING:
 _POINTED_AT_ROWS = 1_000
 
 
+@dataclass(frozen=True)
+class Destination:
+    """How a write reaches its file.
+
+    `carry` is whether columns and blocks no convention covers are carried
+    over, or None to carry them when `writer` is the source's. The source
+    is read `rows` rows at a time.
+    """
+
+    writer: Writer
+    bundles: tuple[ConventionBundle, ...]
+    carry: bool | None
+    rows: int
+
+
 class Rewrite:
     """A write of the whole file a canonical view was read from."""
 
     def __init__(
-        self,
-        source: Reading,
-        joined: bool,
-        writer: Writer,
-        bundles: tuple[ConventionBundle, ...],
+        self, source: Reading, joined: bool, destination: Destination
     ) -> None:
-        """Rewrite what `source` reads through `writer` and `bundles`.
+        """Rewrite what `source` reads to `destination`.
 
         `joined` says whether the view showed its related tables joined in.
         """
-        self._source = source
+        self._source = source.sized(destination.rows)
         self._schema = source.schema
         self._joined = joined
-        self._writer = writer
-        self._bundles = bundles
+        self._destination = destination
+        self._writer = destination.writer
+        self._bundles = destination.bundles
 
     def write(
         self,
@@ -91,10 +102,12 @@ class Rewrite:
         `updates` replaces columns of the rows kept.
         """
         raw = self._source.raw
-        same_format = _same_writer(
-            self._writer, _writer_of(raw.registry, raw.path)
-        )
-        plan = self._plan(same_format)
+        carry = self._destination.carry
+        if carry is None:
+            carry = _same_writer(
+                self._writer, _writer_of(raw.registry, raw.path)
+            )
+        plan = self._plan(carry)
         if not plan.blocks:
             raise ValueError(
                 f"Nothing of {raw.path} would reach {path}: no convention of "
@@ -163,7 +176,7 @@ class Rewrite:
                 "not reach the file"
             )
 
-    def _plan(self, same_format: bool) -> _Plan:
+    def _plan(self, carry: bool) -> _Plan:
         source = self._source
         raw = source.raw._schemas()
         chosen = source.assigned(raw)
@@ -174,12 +187,12 @@ class Rewrite:
             self._schema,
         )
         skipped = folded(plan_folds)
-        anew = self._spelled_anew(raw, chosen, own) if same_format else {}
+        anew = self._spelled_anew(raw, chosen, own) if carry else {}
         blocks = tuple(
             _Block(at, name, _carrying(anew, own, name, at))
             for at in range(len(raw))
             for name in _filled_by(chosen, own, at)
-            if name not in skipped and (name is not None or same_format)
+            if name not in skipped and (name is not None or carry)
         )
         return _Plan(raw, chosen, own, plan_folds, blocks)
 
@@ -276,7 +289,7 @@ class Rewrite:
             for name, at in plan.chosen.items()
             if at not in raw and name not in built
         }
-        chunks = _whole_where(self._source.raw._chunks(reading.ROWS), raw)
+        chunks = _whole_where(self._source.raw._chunks(self._source.rows), raw)
         return _Sources(chunks, whole, bound, built)
 
     def _pointed_at_whole(
