@@ -35,8 +35,36 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: What the pull request changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.diff.outputs.build }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Compare with the base
+        id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          GROUPS: lint docs sdist coverage compare
+        run: |
+          build=true
+          files=$(git diff --name-only "$BASE...HEAD")
+          if [[ "$files" == pyproject.toml ]]; then
+            build=$(git show "$BASE:pyproject.toml" |
+              python3 -m scripts.changed "$GROUPS")
+          fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+
   codspeed:
     name: CodSpeed
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.build != 'false' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
