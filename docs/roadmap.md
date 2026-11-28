@@ -48,7 +48,7 @@ Dropped; see [design.md](design.md).
 
 ## Phase 9b — cryoSPARC `.cs`
 
-Done: `CsReader` (the `cryosparc` extra) and a read-only `cryosparc` bundle:
+Done: `CsReader` and a read-only `cryosparc` bundle:
 image, micrograph, coordinates, pose and shift as one transform, exposure
 groups as optics.
 

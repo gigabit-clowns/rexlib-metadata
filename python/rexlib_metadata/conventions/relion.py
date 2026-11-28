@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from rexlib_metadata.convention import RawSchema
 
 _INDEX_WIDTH = 6
+_DECIMALS = 5
 _POSE_ROWS = 1 << 20
 PIXEL_ORIGIN = ("_rlnOriginX", "_rlnOriginY", "_rlnOriginZ")
 
@@ -283,7 +284,7 @@ class WriteCoordinateZ(_Spelling):
 class WritePose(WriteConvention):
     """A transform as Relion's ZYZ angles and origin in Ångström.
 
-    All six are written, at single precision, as the transform holds them.
+    All six are written, rounded to `_DECIMALS` places.
     A transform that scales, shears or mirrors has no angles and raises.
     """
 
@@ -299,9 +300,9 @@ class WritePose(WriteConvention):
         a, offsets = pose.relion(canonical["transform"])
         pose.check_rotation(a)
         angles = pose.euler_angles(a)
-        written = dict(zip(self.angles, map(single, angles), strict=True))
+        written = dict(zip(self.angles, map(rounded, angles), strict=True))
         if self.origin:
-            written.update(zip(self.origin, map(single, offsets), strict=True))
+            written.update(zip(self.origin, map(rounded, offsets), strict=True))
         return written
 
 
@@ -373,24 +374,31 @@ def parsed(column: ArrowColumn, dtype: pa.DataType) -> ArrowColumn:
 
 
 def numbers(table: pa.Table, column: str) -> np.ndarray:
-    """Return a text column as doubles, zero where empty or not there."""
+    """Return a text column as doubles, zero where empty or not there.
+
+    A value that is not finite is refused.
+    """
     import numpy as np
 
     if column not in table.column_names:
         return np.zeros(table.num_rows)
     parsed_column = parsed(table.column(column), pa.float64())
-    values = cast("pa.ChunkedArray", parsed_column).fill_null(pa.scalar(0.0))
-    return np.asarray(values.to_numpy(), dtype=np.float64)
+    values = parsed_column.fill_null(pa.scalar(0.0)).to_numpy()
+    values = np.asarray(values, dtype=np.float64)
+    if not np.isfinite(values).all():
+        row = int(np.argmax(~np.isfinite(values)))
+        raise ValueError(
+            f"{column} holds {values[row]} in row {row}, where a finite "
+            "number belongs"
+        )
+    return values
 
 
-def single(values: np.ndarray) -> ArrowColumn:
-    """Spell doubles as the shortest text of their single precision.
-
-    A NaN, a null transform's, is a null.
-    """
+def rounded(values: np.ndarray) -> ArrowColumn:
+    """Spell doubles rounded to `_DECIMALS` places, a NaN as a null."""
     import numpy as np
 
-    array = pa.array(values.astype(np.float32), from_pandas=True)
+    array = pa.array(np.round(values, _DECIMALS) + 0.0, from_pandas=True)
     return pc.cast(array, pa.string())
 
 
