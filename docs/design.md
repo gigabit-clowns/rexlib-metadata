@@ -349,7 +349,7 @@ rxm.write("new.star", {"particles": frame})  # canonical tables from memory
 | `.star` | `StarReader` / `StarWriter` | `relion4`, then `relion3` (read only) |
 | `.xmd`, `.doc`, `.pos`, `.sel` | `StarReader` / `StarWriter(header=HEADER)` | `xmipp` |
 | `.sqlite`, `.db` | `SqliteReader` / `SqliteWriter` | — |
-| `.cs` | `CsReader` (the `cryosparc` extra) / — | `cryosparc` (read only) |
+| `.cs` | `CsReader` / — | `cryosparc` (read only) |
 
 FREALIGN `.par` and the cryoSPARC CSV, not read yet, are in
 [formats.md](formats.md).
