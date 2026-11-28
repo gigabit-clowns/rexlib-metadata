@@ -16,6 +16,8 @@ from rexlib_metadata.schema import (
     TableSchema,
 )
 
+from .frames import assert_same
+
 STAR = Path(__file__).parent.parent / "files" / "star"
 
 PARTICLES = pa.table({"image_index": [0, 1, 2, 3], "group": [2, 1, 2, 9]})
@@ -81,7 +83,9 @@ def test_a_joined_view_carries_the_optics_on_every_particle():
 
     assert list(flat.columns) == list(particles.columns) + list(optics.columns)
     assert len(flat) == len(particles)
-    assert flat["pixel_size"].tolist() == [optics["pixel_size"][0]] * 57
+    assert flat["pixel_size"].tolist() == (
+        [optics["pixel_size"][0]] * len(particles)
+    )
 
 
 def test_particles_naming_no_optics_group_join_nothing():
@@ -94,15 +98,14 @@ def test_particles_naming_no_optics_group_join_nothing():
 
 
 def test_naming_columns_of_both_tables_joins_them():
-    result = rxm.read(
-        str(STAR / "relion3.1_subtomo.star"),
-        columns=["coord_x", "pixel_size"],
-    )
+    path = str(STAR / "relion3.1_subtomo.star")
+    whole = rxm.read(path).joined("particles").to_pandas()
 
+    result = rxm.read(path, columns=["coord_x", "pixel_size"])
     flat = result.joined("particles").to_pandas()
 
     assert list(flat.columns) == ["coord_x", "pixel_size"]
-    assert flat["pixel_size"].tolist() == [5.0] * 57
+    pd.testing.assert_frame_equal(flat, whole[["coord_x", "pixel_size"]])
 
 
 def test_a_joined_view_reads_in_chunks_as_it_reads_whole():
@@ -119,11 +122,16 @@ def test_a_joined_view_reads_in_chunks_as_it_reads_whole():
 def test_a_format_with_no_optics_table_gets_them_in_each_row(tmp_path):
     out = tmp_path / "out.xmd"
 
-    rxm.read(str(STAR / "relion3.1_subtomo.star")).write(str(out))
+    source = rxm.read(str(STAR / "relion3.1_subtomo.star"))
+    source.write(str(out))
     again = rxm.read(str(out))
 
     assert again.raw.names == ("particles",)
-    assert len(again["particles"].to_pandas()) == 57
+    reference = ["image_path", "image_index"]
+    assert_same(
+        again["particles"].to_pandas()[reference],
+        source["particles"].to_pandas()[reference],
+    )
 
 
 def test_a_format_with_an_optics_table_keeps_it_apart(tmp_path):
@@ -132,3 +140,22 @@ def test_a_format_with_an_optics_table_keeps_it_apart(tmp_path):
     rxm.read(str(STAR / "relion3.1_subtomo.star")).write(str(out))
 
     assert rxm.read(str(out)).raw.names == ("optics", "particles")
+
+
+def test_updates_a_folded_table_cannot_write_are_refused(tmp_path):
+    view = rxm.read(str(STAR / "relion3.1_subtomo.star"))["optics"]
+    optics = view.to_pandas()
+    optics["voltage"] = 200.0
+    out = tmp_path / "out.xmd"
+
+    with pytest.raises(ValueError, match=r"'voltage'.*joined into 'particles'"):
+        view.write(str(out), updates=optics[["voltage"]])
+    assert not out.exists()
+
+
+def test_rows_of_a_table_the_destination_folds_are_refused(tmp_path):
+    view = rxm.read(str(STAR / "relion3.1_subtomo.star"))["optics"]
+    out = str(tmp_path / "out.xmd")
+
+    with pytest.raises(ValueError, match="joins into the rows"):
+        view.write(out, rows=[0])

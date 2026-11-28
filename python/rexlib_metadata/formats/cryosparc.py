@@ -52,13 +52,8 @@ class CsReader(Reader):
 def _open(path: str) -> np.ndarray:
     if not Path(path).is_file():
         raise FileNotFoundError(f"No such file: {path!r}")
-    try:
-        import numpy as np
-    except ImportError:
-        raise ImportError(
-            "Reading cryoSPARC's .cs needs NumPy: "
-            "pip install rexlib-metadata[cryosparc]"
-        ) from None
+    import numpy as np
+
     try:
         array = np.load(path, mmap_mode="r", allow_pickle=False)
     except ValueError as error:

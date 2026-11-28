@@ -92,6 +92,45 @@ def test_a_file_written_in_chunks_is_the_file_written_whole(
     assert chunked == whole
 
 
+def _two_settings(tmp_path):
+    """Relion 3.0's fixture, its last rows on a second microscope setting."""
+    lines = POLISHED.read_text().splitlines()
+    names = [line.split()[0] for line in lines if line.startswith("_rln")]
+    first = max(i for i, line in enumerate(lines) if line.startswith("_rln"))
+    rows = [line.split() for line in lines[first + 1 :] if line.strip()]
+    voltage = names.index("_rlnVoltage")
+    for row in rows[len(rows) // 2 :]:
+        row[voltage] = "200"
+    path = tmp_path / "two.star"
+    body = [" ".join(row) for row in rows]
+    path.write_text("\n".join([*lines[: first + 1], *body]) + "\n")
+    return path
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        pytest.param([0, 1], id="first-setting"),
+        pytest.param([7, 8], id="second-setting"),
+        pytest.param([n < 5 for n in range(10)], id="mask"),
+    ],
+)
+def test_relion30_with_two_settings_writes_in_chunks_as_whole(
+    tmp_path, monkeypatch, rows
+):
+    view = rxm.read(str(_two_settings(tmp_path)))["particles"]
+    write = {"rows": rows}
+
+    chunked = _written(view, tmp_path / "c.star", write, 2, monkeypatch)
+    monkeypatch.setattr(StarWriter, "write_chunks", Writer.write_chunks)
+    monkeypatch.setattr(ReadResult, "_whole_needed", lambda *_: True)
+    whole = _written(view, tmp_path / "w.star", write, 10**9, monkeypatch)
+
+    assert chunked == whole
+    groups = rxm.read(str(tmp_path / "c.star"))["optics"].to_pandas()
+    assert groups["optics_group"].tolist() == [1, 2]
+
+
 @pytest.mark.parametrize(
     ("source", "edit"),
     [
@@ -112,8 +151,11 @@ def test_a_streamed_write_never_reads_the_source_whole(
     with monkeypatch.context() as patched:
         patched.setattr(RawResult, "reread", _refused)
         view.write(str(tmp_path / "out.star"), **write)
+    monkeypatch.setattr(ReadResult, "_whole_needed", lambda *_: True)
+    view.write(str(tmp_path / "whole.star"), **write)
 
-    assert len(rxm.read(str(tmp_path / "out.star"))["particles"].to_pandas())
+    streamed = (tmp_path / "out.star").read_text()
+    assert streamed == (tmp_path / "whole.star").read_text()
 
 
 def _refused(_):

@@ -140,8 +140,12 @@ def test_the_optics_are_one_row_per_exposure_group_counted_from_one(_raw):
 
     assert _raw["ctf/exp_group_id"].tolist() == [0] * 10
     assert optics["optics_group"].tolist() == [1]
-    assert optics["pixel_size"].tolist() == [0.7575]
-    assert optics["spherical_aberration"].tolist() == [2.7]
+    assert optics["pixel_size"].tolist() == pytest.approx(
+        [_raw["blob/psize_A"][0]]
+    )
+    assert optics["spherical_aberration"].tolist() == pytest.approx(
+        [_raw["ctf/cs_mm"][0]]
+    )
     assert result["particles"].to_pandas()["optics_group"].eq(1).all()
 
 
@@ -180,3 +184,84 @@ def test_a_file_that_is_not_a_cs_says_so(tmp_path):
 
     with pytest.raises(ValueError, match="not a cryoSPARC file"):
         reader.read_tables(str(path))
+
+
+def _shifted(**sizes):
+    columns = {
+        "alignments3D/pose": pa.array(
+            [[0.0, 0.0, 0.0]], pa.list_(pa.float32(), 3)
+        ),
+        "alignments3D/shift": pa.array([[2.0, 0.0]], pa.list_(pa.float32(), 2)),
+    }
+    columns.update({name: pa.array([size]) for name, size in sizes.items()})
+    return pa.table(columns)
+
+
+def test_a_shift_takes_the_images_pixel_size_where_the_alignment_has_none():
+    table = _shifted(**{"blob/psize_A": 1.5})
+
+    (transform,) = Pose().load(table).values()
+
+    assert pose.matrices(transform)[0, 0, 3] == pytest.approx(3.0)
+
+
+def test_a_shift_with_no_pixel_size_is_refused():
+    table = _shifted()
+    convention = Pose()
+
+    with pytest.raises(ValueError, match="alignments3D/shift is in pixels"):
+        convention.load(table)
+
+
+def test_a_missing_cs_file_raises_file_not_found(tmp_path):
+    with pytest.raises(FileNotFoundError, match="No such file"):
+        CsReader().read_tables(str(tmp_path / "missing.cs"))
+
+
+@pytest.mark.parametrize(
+    "array",
+    [
+        pytest.param(np.zeros(3), id="no-fields"),
+        pytest.param(
+            np.zeros((2, 2), dtype=[("a", "f4")]), id="two-dimensional"
+        ),
+    ],
+)
+def test_an_array_that_is_not_a_table_is_refused(tmp_path, array):
+    path = tmp_path / "plain.cs"
+    with path.open("wb") as out:
+        np.save(out, array)
+
+    with pytest.raises(ValueError, match="not a cryoSPARC file: no fields"):
+        CsReader().read_tables(str(path))
+
+
+def test_a_field_that_is_not_a_column_says_which(tmp_path):
+    path = tmp_path / "text.cs"
+    with path.open("wb") as out:
+        np.save(out, np.zeros(1, dtype=[("ok", "f4"), ("name", "U4")]))
+
+    with pytest.raises(ValueError, match="Field 'name' holds <U4"):
+        CsReader().read_tables(str(path))
+
+
+def test_a_cs_file_of_no_rows_is_one_empty_chunk(tmp_path):
+    path = tmp_path / "empty.cs"
+    with path.open("wb") as out:
+        np.save(out, np.zeros(0, dtype=[("uid", "u8")]))
+
+    chunks = list(CsReader().read_chunks(str(path), 4))
+
+    assert [(o, t.table.num_rows) for o, t in chunks] == [(0, 0)]
+    assert chunks[0][1].table.column_names == ["uid"]
+
+
+def test_a_cs_file_reads_only_the_fields_named(_raw):
+    reader = CsReader()
+
+    (table,) = reader.read_tables_keeping(str(CS), {"uid", "blob/psize_A"})
+    (schema,) = reader.read_schemas(str(CS))
+
+    assert table.table.column_names == ["uid", "blob/psize_A"]
+    assert table.table.column("uid").to_pylist() == _raw["uid"].tolist()
+    assert schema.column_names == _raw.dtype.names

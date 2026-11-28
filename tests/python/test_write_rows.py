@@ -123,3 +123,10 @@ def test_rows_of_a_result_of_several_tables_ask_which(tmp_path):
 
     with pytest.raises(ValueError, match="name the one you mean"):
         result.write(out, rows=[0])
+
+
+def test_no_rows_write_the_table_empty(tmp_path):
+    again = written(tmp_path, rows=[])
+
+    assert len(again["particles"].to_pandas()) == 0
+    assert len(again["optics"].to_pandas()) == 1

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 import polars as pl
+import pyarrow as pa
 import pytest
 
 import rexlib_metadata as rxm
@@ -251,3 +252,87 @@ def test_a_canonical_read_keeps_nothing_of_the_file():
     result.raw.to_pandas()
 
     assert reader.reads == 3
+
+
+_TWO_FILLERS = """data_a
+loop_
+_rlnImageName
+_rlnCoordinateX
+_rlnCoordinateY
+1@a 1 1
+2@a 2 2
+3@a 3 3
+
+data_b
+loop_
+_rlnImageName
+_rlnCoordinateX
+_rlnCoordinateY
+_rlnCtfMaxResolution
+1@b 10 10 4
+2@b 20 20 4
+"""
+
+
+def test_a_narrowed_read_takes_the_block_a_full_read_takes(tmp_path):
+    path = tmp_path / "two.star"
+    path.write_text(_TWO_FILLERS)
+
+    full = rxm.read(str(path))["particles"].to_pandas()
+    narrowed = rxm.read(str(path), columns=["coord_x"])["particles"]
+
+    assert narrowed.to_pandas()["coord_x"].tolist() == full["coord_x"].tolist()
+
+
+def test_a_narrowed_read_writes_back_into_its_own_block(tmp_path):
+    path = tmp_path / "two.star"
+    path.write_text(_TWO_FILLERS)
+    out = str(tmp_path / "out.star")
+    view = rxm.read(str(path), columns=["coord_x"])["particles"]
+    frame = view.to_pandas()
+    frame["coord_x"] += 0.5
+
+    view.write(out, updates=frame)
+
+    written = rxm.read(out).raw
+    kept = written["a"].to_pandas()["_rlnCoordinateX"]
+    assert kept.tolist() == ["1", "2", "3"]
+    particles = written["particles"].to_pandas()
+    assert particles["_rlnCoordinateX"].tolist() == ["10.5", "20.5"]
+
+
+@pytest.mark.parametrize(
+    ("updates", "error"),
+    [
+        pytest.param(
+            {"foo": [1.0]}, "'foo', which none of 'particles'", id="unknown"
+        ),
+        pytest.param(
+            {"optics_group": [1.5]}, "'optics_group' holds a value", id="lossy"
+        ),
+    ],
+)
+def test_updates_that_cannot_be_written_raise_before_anything_is(
+    tmp_path, updates, error
+):
+    view = rxm.read(str(FILES / "relion3.1_subtomo.star"))["particles"]
+    rows = len(view.to_pandas())
+    frame = pa.table({k: v * rows for k, v in updates.items()})
+    out = tmp_path / "out.star"
+
+    with pytest.raises(ValueError, match=error):
+        view.write(str(out), updates=frame)
+    assert not out.exists()
+
+
+def test_a_raw_table_reads_alone_however_it_is_read():
+    raw = rxm.read(str(FILES / "rln3.1_data_style.star")).raw
+    second = raw.names[1]
+    view = raw[second]
+
+    chunks = list(view.chunks(1000))
+    whole = view.reread()
+
+    assert [ordinal for ordinal, _ in chunks] == [0]
+    assert chunks[0][1].table.equals(raw[second].to_arrow())
+    assert [table.schema.table_name for table in whole] == [second]

@@ -5,7 +5,8 @@
 from __future__ import annotations
 
 import os
-import tempfile
+import secrets
+import stat
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -134,15 +135,31 @@ def _check_required(arrow: pa.Table, table: TableSchema) -> None:
 
 
 def replaced(path: str, write: Callable[[str], None]) -> None:
-    """Write through a file beside `path`, moved over it once written."""
+    """Write through a file beside `path`, moved over it once written.
+
+    The file keeps the mode `path` had, or takes a new file's.
+    """
     destination = Path(path)
-    descriptor, temporary = tempfile.mkstemp(
-        dir=destination.parent, suffix=destination.suffix
-    )
-    os.close(descriptor)
+    temporary = _created_beside(destination)
     try:
-        write(temporary)
-        Path(temporary).replace(destination)
+        write(str(temporary))
+        if destination.exists():
+            temporary.chmod(stat.S_IMODE(destination.stat().st_mode))
+        temporary.replace(destination)
     except BaseException:
-        Path(temporary).unlink(missing_ok=True)
+        temporary.unlink(missing_ok=True)
         raise
+
+
+def _created_beside(destination: Path) -> Path:
+    """Create an empty file beside `destination`, with a new file's mode."""
+    while True:
+        candidate = destination.with_name(
+            f".{destination.stem}.{secrets.token_hex(6)}{destination.suffix}"
+        )
+        try:
+            flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+            os.close(os.open(candidate, flags, 0o666))
+        except FileExistsError:
+            continue
+        return candidate

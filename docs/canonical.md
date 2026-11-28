@@ -37,7 +37,8 @@ one object per row. `rexlib_metadata.pose` converts it:
 | `transforms(a, origin)`, `euler_matrix(rot, tilt, psi)` | the column, from Relion's terms |
 
 A write to Euler angles refuses a transform that scales, shears or mirrors.
-Angles and origins are written at the transform's single precision.
+Angles and origins are written rounded to five decimals; an angle or an origin
+that is not finite is refused on reading.
 
 > **Unverified.** cryoSPARC's rotation is taken as Relion's `A`; a real
 > cryoSPARC and Relion file of the same particles settles it.
@@ -118,7 +119,7 @@ where a block has no `_rlnOpticsGroup`.
 |---|---|---|
 | `optics_group` | `_rlnVoltage`, `_rlnSphericalAberration`, `_rlnAmplitudeContrast`, `_rlnMagnification`, `_rlnDetectorPixelSize` | each distinct setting a group, numbered from 1 as first held |
 | `pixel_size` | `_rlnDetectorPixelSize` (µm), `_rlnMagnification` | `detector · 10⁴ / magnification` |
-| `transform` | the angles, `_rlnOriginX`, `…Y`, `…Z` (px) | origin times the row's pixel size |
+| `transform` | the angles, `_rlnOriginX`, `…Y`, `…Z` (px) | origin times the row's pixel size; a non-zero origin with none is refused |
 | `optics` | the particles' or micrographs' own rows | one row per group |
 
 ## cryoSPARC
@@ -130,7 +131,7 @@ Read only (`conventions/cryosparc.py`).
 | `image_path`, `image_index` | `blob/path`, `blob/idx` | zero-based; a leading `>` (project-relative) dropped |
 | `micrograph_path` | `location/micrograph_path` | the same |
 | `coord_x`, `coord_y` | `location/center_x_frac`, `…_y_frac`, `location/micrograph_shape` | fraction times columns, rows |
-| `transform` | `alignments3D/pose`, `…/shift`, `…/psize_A` | rotation vector (rad) → `A`; shift in pixels times that pixel size |
+| `transform` | `alignments3D/pose`, `…/shift`, `…/psize_A` | rotation vector (rad) → `A`; shift in pixels times that pixel size, or `blob/psize_A` where it is missing |
 | `optics_group` | `ctf/exp_group_id` | plus one |
 | `voltage`, `spherical_aberration`, `amplitude_contrast` | `ctf/accel_kv`, `ctf/cs_mm`, `ctf/amp_contrast` | |
 | `pixel_size`, `image_size`, `image_dimensionality` | `blob/psize_A`, `blob/shape` | |
