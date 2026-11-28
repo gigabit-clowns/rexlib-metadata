@@ -178,13 +178,15 @@ them into `write_tables`; `StarWriter` streams them.
    found.
    A partial read is legitimate; an empty file reads as empty.
 2. The source is the raw table `assigned` gives it, decided from the
-   raw schemas alone, so a chunked read (`read_schemas` first) and a whole
-   read choose alike. A raw table can fill a canonical one when its
+   whole file's raw schemas, so a chunked read (`read_schemas` first), a
+   whole read and a read narrowed by `columns=` choose alike. A raw table
+   can fill a canonical one when its
    matching conventions declare every required column, scoring the columns
    they declare. Best score first, then file order, then schema order, a
    pair is taken when neither side is taken yet; a canonical table left
    without one shares the best raw table it can fill. Only the source is
-   read.
+   converted: a whole read parses every block, a chunked one stops where the
+   source ends.
 3. Bundles in order, then their conventions: a matching convention that adds
    a column not yet covered is loaded. The first to produce a column owns it.
    A losing output is discarded unvalidated.
@@ -248,7 +250,11 @@ undeclared output raises, and a table nothing writes raises.
   whole first, or built a chunk at a time from the raw table it shares, and
   written ahead of that table's chunks. The source is read whole instead when
   a table others do not point at shares its raw table, or `rows=` holds
-  positions out of order or selects a table others point at.
+  positions out of order or selects a table others point at; the two give
+  the same file, `rows=` leaving the tables others point at whole.
+- `updates=` is cast to the declared types before anything is read, and
+  reaches a table the destination folds into others; `rows=` of such a table
+  raises.
 
 ### Writing a convention
 
@@ -286,7 +292,8 @@ registered. A write rereads its source through the reader it was read with.
 ## Laziness, projection and forwarding
 
 - `rxm.read()` returns a `ReadResult` and reads no row. Rows are read by
-  `to_pandas()`, `to_polars()`, `names` or `chunks()`. No file handle
+  `to_pandas()`, `to_polars()` or `chunks()`; `names` reads the schemas
+  alone. No file handle
   outlives the call doing the I/O.
 - `result[name]` checks the name against the schema and reads nothing; a
   declared table the file does not fill is an error when its rows are asked
