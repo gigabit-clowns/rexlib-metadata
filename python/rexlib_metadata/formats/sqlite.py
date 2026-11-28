@@ -148,9 +148,8 @@ def _declared(
 def _arrow_type(declared: str) -> pa.DataType:
     """Map a declared type to Arrow by SQLite's own affinity rules.
 
-    INTEGER, TEXT, REAL and BLOB are what the file says. NUMERIC, and a
-    column declaring nothing, may hold anything, so they are text, as a
-    format that states no type is.
+    INTEGER, TEXT, REAL and BLOB are what the file says; NUMERIC, and a
+    column declaring nothing, are text.
     """
     kind = declared.upper()
     if "INT" in kind:
