@@ -60,7 +60,7 @@ fixture).
 | `ctf/phase_shift_rad` | `<f4` | likewise |
 | `blob/psize_A` | `<f4` | pixel size, per row |
 
-Read by `formats/cryosparc.py` (the `cryosparc` extra, NumPy), mapped rather
+Read by `formats/cryosparc.py` through NumPy, mapped rather
 than loaded: one table `""`, a subarray as a `fixed_size_list`, bytes as
 text. Read only. The canonical mapping is in [canonical.md](canonical.md).
 

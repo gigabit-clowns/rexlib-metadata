@@ -107,7 +107,7 @@ def euler_angles(a: Matrix) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     import numpy as np
 
     sin_tilt = np.sqrt(a[0][2] * a[0][2] + a[1][2] * a[1][2])
-    general = sin_tilt > 16 * np.finfo(np.float64).eps
+    general = sin_tilt > 16 * np.finfo(np.float32).eps
     upright = a[2][2] > 0
     psi = np.where(
         general,

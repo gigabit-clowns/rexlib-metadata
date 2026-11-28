@@ -132,3 +132,22 @@ def test_a_format_with_an_optics_table_keeps_it_apart(tmp_path):
     rxm.read(str(STAR / "relion3.1_subtomo.star")).write(str(out))
 
     assert rxm.read(str(out)).raw.names == ("optics", "particles")
+
+
+def test_updates_a_folded_table_cannot_write_are_refused(tmp_path):
+    view = rxm.read(str(STAR / "relion3.1_subtomo.star"))["optics"]
+    optics = view.to_pandas()
+    optics["voltage"] = 200.0
+    out = tmp_path / "out.xmd"
+
+    with pytest.raises(ValueError, match=r"'voltage'.*joined into 'particles'"):
+        view.write(str(out), updates=optics[["voltage"]])
+    assert not out.exists()
+
+
+def test_rows_of_a_table_the_destination_folds_are_refused(tmp_path):
+    view = rxm.read(str(STAR / "relion3.1_subtomo.star"))["optics"]
+    out = str(tmp_path / "out.xmd")
+
+    with pytest.raises(ValueError, match="joins into the rows"):
+        view.write(out, rows=[0])

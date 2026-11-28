@@ -65,6 +65,7 @@ class RawResult:
         self._reader = reader
         self._registry = registry
         self._tables: tuple[RawTable, ...] | None = None
+        self._ordinal: int | None = None
 
     @property
     def path(self) -> str:
@@ -82,10 +83,14 @@ class RawResult:
         return tuple(table.schema.table_name for table in self.tables())
 
     def __getitem__(self, name: str) -> RawResult:
-        """Return a result over the one table the file calls `name`."""
-        for table in self.tables():
+        """Return a result over the one table the file calls `name`.
+
+        Every read through it reads that table alone.
+        """
+        for at, table in enumerate(self.tables()):
             if table.schema.table_name == name:
-                return self._holding((table,))
+                ordinal = at if self._ordinal is None else self._ordinal
+                return self._holding((table,), ordinal)
         raise KeyError(
             f"{self._path} holds no table '{name}'; it holds "
             f"{', '.join(repr(n) for n in self.names)}"
@@ -111,14 +116,19 @@ class RawResult:
 
     def reread(self) -> tuple[RawTable, ...]:
         """Read the file again and return every table, keeping none of them."""
-        return tuple(self._reader.read_tables(self._path))
+        return self._own(self._reader.read_tables(self._path))
 
     def chunks(
         self, size: int, columns: Set[str] | None = None
     ) -> Iterator[tuple[int, RawTable]]:
         """Read the file `size` rows at a time, as its reader streams it."""
         _check_size(size)
-        return self._reader.read_chunks(self._path, size, columns)
+        chunks = self._reader.read_chunks(self._path, size, columns)
+        if self._ordinal is None:
+            return chunks
+        mine = self._ordinal
+        before = takewhile(lambda chunk: chunk[0] <= mine, chunks)
+        return ((0, raw) for at, raw in before if at == mine)
 
     def schemas(
         self, columns: Set[str] | None = None
@@ -132,7 +142,7 @@ class RawResult:
 
     def read_keeping(self, columns: Set[str]) -> tuple[RawTable, ...]:
         """Read the file again, keeping only the raw `columns` of it."""
-        return tuple(self._reader.read_tables_keeping(self._path, columns))
+        return self._own(self._reader.read_tables_keeping(self._path, columns))
 
     def write(self, path: str, *, writer: Writer | None = None) -> None:
         """Write the tables this result holds to `path`, as they are.
@@ -156,9 +166,16 @@ class RawResult:
             )
         return tables[0].table
 
-    def _holding(self, tables: tuple[RawTable, ...]) -> RawResult:
+    def _own(self, tables: Iterable[RawTable]) -> tuple[RawTable, ...]:
+        every = tuple(tables)
+        return every if self._ordinal is None else (every[self._ordinal],)
+
+    def _holding(
+        self, tables: tuple[RawTable, ...], ordinal: int
+    ) -> RawResult:
         result = RawResult(self._path, self._reader, self._registry)
         result._tables = tables
+        result._ordinal = ordinal
         return result
 
 
@@ -224,7 +241,7 @@ class ReadResult:
     @property
     def names(self) -> tuple[str, ...]:
         """Name the canonical tables this result shows from this file."""
-        return self._names([raw.schema for raw in self._raw_tables()])
+        return self._names(self._raw.schemas())
 
     def __getitem__(self, name: str) -> ReadResult:
         """Return a result over the one canonical table called `name`.
@@ -291,7 +308,7 @@ class ReadResult:
         related = self._related_whole(schema.name, found)
         columns = self._raw_columns()
         raw = _narrowed_all(found, columns)
-        ordinal = self._ordinal_of(schema, raw)
+        ordinal = self._ordinal_of(schema, found)
         if self._schema.related_to(schema.name):
             whole = self._built(schema, raw[ordinal], ordinal, columns)
             for start in range(0, max(whole.num_rows, 1), size):
@@ -359,7 +376,7 @@ class ReadResult:
         }
         columns = source_columns(wanted, self._bundles, self._schema)
         raw = _narrowed_all(found, columns)
-        chosen = assigned(raw, self._bundles, self._schema)
+        chosen = assigned(found, self._bundles, self._schema)
         return tuple(
             (
                 relation,
@@ -375,14 +392,22 @@ class ReadResult:
         )
 
     def _related(
-        self, raw_tables: tuple[RawTable, ...], name: str
+        self,
+        raw_tables: tuple[RawTable, ...],
+        name: str,
+        chosen: dict[str, int],
     ) -> tuple[tuple[Relation, pa.Table], ...]:
-        raw = [table.schema for table in raw_tables]
-        filled = produced_tables(raw, self._bundles, self._schema)
         return tuple(
-            (relation, self._canonical(raw_tables, relation.related))
+            (
+                relation,
+                self._filled(
+                    raw_tables,
+                    self._schema[relation.related],
+                    at=chosen[relation.related],
+                ),
+            )
             for relation in self._schema.relations_of(name)
-            if relation.related in filled
+            if relation.related in chosen
         )
 
     def _shown(self, table: pa.Table, name: str) -> pa.Table:
@@ -461,10 +486,65 @@ class ReadResult:
             )
         edit = self._edit(plan, updates, rows)
         chunks, related, plan = self._sources(plan, edit, rows)
+        if edit is not None and edit.name in folded(plan.folds):
+            related[edit.name] = self._folded_edit(
+                edit, plan, related, rows, path
+            )
         written = self._rewritten(plan, chunks, related, edit)
         replaced(
             path, lambda temporary: writer.write_chunks(temporary, written)
         )
+
+    def _folded_edit(
+        self,
+        edit: _Edit,
+        plan: _Plan,
+        related: dict[str, pa.Table],
+        rows: Rows | None,
+        path: str,
+    ) -> pa.Table:
+        """Apply `updates` to a table the destination folds into others.
+
+        A column of `updates` that the tables folding it do not write
+        raises, as it does for the table a write shows.
+        """
+        if rows is not None:
+            raise ValueError(
+                f"rows= selects rows of '{edit.name}', which {path} has no "
+                "table for and joins into the rows that point at it"
+            )
+        table = related[edit.name]
+        changes = edit.updates_of(table.num_rows)
+        if changes is not None:
+            self._check_folded(edit.name, changes, plan)
+        return _merged(table, changes, self._schema[edit.name])
+
+    def _check_folded(self, name: str, changes: pa.Table, plan: _Plan) -> None:
+        folders = [
+            folder
+            for folder, relations in plan.folds.items()
+            if any(relation.related == name for relation in relations)
+        ]
+        consumed = {
+            column
+            for folder in folders
+            for column in written_from(
+                [
+                    *(c.name for c in self._schema[folder]),
+                    *changes.column_names,
+                ],
+                plan.bundles,
+                self._schema[folder],
+            )
+        }
+        lost = [n for n in changes.column_names if n not in consumed]
+        if lost:
+            raise ValueError(
+                f"updates holds {', '.join(repr(n) for n in lost)}, which no "
+                f"convention writes once '{name}' is joined into "
+                f"{', '.join(repr(f) for f in folders)}, so the change would "
+                "not reach the file"
+            )
 
     def _plan(
         self, bundles: tuple[ConventionBundle, ...], same_format: bool
@@ -506,8 +586,27 @@ class ReadResult:
     ) -> _Edit | None:
         if updates is None and rows is None:
             return None
-        frame = None if updates is None else as_arrow_table(updates)
-        return _Edit(self._one_name(plan.raw), frame)
+        name = self._one_name(plan.raw)
+        frame = None
+        if updates is not None:
+            frame = self._typed(as_arrow_table(updates), name)
+        return _Edit(name, frame)
+
+    def _typed(self, frame: pa.Table, name: str) -> pa.Table:
+        """Cast `updates` to the declared types, before anything is read.
+
+        A column no table this result shows declares, or a value its
+        declared type cannot hold, raises.
+        """
+        tables = [self._schema[name]]
+        if self._joined:
+            tables += [
+                self._schema[r.related] for r in self._schema.relations_of(name)
+            ]
+        return pa.table(
+            [_cast_update(frame, name, tables) for name in frame.column_names],
+            names=frame.column_names,
+        )
 
     def _sources(
         self, plan: _Plan, edit: _Edit | None, rows: Rows | None
@@ -516,12 +615,45 @@ class ReadResult:
         needed = self._needed(plan, edit)
         kept = self._kept(edit, rows)
         if self._whole_needed(plan) or (rows is not None and kept is None):
-            source = self._source(edit, rows)
-            whole = {name: self._canonical(source, name) for name in needed}
-            return enumerate(source), whole, plan
+            return self._whole(plan, needed, edit, rows)
         if edit is not None:
             edit.kept = kept
         return self._streamed(plan, needed)
+
+    def _whole(
+        self,
+        plan: _Plan,
+        needed: set[str],
+        edit: _Edit | None,
+        rows: Rows | None,
+    ) -> tuple[Iterable[tuple[int, RawTable]], dict[str, pa.Table], _Plan]:
+        """Return the source read whole, as `_streamed` would see it.
+
+        `rows` selects rows of the shown table only: what the other tables
+        hold, and the context its conventions number from, are the whole
+        file's.
+        """
+        every = self._raw.reread()
+        source = every
+        if edit is not None and rows is not None:
+            source = self._selected(every, self._schema[edit.name], rows)
+        built = {
+            name: self._canonical(every, name)
+            for name in plan.sharers()
+            if self._schema.related_to(name)
+        }
+        bound = {
+            name: in_context(
+                plan.raw[at],
+                self._bundles,
+                self._schema[name],
+                partial(_as_chunks, every[at].table),
+            )
+            for name, at in plan.chosen.items()
+            if name not in built
+        }
+        whole = {name: self._canonical(every, name) for name in needed}
+        return enumerate(source), whole, replace(plan, bound=bound, built=built)
 
     def _streamed(
         self, plan: _Plan, needed: set[str]
@@ -596,14 +728,6 @@ class ReadResult:
         if self._schema.related_to(edit.name):
             return None
         return _streamed_rows(rows, edit.name)
-
-    def _source(
-        self, edit: _Edit | None, rows: Rows | None
-    ) -> tuple[RawTable, ...]:
-        source = self._raw.reread()
-        if edit is None or rows is None:
-            return source
-        return self._selected(source, self._schema[edit.name], rows)
 
     def _read_whole(self, at: int) -> RawTable:
         chunks = takewhile(
@@ -732,7 +856,10 @@ class ReadResult:
         raw_tables: Iterable[RawTable],
         schema: TableSchema,
         bound: dict[int, ReadConvention] | None = None,
+        at: int | None = None,
     ) -> pa.Table:
+        if at is not None:
+            raw_tables = (tuple(raw_tables)[at],)
         try:
             return read_canonical(
                 raw_tables, self._bundles, self._schema, schema.name, bound
@@ -744,11 +871,23 @@ class ReadResult:
             ) from error
 
     def _one(self) -> pa.Table:
+        """Read the one table shown, from the block a full read would take.
+
+        The choice is made on the file's whole schemas, so that `columns=`
+        changes what is read and never where it is read from.
+        """
         raw_tables = self._raw_tables()
-        name = self._one_name([raw.schema for raw in raw_tables])
-        table = self._canonical(raw_tables, name)
+        found = (
+            tuple(raw.schema for raw in raw_tables)
+            if self._columns is None
+            else self._raw.schemas()
+        )
+        name = self._one_name(found)
+        chosen = assigned(found, self._bundles, self._schema)
+        schema = self._schema[name]
+        table = self._filled(raw_tables, schema, at=chosen.get(name))
         if self._joined:
-            table = joined_all(table, self._related(raw_tables, name))
+            table = joined_all(table, self._related(raw_tables, name, chosen))
         return self._shown(table, name)
 
     def _one_name(self, raw: Sequence[RawSchema]) -> str:
@@ -933,6 +1072,10 @@ def _block_tables(
     )
 
 
+def _as_chunks(table: pa.Table, _columns: tuple[str, ...]) -> list[pa.Table]:
+    return [table]
+
+
 def _whole_where(
     chunks: Iterable[tuple[int, RawTable]], whole: dict[int, RawTable]
 ) -> Iterator[tuple[int, RawTable]]:
@@ -1038,6 +1181,24 @@ def _merged(
     return canonical
 
 
+def _cast_update(
+    frame: pa.Table, column: str, tables: list[TableSchema]
+) -> ArrowColumn:
+    declared = next((t.column(column) for t in tables if column in t), None)
+    if declared is None:
+        shown = ", ".join(repr(t.name) for t in tables)
+        raise ValueError(
+            f"updates holds '{column}', which none of {shown} declares"
+        )
+    try:
+        return frame.column(column).cast(declared.dtype)
+    except (pa.ArrowInvalid, pa.ArrowNotImplementedError) as error:
+        raise ValueError(
+            f"updates column '{column}' holds a value its declared type, "
+            f"{declared.dtype}, cannot hold: {error}"
+        ) from error
+
+
 def _check_unchanged(
     frame: pa.Table, current: pa.Table, own: list[str], name: str
 ) -> None:
@@ -1138,6 +1299,7 @@ def _as_array(rows: Rows) -> pa.Array:
     found = rows if to_arrow is None else to_arrow()
     if isinstance(found, pa.ChunkedArray):
         return found.combine_chunks()
-    if isinstance(found, pa.Array):
-        return found
-    return pa.array(found)
+    array = found if isinstance(found, pa.Array) else pa.array(found)
+    if pa.types.is_null(array.type) and not len(array):
+        return array.cast(pa.int64())
+    return array
