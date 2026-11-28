@@ -11,9 +11,10 @@ Prints `false` when `BEFORE` and `AFTER` differ only in the groups named;
 from __future__ import annotations
 
 import argparse
-import tomllib
 from pathlib import Path
 from typing import Any
+
+import tomllib
 
 
 def _without(manifest: Path, groups: list[str]) -> dict[str, Any]:
