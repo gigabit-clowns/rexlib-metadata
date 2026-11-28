@@ -104,7 +104,7 @@ def test_a_table_with_no_name_is_an_anonymous_block(tmp_path):
 
     assert out.read_text().splitlines()[0] == "data_"
     assert again.names == ("",)
-    assert len(again[""].to_pandas()) == 1
+    assert again[""].to_pandas()["_rlnCoordinateX"].tolist() == ["1.0"]
 
 
 def test_a_table_held_in_several_chunks_is_written_whole(tmp_path):

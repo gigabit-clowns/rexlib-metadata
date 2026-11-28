@@ -6,12 +6,14 @@ from pathlib import Path
 
 import pandas as pd
 import polars as pl
+import pyarrow as pa
 import pytest
 
 import rexlib_metadata as rxm
 from rexlib_metadata import pose
 from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.conventions.relion import Pose, relion4_bundle
+from rexlib_metadata.formats.star import StarReader, StarWriter
 
 from .frames import assert_same
 
@@ -44,10 +46,14 @@ def test_a_bundle_of_your_own_goes_in_front_of_relions():
 
 def test_a_write_takes_several_bundles_too(tmp_path):
     out = tmp_path / "out.star"
+    source = rxm.read(SUBTOMO)
 
-    rxm.read(SUBTOMO).write(str(out), bundle=[mylab(), relion4_bundle()])
+    source.write(str(out), bundle=[mylab(), relion4_bundle()])
 
-    assert len(rxm.read(str(out))["particles"].to_pandas()) == 57
+    assert_same(
+        rxm.read(str(out))["particles"].to_pandas(),
+        source["particles"].to_pandas(),
+    )
 
 
 def test_frames_read_from_a_file_write_back_the_same(tmp_path):
@@ -89,7 +95,8 @@ def test_polars_frames_write_as_well(tmp_path):
 
     rxm.write(out, {"particles": particles})
 
-    assert len(rxm.read(out)["particles"].to_pandas()) == 1
+    again = rxm.read(out)["particles"].to_polars()
+    assert again.select(particles.columns).equals(particles)
 
 
 def test_frames_with_optics_reach_a_format_with_no_optics_table(tmp_path):
@@ -99,7 +106,9 @@ def test_frames_with_optics_reach_a_format_with_no_optics_table(tmp_path):
 
     rxm.write(out, tables)
 
-    assert len(rxm.read(out)["particles"].to_pandas()) == 57
+    again = rxm.read(out)["particles"].to_pandas()
+    reference = ["image_path", "image_index"]
+    assert_same(again[reference], tables["particles"][reference])
 
 
 @pytest.mark.parametrize(
@@ -134,7 +143,8 @@ def test_frames_that_are_not_canonical_are_refused(
 
 def test_a_joined_view_writes_its_own_columns_back(tmp_path):
     out = tmp_path / "out.star"
-    view = rxm.read(SUBTOMO).joined("particles")
+    source = rxm.read(SUBTOMO)
+    view = source.joined("particles")
     flat = view.to_pandas()
     flat["coord_x"] += 1.0
 
@@ -143,7 +153,7 @@ def test_a_joined_view_writes_its_own_columns_back(tmp_path):
     again = rxm.read(str(out))
     moved = again["particles"].to_pandas()["coord_x"].tolist()
     assert moved == pytest.approx(flat["coord_x"].tolist())
-    assert again["optics"].to_pandas()["pixel_size"].tolist() == [5.0]
+    assert_same(again["optics"].to_pandas(), source["optics"].to_pandas())
 
 
 def test_a_joined_view_refuses_a_change_to_the_table_it_points_at(tmp_path):
@@ -179,3 +189,34 @@ def test_a_new_file_takes_a_new_files_mode(tmp_path):
     rxm.read(SUBTOMO).write(str(out))
 
     assert stat.S_IMODE(out.stat().st_mode) == 0o666 & ~umask
+
+
+def test_arrow_tables_write_as_well(tmp_path):
+    out = str(tmp_path / "out.star")
+    particles = pa.table(
+        {"image_path": ["a.mrcs", "a.mrcs"], "image_index": [0, 1]}
+    )
+
+    rxm.write(out, {"particles": particles})
+
+    again = rxm.read(out)["particles"].to_arrow()
+    assert again.column("image_index").to_pylist() == [0, 1]
+
+
+def test_frames_write_through_the_writer_and_bundle_named(tmp_path):
+    out = str(tmp_path / "out.txt")
+    source = rxm.read(SUBTOMO)
+    tables = {name: source[name].to_pandas() for name in source.names}
+
+    rxm.write(out, tables, writer=StarWriter(), bundle=relion4_bundle())
+
+    again = rxm.read(out, reader=StarReader(), bundle=relion4_bundle())
+    for name, frame in tables.items():
+        assert_same(again[name].to_pandas(), frame)
+
+
+def test_frames_to_an_extension_with_no_writer_are_refused(tmp_path):
+    frame = pd.DataFrame({"image_path": ["a.mrcs"], "image_index": [0]})
+
+    with pytest.raises(ValueError, match=r"No writer registered for '\.txt'"):
+        rxm.write(str(tmp_path / "out.txt"), {"particles": frame})

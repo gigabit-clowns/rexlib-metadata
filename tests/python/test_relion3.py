@@ -262,3 +262,26 @@ def test_a_setting_written_two_ways_is_one_group(tmp_path):
     groups = rxm.read(str(path))["particles"].to_pandas()["optics_group"]
 
     assert groups.tolist() == [1, 1]
+
+
+def test_relion30_micrographs_keep_their_defocus_angle():
+    result = rxm.read(MICROGRAPHS)
+    raw = result.raw.to_pandas()
+
+    micrographs = result["micrographs"].to_pandas()
+
+    assert micrographs["defocus_angle"].tolist() == pytest.approx(
+        raw["_rlnDefocusAngle"].astype(float).tolist()
+    )
+
+
+def test_joined_micrographs_carry_their_optics_on_each_row():
+    result = rxm.read(MICROGRAPHS)
+    micrographs = result["micrographs"].to_pandas()
+    (optics,) = result["optics"].to_pandas().to_dict("records")
+
+    joined = result.joined("micrographs").to_pandas()
+
+    assert_same(joined[micrographs.columns], micrographs)
+    for name, value in optics.items():
+        assert joined[name].tolist() == [value] * len(micrographs)
