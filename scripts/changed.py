@@ -1,34 +1,23 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-"""Say whether a change since `base` reaches past some dependency groups.
+"""Say whether two manifests differ outside some dependency groups.
 
-    python -m scripts.changed BASE_SHA "lint docs"
+    python -m scripts.changed BEFORE AFTER "lint docs"
 
-Prints `false` when the only file changed is `pyproject.toml`, and only in
-the groups named; `true` otherwise.
+Prints `false` when `BEFORE` and `AFTER` differ only in the groups named;
+`true` otherwise.
 """
 
 from __future__ import annotations
 
 import argparse
-import re
-import subprocess
+import tomllib
+from pathlib import Path
 from typing import Any
 
-import tomllib
 
-MANIFEST = "pyproject.toml"
-SHA = re.compile("[0-9a-f]{40}")
-
-
-def _git(*arguments: str) -> str:
-    return subprocess.run(
-        ["git", *arguments], check=True, capture_output=True, text=True
-    ).stdout
-
-
-def _without(manifest: str, groups: list[str]) -> dict[str, Any]:
-    parsed = tomllib.loads(manifest)
+def _without(manifest: Path, groups: list[str]) -> dict[str, Any]:
+    parsed = tomllib.loads(manifest.read_text(encoding="utf-8"))
     kept = parsed.get("dependency-groups", {})
     parsed["dependency-groups"] = {
         name: value for name, value in kept.items() if name not in groups
@@ -36,29 +25,20 @@ def _without(manifest: str, groups: list[str]) -> dict[str, Any]:
     return parsed
 
 
-def reaches_past(base: str, groups: list[str]) -> bool:
-    """Whether the change from `base` to HEAD is more than `groups`."""
-    files = _git("diff", "--name-only", f"{base}...HEAD").split()
-    if files != [MANIFEST]:
-        return True
-    before = _git("show", f"{base}:{MANIFEST}")
-    after = _git("show", f"HEAD:{MANIFEST}")
+def reaches_past(before: Path, after: Path, groups: list[str]) -> bool:
+    """Whether `before` and `after` differ outside `groups`."""
     return _without(before, groups) != _without(after, groups)
 
 
-def _commit(text: str) -> str:
-    if not SHA.fullmatch(text):
-        raise argparse.ArgumentTypeError(f"{text!r} is not a full commit SHA")
-    return text
-
-
 def main() -> None:
-    """Print the answer for the base and groups the command line names."""
+    """Print the answer for the manifests and groups the command line names."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("base", type=_commit)
+    parser.add_argument("before", type=Path)
+    parser.add_argument("after", type=Path)
     parser.add_argument("groups", type=str.split)
     arguments = parser.parse_args()
-    print(str(reaches_past(arguments.base, arguments.groups)).lower())
+    answer = reaches_past(arguments.before, arguments.after, arguments.groups)
+    print(str(answer).lower())
 
 
 if __name__ == "__main__":

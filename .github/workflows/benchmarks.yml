@@ -53,7 +53,13 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           GROUPS: lint docs sdist coverage compare
         run: |
-          build=$(python3 -m scripts.changed "$BASE" "$GROUPS")
+          build=true
+          base="$RUNNER_TEMP/base.toml"
+          files=$(git diff --name-only "$BASE...HEAD")
+          if [[ "$files" == pyproject.toml ]]; then
+            git show "$BASE:pyproject.toml" > "$base"
+            build=$(python3 -m scripts.changed "$base" pyproject.toml "$GROUPS")
+          fi
           echo "build=$build" >> "$GITHUB_OUTPUT"
 
   codspeed:
