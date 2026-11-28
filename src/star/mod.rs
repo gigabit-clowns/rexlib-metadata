@@ -7,11 +7,9 @@ use std::collections::HashSet;
 use std::num::NonZeroUsize;
 
 use crate::error::Error;
-use crate::text::Token;
 use crate::text::builder::{ArrowSink, Chunk, Table};
 use crate::text::parser::{Parser, Sink, parse_blocks, parse_headers};
-
-type Tokenize = for<'a> fn(&'a str, &str, usize) -> Result<Vec<Token<'a>>, Error>;
+use lexer::Star;
 
 /// Every block of a STAR file, keeping only the columns `columns` names
 /// when it names any, each as one batch or as several where a column would
@@ -21,14 +19,14 @@ pub(crate) fn read_tables(
     columns: Option<HashSet<String>>,
 ) -> Result<Vec<Table>, Error> {
     let mut sink = ArrowSink::new(None, columns);
-    parse_blocks(path, lexer::tokenize_line, &mut sink)?;
+    parse_blocks(path, Star, &mut sink)?;
     Ok(sink.into_tables())
 }
 
 /// Every block's name and columns, in file order, without reading its rows.
 pub(crate) fn read_headers(path: &str) -> Result<Vec<(String, Vec<String>)>, Error> {
     let mut sink = Headers::default();
-    parse_headers(path, lexer::tokenize_line, lexer::is_row, &mut sink)?;
+    parse_headers(path, Star, &mut sink)?;
     Ok(sink.0)
 }
 
@@ -36,14 +34,15 @@ pub(crate) fn read_headers(path: &str) -> Result<Vec<(String, Vec<String>)>, Err
 struct Headers(Vec<(String, Vec<String>)>);
 
 impl Sink for Headers {
-    fn open(&mut self, _: &str, _: &[String]) {}
+    fn open(&mut self, name: &str, columns: &[String]) {
+        self.0.push((name.to_string(), columns.to_vec()));
+    }
 
     fn row<'v>(&mut self, _: impl Iterator<Item = &'v str>) -> Result<(), Error> {
         Ok(())
     }
 
-    fn close(&mut self, name: String, columns: Vec<String>) -> Result<(), Error> {
-        self.0.push((name, columns));
+    fn close(&mut self) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -51,7 +50,7 @@ impl Sink for Headers {
 /// The blocks of a STAR file, `chunk_size` rows at a time, read as they
 /// are asked for.
 pub(crate) struct Chunks {
-    parser: Parser<Tokenize>,
+    parser: Parser<Star>,
     sink: ArrowSink,
     done: bool,
 }
@@ -65,7 +64,7 @@ impl Chunks {
         let chunk_size = NonZeroUsize::new(chunk_size)
             .ok_or_else(|| Error::Argument("chunk_size has to be at least one row".to_string()))?;
         Ok(Self {
-            parser: Parser::open(path, lexer::tokenize_line as Tokenize)?,
+            parser: Parser::open(path, Star)?,
             sink: ArrowSink::new(Some(chunk_size), columns),
             done: false,
         })
@@ -370,12 +369,7 @@ _x
         let file = written(b"data_p\nloop_\n_x\naaaa\nbbbb\ncc\n");
         let mut sink = ArrowSink::new(None, None).with_byte_limit(4);
 
-        parse_blocks(
-            file.path().to_str().unwrap(),
-            lexer::tokenize_line,
-            &mut sink,
-        )
-        .unwrap();
+        parse_blocks(file.path().to_str().unwrap(), Star, &mut sink).unwrap();
         let read = sink.into_tables();
 
         assert_eq!(read.len(), 1);

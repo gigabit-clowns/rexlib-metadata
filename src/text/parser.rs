@@ -3,13 +3,14 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader, ErrorKind, Read};
 
-use super::{LINE_LIMIT, Token};
+use super::{LINE_LIMIT, Lexer, Token};
 use crate::error::{Error, parse_error};
 
+/// Receives each block as `open`, its rows, then `close`.
 pub(crate) trait Sink {
     fn open(&mut self, name: &str, columns: &[String]);
     fn row<'v>(&mut self, values: impl Iterator<Item = &'v str>) -> Result<(), Error>;
-    fn close(&mut self, name: String, columns: Vec<String>) -> Result<(), Error>;
+    fn close(&mut self) -> Result<(), Error>;
 }
 
 enum State {
@@ -22,7 +23,6 @@ enum State {
         columns: Vec<String>,
     },
     ReadingData {
-        name: String,
         columns: Vec<String>,
     },
     ReadingTags {
@@ -35,11 +35,10 @@ enum State {
 impl State {
     fn close<S: Sink>(self, sink: &mut S) -> Result<(), Error> {
         match self {
-            Self::Preamble => Ok(()),
-            Self::InBlock { name } => sink.close(name, Vec::new()),
-            Self::ReadingColumns { name, columns } | Self::ReadingData { name, columns } => {
-                sink.close(name, columns)
-            }
+            Self::Preamble => return Ok(()),
+            Self::InBlock { name } => sink.open(&name, &[]),
+            Self::ReadingColumns { name, columns } => sink.open(&name, &columns),
+            Self::ReadingData { .. } => {}
             Self::ReadingTags {
                 name,
                 columns,
@@ -47,57 +46,48 @@ impl State {
             } => {
                 sink.open(&name, &columns);
                 sink.row(values.iter().map(String::as_str))?;
-                sink.close(name, columns)
             }
         }
+        sink.close()
     }
 }
 
-pub(crate) fn parse_blocks<T, S>(path: &str, tokenize: T, sink: &mut S) -> Result<(), Error>
-where
-    T: for<'a> Fn(&'a str, &str, usize) -> Result<Vec<Token<'a>>, Error>,
-    S: Sink,
-{
-    let mut parser = Parser::open(path, tokenize)?;
+pub(crate) fn parse_blocks<L: Lexer, S: Sink>(
+    path: &str,
+    lexer: L,
+    sink: &mut S,
+) -> Result<(), Error> {
+    let mut parser = Parser::open(path, lexer)?;
     while parser.step(sink)? {}
     Ok(())
 }
 
 /// Every block's name and columns, handing `sink` the first row of a loop
-/// and none after it: a line `is_row` says is one is not tokenized.
-pub(crate) fn parse_headers<T, S>(
+/// and none after it.
+pub(crate) fn parse_headers<L: Lexer, S: Sink>(
     path: &str,
-    tokenize: T,
-    is_row: fn(&str) -> bool,
+    lexer: L,
     sink: &mut S,
-) -> Result<(), Error>
-where
-    T: for<'a> Fn(&'a str, &str, usize) -> Result<Vec<Token<'a>>, Error>,
-    S: Sink,
-{
-    let mut parser = Parser::open(path, tokenize)?;
-    parser.skip_rows = Some(is_row);
+) -> Result<(), Error> {
+    let mut parser = Parser::open(path, lexer)?;
+    parser.skip_rows = true;
     while parser.step(sink)? {}
     Ok(())
 }
 
-/// Reads one line at a time into a buffer it keeps, so a million lines
-/// are one allocation rather than a million.
-pub(crate) struct Parser<T> {
+/// Reads one line at a time into a buffer it keeps.
+pub(crate) struct Parser<L> {
     path: String,
     reader: BufReader<File>,
     line: String,
     line_num: usize,
-    tokenize: T,
+    lexer: L,
     state: State,
-    skip_rows: Option<fn(&str) -> bool>,
+    skip_rows: bool,
 }
 
-impl<T> Parser<T>
-where
-    T: for<'a> Fn(&'a str, &str, usize) -> Result<Vec<Token<'a>>, Error>,
-{
-    pub(crate) fn open(path: &str, tokenize: T) -> Result<Self, Error> {
+impl<L: Lexer> Parser<L> {
+    pub(crate) fn open(path: &str, lexer: L) -> Result<Self, Error> {
         let file = File::open(path).map_err(|source| Error::Io {
             path: path.to_string(),
             source,
@@ -107,9 +97,9 @@ where
             reader: BufReader::new(file),
             line: String::new(),
             line_num: 0,
-            tokenize,
+            lexer,
             state: State::Preamble,
-            skip_rows: None,
+            skip_rows: false,
         })
     }
 
@@ -130,7 +120,8 @@ where
 
     fn skips(&self, state: &State) -> bool {
         matches!(state, State::ReadingData { .. })
-            && self.skip_rows.is_some_and(|is_row| is_row(&self.line))
+            && self.skip_rows
+            && self.lexer.is_row(&self.line)
     }
 
     /// Reads the next line into the buffer, without its line ending, and
@@ -170,21 +161,37 @@ where
     fn next_state<S: Sink>(&self, state: State, sink: &mut S) -> Result<State, Error> {
         let path = self.path.as_str();
         let line_num = self.line_num;
-        let tokens = (self.tokenize)(&self.line, path, line_num)?;
-        let Some(first) = tokens.first() else {
-            return Ok(state);
-        };
-        match first {
-            Token::DataBlock(name) => {
+        let tokens = self.lexer.tokenize(&self.line, path, line_num)?;
+        match tokens.as_slice() {
+            [] => Ok(state),
+            [Token::DataBlock(name)] => {
                 let name = (*name).to_string();
                 state.close(sink)?;
                 Ok(State::InBlock { name })
             }
-            Token::Loop => open_loop(state, path, line_num),
-            Token::Column(_) => read_names(state, &tokens, path, line_num),
-            Token::Value(_) => read_row(state, &tokens, sink, path, line_num),
+            [Token::Loop] => open_loop(state, path, line_num),
+            [Token::Column(name), rest @ ..] if all_values(rest) && !rest.is_empty() => {
+                read_tag(state, name, rest, path, line_num)
+            }
+            [Token::Column(_), ..] if tokens.iter().all(is_column) => {
+                declare_columns(state, &tokens, path, line_num)
+            }
+            values if all_values(values) => read_row(state, values, sink, path, line_num),
+            _ => Err(parse_error(
+                path,
+                line_num,
+                "a line whose tokens come in an order no line of a table has",
+            )),
         }
     }
+}
+
+fn is_column(token: &Token) -> bool {
+    matches!(token, Token::Column(_))
+}
+
+fn all_values(tokens: &[Token]) -> bool {
+    tokens.iter().all(|token| matches!(token, Token::Value(_)))
 }
 
 fn open_loop(state: State, path: &str, line: usize) -> Result<State, Error> {
@@ -207,27 +214,14 @@ fn open_loop(state: State, path: &str, line: usize) -> Result<State, Error> {
     }
 }
 
-fn read_names(state: State, tokens: &[Token], path: &str, line: usize) -> Result<State, Error> {
-    let values: Vec<String> = values_of(tokens).map(str::to_string).collect();
-    let names = column_names_of(tokens);
-    if values.is_empty() {
-        return declare_columns(state, names, path, line);
-    }
-    read_tag(state, names, values, path, line)
-}
-
 fn read_tag(
     state: State,
-    names: Vec<String>,
-    values: Vec<String>,
+    name: &str,
+    values: &[Token],
     path: &str,
     line: usize,
 ) -> Result<State, Error> {
-    let name = names
-        .into_iter()
-        .next()
-        .expect("a tag line carries its name");
-    if values.len() > 1 {
+    let [Token::Value(value)] = values else {
         return Err(parse_error(
             path,
             line,
@@ -236,8 +230,8 @@ fn read_tag(
                 values.len()
             ),
         ));
-    }
-    let value = values.into_iter().next().expect("checked above");
+    };
+    let (name, value) = (name.to_string(), (*value).to_string());
     match state {
         State::InBlock { name: block } => Ok(State::ReadingTags {
             name: block,
@@ -273,11 +267,11 @@ fn read_tag(
 
 fn declare_columns(
     state: State,
-    names: Vec<String>,
+    tokens: &[Token],
     path: &str,
     line: usize,
 ) -> Result<State, Error> {
-    names
+    column_names_of(tokens)
         .into_iter()
         .try_fold(state, |state, name| declare_column(state, name, path, line))
 }
@@ -335,9 +329,9 @@ fn read_row<S: Sink>(
             check_row_width(&columns, tokens, path, line)?;
             sink.open(&name, &columns);
             sink.row(values_of(tokens))?;
-            Ok(State::ReadingData { name, columns })
+            Ok(State::ReadingData { columns })
         }
-        State::ReadingData { ref columns, .. } => {
+        State::ReadingData { ref columns } => {
             check_row_width(columns, tokens, path, line)?;
             sink.row(values_of(tokens))?;
             Ok(state)
@@ -404,83 +398,139 @@ mod tests {
 
     #[derive(Default)]
     struct Blocks {
-        rows: Vec<Vec<String>>,
         blocks: Vec<Block>,
+        open: bool,
     }
 
     impl Sink for Blocks {
-        fn open(&mut self, _: &str, _: &[String]) {
-            self.rows.clear();
+        fn open(&mut self, name: &str, columns: &[String]) {
+            assert!(!self.open, "block '{name}' opened inside another");
+            self.open = true;
+            self.blocks.push(Block {
+                name: name.to_string(),
+                columns: columns.to_vec(),
+                rows: Vec::new(),
+            });
         }
 
         fn row<'v>(&mut self, values: impl Iterator<Item = &'v str>) -> Result<(), Error> {
-            self.rows.push(values.map(ToString::to_string).collect());
+            assert!(self.open, "a row outside a block");
+            let block = self.blocks.last_mut().unwrap();
+            block.rows.push(values.map(ToString::to_string).collect());
             Ok(())
         }
 
-        fn close(&mut self, name: String, columns: Vec<String>) -> Result<(), Error> {
-            let rows = std::mem::take(&mut self.rows);
-            self.blocks.push(Block {
-                name,
-                columns,
-                rows,
-            });
+        fn close(&mut self) -> Result<(), Error> {
+            assert!(self.open, "a block closed that was never opened");
+            self.open = false;
             Ok(())
         }
     }
 
-    fn blocks_of<T>(content: &str, tokenize: T) -> Result<Vec<Block>, Error>
-    where
-        T: for<'a> Fn(&'a str, &str, usize) -> Result<Vec<Token<'a>>, Error>,
-    {
+    fn blocks_of(content: &str, lexer: impl Lexer) -> Result<Vec<Block>, Error> {
         let mut f = NamedTempFile::new().unwrap();
         write!(f, "{content}").unwrap();
         let mut sink = Blocks::default();
-        parse_blocks(f.path().to_str().unwrap(), tokenize, &mut sink)?;
+        parse_blocks(f.path().to_str().unwrap(), lexer, &mut sink)?;
         Ok(sink.blocks)
     }
 
     fn parse(content: &str) -> Vec<Block> {
-        blocks_of(content, crate::star::lexer::tokenize_line).unwrap()
+        blocks_of(content, crate::star::lexer::Star).unwrap()
     }
 
     fn parse_err(content: &str) -> Error {
-        blocks_of(content, crate::star::lexer::tokenize_line).unwrap_err()
+        blocks_of(content, crate::star::lexer::Star).unwrap_err()
     }
 
-    fn comma_lexer<'a>(
-        line: &'a str,
-        path: &str,
-        line_num: usize,
-    ) -> Result<Vec<Token<'a>>, Error> {
-        let line = line.trim();
-        if line.is_empty() {
-            return Ok(vec![]);
+    struct Commas;
+
+    impl Lexer for Commas {
+        fn tokenize<'a>(
+            &self,
+            line: &'a str,
+            path: &str,
+            line_num: usize,
+        ) -> Result<Vec<Token<'a>>, Error> {
+            let line = line.trim();
+            if line.is_empty() {
+                return Ok(vec![]);
+            }
+            if let Some(name) = line.strip_prefix("_table,") {
+                return Ok(vec![Token::DataBlock(name)]);
+            }
+            if line == "_header" {
+                return Ok(vec![Token::Loop]);
+            }
+            if let Some(names) = line.strip_prefix("_columns,") {
+                return Ok(names.split(',').map(Token::Column).collect());
+            }
+            if line.starts_with('_') {
+                return Err(parse_error(
+                    path,
+                    line_num,
+                    format!("unknown keyword '{line}'"),
+                ));
+            }
+            Ok(line
+                .split(',')
+                .map(|value| Token::Value(value.trim()))
+                .collect())
         }
-        if let Some(name) = line.strip_prefix("_table,") {
-            return Ok(vec![Token::DataBlock(name)]);
+
+        fn is_row(&self, line: &str) -> bool {
+            !line.trim().is_empty() && !line.trim_start().starts_with('_')
         }
-        if line == "_header" {
-            return Ok(vec![Token::Loop]);
+    }
+
+    struct Fixed(Vec<Token<'static>>);
+
+    impl Lexer for Fixed {
+        fn tokenize<'a>(&self, line: &'a str, _: &str, _: usize) -> Result<Vec<Token<'a>>, Error> {
+            Ok(match line {
+                "data_a" => vec![Token::DataBlock("a")],
+                "loop_" => vec![Token::Loop],
+                "_x" => vec![Token::Column("_x")],
+                _ => self.0.clone(),
+            })
         }
-        if let Some(names) = line.strip_prefix("_columns,") {
-            return Ok(names.split(',').map(Token::Column).collect());
+
+        fn is_row(&self, _: &str) -> bool {
+            false
         }
-        if line.starts_with('_') {
-            return Err(parse_error(
-                path,
-                line_num,
-                format!("unknown keyword '{line}'"),
-            ));
-        }
-        Ok(line
-            .split(',')
-            .map(|value| Token::Value(value.trim()))
-            .collect())
     }
 
     fn parse_commas(content: &str) -> Vec<Block> {
-        blocks_of(content, comma_lexer).unwrap()
+        blocks_of(content, Commas).unwrap()
+    }
+
+    #[test]
+    fn tokens_in_an_order_no_line_has_are_an_error() {
+        for tokens in [
+            vec![Token::Value("1"), Token::Column("_x")],
+            vec![Token::Column("_x"), Token::Value("1"), Token::Column("_y")],
+            vec![Token::DataBlock("b"), Token::Value("1")],
+            vec![Token::Loop, Token::Loop],
+        ] {
+            let err = blocks_of("data_a\nloop_\n_x\nline\n", Fixed(tokens)).unwrap_err();
+            match err {
+                Error::Parse { line, message, .. } => {
+                    assert_eq!(line, 4);
+                    assert!(message.contains("order"), "{message}");
+                }
+                other => panic!("expected a parse error, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn every_block_is_opened_and_closed_once() {
+        let blocks = parse("data_a\n\ndata_b\nloop_\n_x\n\ndata_c\n_y 1\n_z 2\n");
+        let shapes: Vec<_> = blocks
+            .iter()
+            .map(|block| (block.name.as_str(), block.columns.len(), block.rows.len()))
+            .collect();
+        assert_eq!(shapes, vec![("a", 0, 0), ("b", 1, 0), ("c", 2, 1)]);
     }
 
     #[test]
@@ -507,7 +557,7 @@ _header
 _columns,uid,angle
 1
 ",
-            comma_lexer,
+            Commas,
         )
         .unwrap_err();
         assert!(matches!(err, Error::Parse { .. }));

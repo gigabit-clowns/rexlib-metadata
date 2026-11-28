@@ -11,9 +11,7 @@ use arrow::record_batch::{RecordBatch, RecordBatchOptions};
 use super::parser::Sink;
 use crate::error::{Error, unwritable};
 
-/// The bytes a column of one batch may hold before the batch is cut: an
-/// Arrow string array addresses its text with 32-bit offsets, and a column
-/// past 2 GiB would overflow them.
+/// The bytes a column of one batch may hold before the batch is cut.
 const BYTE_LIMIT: usize = 1 << 30;
 
 pub(crate) struct ArrowSink {
@@ -40,8 +38,7 @@ impl Default for ArrowSink {
 
 pub(crate) type Table = (String, Vec<RecordBatch>);
 
-/// A batch, the name of the block it came from, and which block that was:
-/// two blocks of one name are told apart by nothing else.
+/// A batch, the name of the block it came from, and which block that was.
 pub(crate) type Chunk = (String, usize, RecordBatch);
 
 struct OpenBlock {
@@ -157,11 +154,7 @@ impl Sink for ArrowSink {
         Ok(())
     }
 
-    fn close(&mut self, name: String, columns: Vec<String>) -> Result<(), Error> {
-        if self.block.is_none() {
-            self.block = Some(self.opened(&name, &columns));
-            self.blocks += 1;
-        }
+    fn close(&mut self) -> Result<(), Error> {
         if self
             .block
             .as_ref()
@@ -218,7 +211,7 @@ pub(crate) fn build_record_batch(
     for row in rows {
         sink.row(row.iter().map(String::as_str))?;
     }
-    sink.close(String::new(), column_names.to_vec())?;
+    sink.close()?;
     Ok(sink.pop().expect("a closed block is a batch").2)
 }
 
