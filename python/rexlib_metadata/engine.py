@@ -121,24 +121,22 @@ def owned(
 
 
 def superseded(
-    raw: Sequence[RawSchema],
+    raw: RawSchema,
+    tables: Iterable[TableSchema],
     bundles: tuple[ConventionBundle, ...],
     writing: tuple[ConventionBundle, ...],
-    schema: Schema,
-    at: int,
 ) -> frozenset[str]:
-    """Name the columns of raw table `at` a write spells anew.
+    """Name the columns of `raw` a write spells anew.
 
-    A column is superseded where everything its read convention produced
-    is consumed by `writing`, as Relion 3.0's offset in pixels is by
-    Relion 4's in Ångström; anything else stays the source's to carry over.
+    `tables` is the canonical tables `raw` fills. A column is superseded
+    where everything its read convention produced is consumed by `writing`,
+    as Relion 3.0's offset in pixels is by Relion 4's in Ångström; anything
+    else stays the source's to carry over.
     """
-    chosen = assigned(raw, bundles, schema)
     return frozenset(
         column
-        for name, where in chosen.items()
-        if where == at
-        for column in _rewritten(raw[at], bundles, writing, schema[name])
+        for table in tables
+        for column in _rewritten(raw, bundles, writing, table)
     )
 
 

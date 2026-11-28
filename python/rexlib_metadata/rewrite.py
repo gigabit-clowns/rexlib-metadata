@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from itertools import takewhile
 from typing import TYPE_CHECKING
 
 import pyarrow as pa
@@ -20,14 +19,13 @@ from rexlib_metadata.engine import (
     owned,
     produced_tables,
     source_columns,
-    source_table,
     superseded,
     write_canonical,
     written_from,
 )
 from rexlib_metadata.join import joined_all
-from rexlib_metadata.reading import narrowed
-from rexlib_metadata.writing import folded, folds, replaced
+from rexlib_metadata.reading import block_chunks, narrowed
+from rexlib_metadata.writing import folded, folds, replaced, typed
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable, Iterator
@@ -124,7 +122,7 @@ class Rewrite:
         changes = edit.updates_of(table.num_rows)
         if changes is not None:
             self._check_folded(edit.name, changes, plan)
-        return _merged(table, changes, self._schema[edit.name])
+        return _merged(table, changes)
 
     def _check_folded(self, name: str, changes: pa.Table, plan: _Plan) -> None:
         folders = [
@@ -164,7 +162,7 @@ class Rewrite:
             self._schema,
         )
         skipped = folded(plan_folds)
-        anew = self._spelled_anew(raw, own) if same_format else {}
+        anew = self._spelled_anew(raw, chosen, own) if same_format else {}
         blocks = tuple(
             _Block(at, name, _carrying(anew, own, name, at))
             for at in range(len(raw))
@@ -174,11 +172,17 @@ class Rewrite:
         return _Plan(raw, chosen, own, plan_folds, blocks)
 
     def _spelled_anew(
-        self, raw: tuple[RawSchema, ...], own: dict[str, int]
+        self,
+        raw: tuple[RawSchema, ...],
+        chosen: dict[str, int],
+        own: dict[str, int],
     ) -> dict[int, frozenset[str]]:
         return {
             at: superseded(
-                raw, self._source.bundles, self._bundles, self._schema, at
+                raw[at],
+                [self._schema[n] for n, where in chosen.items() if where == at],
+                self._source.bundles,
+                self._bundles,
             )
             for at in own.values()
         }
@@ -194,27 +198,21 @@ class Rewrite:
             return None
         frame = None
         if updates is not None:
-            frame = self._typed(as_arrow_table(updates), shown)
+            frame = as_arrow_table(updates)
+            frame = typed(frame, self._shown(shown), "updates")
         kept = None
         if rows is not None and not self._whole_needed(plan):
             kept = self._kept(shown, rows)
         return _Edit(shown, frame, kept)
 
-    def _typed(self, frame: pa.Table, name: str) -> pa.Table:
-        """Cast `updates` to the declared types, before anything is read.
-
-        A column no table this result shows declares, or a value its
-        declared type cannot hold, raises.
-        """
+    def _shown(self, name: str) -> list[TableSchema]:
+        """Name the tables a write of `name` shows: it, and what it joins."""
         tables = [self._schema[name]]
         if self._joined:
             tables += [
                 self._schema[r.related] for r in self._schema.relations_of(name)
             ]
-        return pa.table(
-            [_cast_update(frame, c, tables) for c in frame.column_names],
-            names=frame.column_names,
-        )
+        return tables
 
     def _sources(
         self, plan: _Plan, edit: _Edit | None, rows: Rows | None
@@ -242,7 +240,8 @@ class Rewrite:
         every = source.raw._reread()
         chunks = every
         if edit is not None and rows is not None:
-            chunks = self._selected(every, self._schema[edit.name], rows)
+            at = plan.chosen.get(edit.name)
+            chunks = _selected(every, edit.name, at, rows)
         built = {
             name: source.filled(every, name)
             for name in plan.sharers()
@@ -329,11 +328,9 @@ class Rewrite:
         return _streamed_rows(rows, name)
 
     def _read_whole(self, at: int) -> RawTable:
-        chunks = takewhile(
-            lambda chunk: chunk[0] <= at,
-            self._source.raw._chunks(_POINTED_AT_ROWS),
+        pieces = list(
+            block_chunks(self._source.raw, _POINTED_AT_ROWS, at, None)
         )
-        pieces = [raw for ordinal, raw in chunks if ordinal == at]
         table = pa.concat_tables([piece.table for piece in pieces])
         return RawTable(pieces[0].schema, table)
 
@@ -392,7 +389,7 @@ class Rewrite:
             if editing is None
             else self._updates_of(editing, canonical, sources.whole)
         )
-        table = _merged(canonical, updates, schema)
+        table = _merged(canonical, updates)
         table = joined_all(
             table, ((r, sources.whole[r.related]) for r in plan.folds[name])
         )
@@ -414,18 +411,6 @@ class Rewrite:
         )
         _check_unchanged(frame, joined_all(canonical, relations), own, name)
         return frame.select(own)
-
-    def _selected(
-        self, source: tuple[RawTable, ...], table: TableSchema, rows: Rows
-    ) -> tuple[RawTable, ...]:
-        filling = source_table(
-            source, self._source.bundles, self._schema, table.name
-        )
-        if filling is None:
-            return source
-        positions = _positions(rows, filling.table.num_rows, table.name)
-        kept = RawTable(filling.schema, filling.table.take(positions))
-        return tuple(kept if raw is filling else raw for raw in source)
 
 
 @dataclass(frozen=True)
@@ -557,6 +542,20 @@ class _Positions:
             raise _outside(self._table, rows)
 
 
+def _selected(
+    source: tuple[RawTable, ...],
+    name: str,
+    at: int | None,
+    rows: Rows,
+) -> tuple[RawTable, ...]:
+    if at is None:
+        return source
+    filling = source[at]
+    positions = _positions(rows, filling.table.num_rows, name)
+    kept = RawTable(filling.schema, filling.table.take(positions))
+    return (*source[:at], kept, *source[at + 1 :])
+
+
 def _streamed_rows(rows: Rows, table: str) -> _Mask | _Positions | None:
     selection = _as_array(rows)
     if pa.types.is_boolean(selection.type):
@@ -630,38 +629,18 @@ def _carried(
     }
 
 
-def _merged(
-    canonical: pa.Table, updates: pa.Table | None, schema: TableSchema
-) -> pa.Table:
+def _merged(canonical: pa.Table, updates: pa.Table | None) -> pa.Table:
     """Return `canonical` with the columns of `updates` in place of its own."""
     if updates is None:
         return canonical
     for name in updates.column_names:
-        column = updates.column(name).cast(schema.column(name).dtype)
+        column = updates.column(name)
         if name in canonical.column_names:
             index = canonical.column_names.index(name)
             canonical = canonical.set_column(index, name, column)
         else:
             canonical = canonical.append_column(name, column)
     return canonical
-
-
-def _cast_update(
-    frame: pa.Table, column: str, tables: list[TableSchema]
-) -> ArrowColumn:
-    declared = next((t.column(column) for t in tables if column in t), None)
-    if declared is None:
-        shown = ", ".join(repr(t.name) for t in tables)
-        raise ValueError(
-            f"updates holds '{column}', which none of {shown} declares"
-        )
-    try:
-        return frame.column(column).cast(declared.dtype)
-    except (pa.ArrowInvalid, pa.ArrowNotImplementedError) as error:
-        raise ValueError(
-            f"updates column '{column}' holds a value its declared type, "
-            f"{declared.dtype}, cannot hold: {error}"
-        ) from error
 
 
 def _check_unchanged(

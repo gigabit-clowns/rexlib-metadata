@@ -122,7 +122,16 @@ def test_frames_with_optics_reach_a_format_with_no_optics_table(tmp_path):
                 )
             },
             ValueError,
-            "declares no 'nope'",
+            "holds 'nope', which no table of 'particles' declares",
+        ),
+        (
+            {
+                "particles": pd.DataFrame(
+                    {"image_path": ["a"], "image_index": ["first"]}
+                )
+            },
+            ValueError,
+            "'image_index' holds a value its declared type, int64, cannot",
         ),
         (
             {"particles": pd.DataFrame({"coord_x": [1.0]})},
