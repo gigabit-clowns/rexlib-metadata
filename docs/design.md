@@ -184,9 +184,11 @@ them into `write_tables`; `StarWriter` streams them.
    matching conventions declare every required column, scoring the columns
    they declare. Best score first, then file order, then schema order, a
    pair is taken when neither side is taken yet; a canonical table left
-   without one shares the best raw table it can fill. Only the source is
-   converted: a whole read parses every block, a chunked one stops where the
-   source ends.
+   without one shares the best raw table it can fill. The choice has no
+   argument of its own: the conventions decide what a raw table can fill, so
+   `bundle=` steers it, as a bundle whose conventions match only the block
+   wanted. Only the source is converted: a whole read parses every block, a
+   chunked one stops where the source ends.
 3. Bundles in order, then their conventions: a matching convention that adds
    a column not yet covered is loaded. The first to produce a column owns it.
    A losing output is discarded unvalidated.

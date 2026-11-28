@@ -186,7 +186,8 @@ Every word here is read by every agent on every task, so:
 - No two `ReadConvention`s of one bundle produce the same canonical column.
 - Priority is per bundle: the first bundle to produce a column owns it.
 - Validation is strict: unknown columns and missing required ones raise.
-- Every heuristic has an override, every built-in an injectable counterpart.
+- Every heuristic has an override, every built-in an injectable counterpart;
+  which block fills a table is steered through `bundle=`.
 
 ## Where the rest lives
 
