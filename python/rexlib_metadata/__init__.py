@@ -12,10 +12,12 @@ from rexlib_metadata.abc import Reader, Writer
 from rexlib_metadata.canonical import SCHEMA
 from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.conventions.cryosparc import cryosparc_bundle
+from rexlib_metadata.conventions.cryosparc_csv import cryosparc_csv_bundle
 from rexlib_metadata.conventions.relion import relion4_bundle
 from rexlib_metadata.conventions.relion3 import relion3_bundle
 from rexlib_metadata.conventions.xmipp import HEADER, xmipp_bundle
 from rexlib_metadata.formats.cryosparc import CsReader
+from rexlib_metadata.formats.csv import CsvReader
 from rexlib_metadata.formats.sqlite import SqliteReader, SqliteWriter
 from rexlib_metadata.formats.star import StarReader, StarWriter
 from rexlib_metadata.registry import MetadataRegistry, global_registry
@@ -34,6 +36,7 @@ _STAR = (".star",)
 _XMD = (".xmd", ".doc", ".pos", ".sel")
 _SQLITE = (".sqlite", ".db")
 _CS = (".cs",)
+_CSV = (".csv",)
 
 
 def _register_builtins(registry: MetadataRegistry) -> None:
@@ -48,6 +51,8 @@ def _register_builtins(registry: MetadataRegistry) -> None:
 	registry.register_writer(_SQLITE, SqliteWriter())
 	registry.register_reader(_CS, CsReader())
 	registry.register_bundle(_CS, cryosparc_bundle())
+	registry.register_reader(_CSV, CsvReader())
+	registry.register_bundle(_CSV, cryosparc_csv_bundle())
 
 
 _register_builtins(global_registry)

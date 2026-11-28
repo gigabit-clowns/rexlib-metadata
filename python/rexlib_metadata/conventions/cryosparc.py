@@ -122,7 +122,7 @@ class Pose(_Fields):
 	def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
 		"""Return the rotation as Relion's `A`, the shift in Ångström."""
 		vectors = _rows(table.column(self.source_columns[0]), _AXES)
-		a = _matrices(vectors)
+		a = rotations(vectors)
 		return {"transform": pose.transforms(a, _origin(table))}
 
 
@@ -249,7 +249,7 @@ def _origin(table: pa.Table) -> tuple[np.ndarray, ...]:
 	return x, y, np.zeros(table.num_rows)
 
 
-def _matrices(vectors: np.ndarray) -> Matrix:
+def rotations(vectors: np.ndarray) -> Matrix:
 	"""Return each vector's rotation, by Rodrigues' formula."""
 	import numpy as np
 

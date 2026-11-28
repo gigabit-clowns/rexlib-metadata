@@ -10,7 +10,7 @@ same rows, one per group.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -18,10 +18,9 @@ import pyarrow.compute as pc
 from rexlib_metadata.convention import ConventionBundle, ReadConvention
 from rexlib_metadata.conventions import relion
 from rexlib_metadata.conventions.relion import parsed
+from rexlib_metadata.conventions.settings import SettingGroup
 
 if TYPE_CHECKING:
-	from collections.abc import Iterable
-
 	import numpy as np
 
 	from rexlib_metadata.convention import ArrowColumn, RawSchema
@@ -44,37 +43,14 @@ class _Relion30(ReadConvention):
 		return raw.has(*self.source_columns) and not raw.has("_rlnOpticsGroup")
 
 
-class OpticsGroup(_Relion30):
+class OpticsGroup(_Relion30, SettingGroup):
 	"""The group of each row's microscope and detector setting."""
 
 	source_columns = _SETTING
-	target_columns = ("optics_group",)
 
-	def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
-		"""Return each distinct setting numbered from one, as first held."""
-		return self.in_context([table]).load(table)
-
-	def in_context(self, chunks: Iterable[pa.Table]) -> ReadConvention:
-		"""Return the groups numbered as the whole table first holds them."""
-		held: pa.Array = pa.array([], pa.string())
-		for chunk in chunks:
-			found = cast("pa.Array", pc.unique(_setting(chunk)))
-			fresh = found.filter(pc.invert(pc.is_in(found, value_set=held)))
-			held = pa.concat_arrays([held, fresh])
-		return _Numbered(held)
-
-
-class _Numbered(OpticsGroup):
-	"""Groups numbered by their place among the settings of a whole table."""
-
-	def __init__(self, held: pa.Array) -> None:
-		self._held = held
-
-	def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
-		"""Return each setting's place among those held, from one."""
-		place = pc.index_in(_setting(table), value_set=self._held)
-		group = pc.add(place, pa.scalar(1, pa.int32()))
-		return {"optics_group": pc.cast(group, pa.int32())}
+	def spelled(self, column: ArrowColumn) -> ArrowColumn:
+		"""Return a value as the number it reads as, so 300 is 300.0."""
+		return pc.cast(parsed(column, pa.float64()), pa.string())
 
 
 class PixelSize(_Relion30):
@@ -116,14 +92,6 @@ class Pose(relion.Pose):
 		return tuple(
 			_scaled(relion.numbers(table, n), size, n) for n in self.origin
 		)
-
-
-def _setting(table: pa.Table) -> ArrowColumn:
-	values = [
-		pc.cast(parsed(table.column(c), pa.float64()), pa.string())
-		for c in _SETTING
-	]
-	return relion.joined_text(values, "\x1f", null_replacement="")
 
 
 def _scaled(pixels: np.ndarray, size: np.ndarray, column: str) -> np.ndarray:
