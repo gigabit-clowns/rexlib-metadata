@@ -170,9 +170,10 @@ def test_a_joined_view_refuses_a_change_to_the_table_it_points_at(tmp_path):
     flat = view.to_pandas()
     flat["pixel_size"] = 6.0
     out = str(tmp_path / "out.star")
+    edited = view.updated(flat)
 
     with pytest.raises(ValueError, match="'pixel_size'"):
-        view.updated(flat).write(out)
+        edited.write(out)
 
 
 _POSIX_ONLY = pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")

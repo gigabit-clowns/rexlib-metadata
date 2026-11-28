@@ -155,8 +155,10 @@ def test_rows_that_name_no_row_are_refused(tmp_path, edit, message):
     ],
 )
 def test_rows_of_the_wrong_kind_are_refused_at_once(edit, message):
+    view = particles()
+
     with pytest.raises(TypeError, match=message):
-        edit(particles())
+        edit(view)
 
 
 @pytest.mark.parametrize(
@@ -176,8 +178,10 @@ def test_rows_of_the_wrong_kind_are_refused_at_once(edit, message):
     ],
 )
 def test_a_view_is_edited_once_rows_first(edit):
+    view = particles()
+
     with pytest.raises(ValueError, match="once"):
-        edit(particles())
+        edit(view)
 
 
 def test_rows_of_a_result_of_several_tables_ask_which(tmp_path):
@@ -229,6 +233,7 @@ def test_an_updated_joined_view_may_not_change_what_it_points_at():
     view = rxm.read(str(FILE)).joined("particles")
     frame = view.to_pandas()
     frame["voltage"] = 100.0
+    edited = view.updated(frame)
 
     with pytest.raises(ValueError, match="'voltage', which table 'particles'"):
-        view.updated(frame).to_pandas()
+        edited.to_pandas()

@@ -112,10 +112,10 @@ def test_an_update_no_convention_writes_raises(tmp_path):
     )
     particles = rxm.read(psi_only(tmp_path))["particles"]
     out = str(tmp_path / "out.star")
-    updates = _turned([99.0, 98.0])
+    edited = particles.updated(_turned([99.0, 98.0]))
 
     with pytest.raises(ValueError, match="'transform'"):
-        particles.updated(updates).write(out, bundle=images)
+        edited.write(out, bundle=images)
 
 
 def test_two_extensions_of_one_writer_are_one_format(tmp_path):

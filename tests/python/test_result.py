@@ -124,10 +124,11 @@ def test_a_view_of_one_table_writes_every_table(tmp_path):
 
 def test_updates_of_another_length_raise(tmp_path):
     result = rxm.read(str(FILES / "one_loop.star"), columns=["coord_x"])
-    df = result.to_pandas().head(1)
+    edited = result.updated(result.to_pandas().head(1))
+    out = str(tmp_path / "out.star")
 
     with pytest.raises(ValueError, match="one per row kept"):
-        result.updated(df).write(str(tmp_path / "out.star"))
+        edited.write(out)
 
 
 def test_updates_go_to_the_table_the_view_shows(tmp_path):
@@ -319,9 +320,10 @@ def test_updates_that_cannot_be_written_raise_before_anything_is(
     rows = len(view.to_pandas())
     frame = pa.table({k: v * rows for k, v in updates.items()})
     out = tmp_path / "out.star"
+    edited = view.updated(frame)
 
     with pytest.raises(ValueError, match=error):
-        view.updated(frame).write(str(out))
+        edited.write(str(out))
     assert not out.exists()
 
 
