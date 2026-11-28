@@ -265,7 +265,8 @@ def test_a_write_reads_its_source_chunk_size_rows_at_a_time(
 @pytest.mark.parametrize("size", [0, -1])
 def test_a_write_of_chunks_of_no_rows_is_refused(tmp_path, size):
     out = tmp_path / "out.star"
+    source = rxm.read(str(SUBTOMO))
 
     with pytest.raises(ValueError, match="at least one row"):
-        rxm.read(str(SUBTOMO)).write(str(out), chunk_size=size)
+        source.write(str(out), chunk_size=size)
     assert not out.exists()
