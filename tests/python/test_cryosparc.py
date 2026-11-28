@@ -15,235 +15,233 @@ from .support import CS, assert_same, relion_matrix
 
 @pytest.fixture
 def _raw():
-    return np.load(CS)
+	return np.load(CS)
 
 
 def _rodrigues(vector):
-    angle = np.linalg.norm(vector)
-    if angle == 0:
-        return np.eye(3)
-    x, y, z = vector / angle
-    cross = np.array([[0, -z, y], [z, 0, -x], [-y, x, 0]])
-    return (
-        np.eye(3)
-        + np.sin(angle) * cross
-        + (1 - np.cos(angle)) * cross @ cross
-    )
+	angle = np.linalg.norm(vector)
+	if angle == 0:
+		return np.eye(3)
+	x, y, z = vector / angle
+	cross = np.array([[0, -z, y], [z, 0, -x], [-y, x, 0]])
+	return (
+		np.eye(3) + np.sin(angle) * cross + (1 - np.cos(angle)) * cross @ cross
+	)
 
 
 def test_a_cs_file_is_one_table_typed_as_declared():
-    reader = CsReader()
+	reader = CsReader()
 
-    (table,) = reader.read_tables(str(CS))
+	(table,) = reader.read_tables(str(CS))
 
-    assert table.schema.table_name == ""
-    assert len(table.table.column_names) == 85
-    assert table.table.schema.field("alignments3D/pose").type == (
-        pa.list_(pa.float32(), 3)
-    )
-    assert reader.read_schemas(str(CS)) == [table.schema]
+	assert table.schema.table_name == ""
+	assert len(table.table.column_names) == 85
+	assert table.table.schema.field("alignments3D/pose").type == (
+		pa.list_(pa.float32(), 3)
+	)
+	assert reader.read_schemas(str(CS)) == [table.schema]
 
 
 def test_a_cs_file_reads_a_chunk_at_a_time(_raw):
-    chunks = list(CsReader().read_chunks(str(CS), 4, {"uid"}))
+	chunks = list(CsReader().read_chunks(str(CS), 4, {"uid"}))
 
-    assert [len(chunk.table) for _, chunk in chunks] == [4, 4, 2]
-    assert chunks[0][1].table.column_names == ["uid"]
+	assert [len(chunk.table) for _, chunk in chunks] == [4, 4, 2]
+	assert chunks[0][1].table.column_names == ["uid"]
 
 
 def test_the_particles_come_back_canonical(_raw):
-    df = rxm.read(str(CS))["particles"].to_pandas()
+	df = rxm.read(str(CS))["particles"].to_pandas()
 
-    paths = [p.decode().removeprefix(">") for p in _raw["blob/path"]]
-    assert df["image_path"].tolist() == paths
-    assert df["image_index"].tolist() == _raw["blob/idx"].tolist()
-    shape = _raw["location/micrograph_shape"]
-    expected_x = _raw["location/center_x_frac"].astype(float) * shape[:, 1]
-    assert df["coord_x"].tolist() == pytest.approx(expected_x.tolist())
+	paths = [p.decode().removeprefix(">") for p in _raw["blob/path"]]
+	assert df["image_path"].tolist() == paths
+	assert df["image_index"].tolist() == _raw["blob/idx"].tolist()
+	shape = _raw["location/micrograph_shape"]
+	expected_x = _raw["location/center_x_frac"].astype(float) * shape[:, 1]
+	assert df["coord_x"].tolist() == pytest.approx(expected_x.tolist())
 
 
 def test_a_pose_becomes_the_transpose_of_its_rotation(_raw):
-    df = rxm.read(str(CS))["particles"].to_pandas()
+	df = rxm.read(str(CS))["particles"].to_pandas()
 
-    rotations = pose.matrices(df["transform"])[:, :, :3]
+	rotations = pose.matrices(df["transform"])[:, :, :3]
 
-    for row, vector in enumerate(_raw["alignments3D/pose"].astype(float)):
-        np.testing.assert_allclose(
-            rotations[row], _rodrigues(vector).T, atol=1e-6
-        )
+	for row, vector in enumerate(_raw["alignments3D/pose"].astype(float)):
+		np.testing.assert_allclose(
+			rotations[row], _rodrigues(vector).T, atol=1e-6
+		)
 
 
 @pytest.mark.parametrize(
-    "vector",
-    [
-        pytest.param([0.0, 0.0, 0.0], id="none"),
-        pytest.param([0.0, 0.0, 0.7], id="in-plane-only"),
-        pytest.param([np.pi, 0.0, 0.0], id="upside-down"),
-    ],
+	"vector",
+	[
+		pytest.param([0.0, 0.0, 0.0], id="none"),
+		pytest.param([0.0, 0.0, 0.7], id="in-plane-only"),
+		pytest.param([np.pi, 0.0, 0.0], id="upside-down"),
+	],
 )
 def test_a_pose_with_no_tilt_or_a_half_turn_is_still_the_rotation(vector):
-    column = pa.array([vector], pa.list_(pa.float32(), 3))
+	column = pa.array([vector], pa.list_(pa.float32(), 3))
 
-    out = Pose().load(pa.table({"alignments3D/pose": column}))
+	out = Pose().load(pa.table({"alignments3D/pose": column}))
 
-    angles = [angle[0] for angle in pose.euler(out["transform"])]
-    np.testing.assert_allclose(
-        relion_matrix(*angles), _rodrigues(np.array(vector)), atol=1e-6
-    )
+	angles = [angle[0] for angle in pose.euler(out["transform"])]
+	np.testing.assert_allclose(
+		relion_matrix(*angles), _rodrigues(np.array(vector)), atol=1e-6
+	)
 
 
 def test_a_pose_comes_back_the_same_whatever_rows_it_is_read_with():
-    rng = np.random.default_rng(7)
-    poses = pa.array(list(rng.normal(size=(37, 3))), pa.list_(pa.float32()))
-    table = pa.table({"alignments3D/pose": poses})
+	rng = np.random.default_rng(7)
+	poses = pa.array(list(rng.normal(size=(37, 3))), pa.list_(pa.float32()))
+	table = pa.table({"alignments3D/pose": poses})
 
-    whole = Pose().load(table)
-    alone = [Pose().load(table.slice(row, 1)) for row in range(len(table))]
+	whole = Pose().load(table)
+	alone = [Pose().load(table.slice(row, 1)) for row in range(len(table))]
 
-    for name, column in whole.items():
-        rows = [one[name].to_pylist()[0] for one in alone]
-        assert column.to_pylist() == rows
+	for name, column in whole.items():
+		rows = [one[name].to_pylist()[0] for one in alone]
+		assert column.to_pylist() == rows
 
 
 def test_a_shift_comes_back_in_angstrom(_raw):
-    df = rxm.read(str(CS))["particles"].to_pandas()
+	df = rxm.read(str(CS))["particles"].to_pandas()
 
-    _, origin = pose.relion(df["transform"])
-    size = _raw["alignments3D/psize_A"].astype(float)
-    expected = _raw["alignments3D/shift"][:, 0].astype(float) * size
-    assert origin[0].tolist() == pytest.approx(expected.tolist(), abs=1e-4)
-    assert origin[2].tolist() == pytest.approx([0.0] * len(df), abs=1e-4)
+	_, origin = pose.relion(df["transform"])
+	size = _raw["alignments3D/psize_A"].astype(float)
+	expected = _raw["alignments3D/shift"][:, 0].astype(float) * size
+	assert origin[0].tolist() == pytest.approx(expected.tolist(), abs=1e-4)
+	assert origin[2].tolist() == pytest.approx([0.0] * len(df), abs=1e-4)
 
 
 def test_the_optics_are_one_row_per_exposure_group_counted_from_one(_raw):
-    result = rxm.read(str(CS))
+	result = rxm.read(str(CS))
 
-    optics = result["optics"].to_pandas()
+	optics = result["optics"].to_pandas()
 
-    assert _raw["ctf/exp_group_id"].tolist() == [0] * 10
-    assert optics["optics_group"].tolist() == [1]
-    assert optics["pixel_size"].tolist() == pytest.approx(
-        [_raw["blob/psize_A"][0]]
-    )
-    assert optics["spherical_aberration"].tolist() == pytest.approx(
-        [_raw["ctf/cs_mm"][0]]
-    )
-    assert result["particles"].to_pandas()["optics_group"].eq(1).all()
+	assert _raw["ctf/exp_group_id"].tolist() == [0] * 10
+	assert optics["optics_group"].tolist() == [1]
+	assert optics["pixel_size"].tolist() == pytest.approx(
+		[_raw["blob/psize_A"][0]]
+	)
+	assert optics["spherical_aberration"].tolist() == pytest.approx(
+		[_raw["ctf/cs_mm"][0]]
+	)
+	assert result["particles"].to_pandas()["optics_group"].eq(1).all()
 
 
 def test_a_cs_file_converts_to_relion(tmp_path):
-    source = rxm.read(str(CS))
-    out = str(tmp_path / "out.star")
+	source = rxm.read(str(CS))
+	out = str(tmp_path / "out.star")
 
-    source.write(out)
+	source.write(out)
 
-    again = rxm.read(out)
-    assert again.raw.names == ("optics", "particles")
-    for name in source.names:
-        assert_same(again[name].to_pandas(), source[name].to_pandas())
+	again = rxm.read(out)
+	assert again.raw.names == ("optics", "particles")
+	for name in source.names:
+		assert_same(again[name].to_pandas(), source[name].to_pandas())
 
 
 @pytest.mark.parametrize(
-    "view",
-    [
-        pytest.param(lambda r: r["particles"], id="particles"),
-        pytest.param(lambda r: r["optics"], id="optics"),
-        pytest.param(lambda r: r.joined("particles"), id="joined"),
-    ],
+	"view",
+	[
+		pytest.param(lambda r: r["particles"], id="particles"),
+		pytest.param(lambda r: r["optics"], id="optics"),
+		pytest.param(lambda r: r.joined("particles"), id="joined"),
+	],
 )
 def test_a_cs_file_reads_in_chunks_as_it_reads_whole(view):
-    table = view(rxm.read(str(CS)))
+	table = view(rxm.read(str(CS)))
 
-    chunks = [chunk.to_arrow() for chunk in table.chunks(3)]
+	chunks = [chunk.to_arrow() for chunk in table.chunks(3)]
 
-    assert pa.concat_tables(chunks).equals(table.to_arrow())
+	assert pa.concat_tables(chunks).equals(table.to_arrow())
 
 
 def test_a_file_that_is_not_a_cs_says_so(tmp_path):
-    path = tmp_path / "not.cs"
-    path.write_text("data_\n")
-    reader = CsReader()
+	path = tmp_path / "not.cs"
+	path.write_text("data_\n")
+	reader = CsReader()
 
-    with pytest.raises(ValueError, match="not a cryoSPARC file"):
-        reader.read_tables(str(path))
+	with pytest.raises(ValueError, match="not a cryoSPARC file"):
+		reader.read_tables(str(path))
 
 
 def _shifted(**sizes):
-    columns = {
-        "alignments3D/pose": pa.array(
-            [[0.0, 0.0, 0.0]], pa.list_(pa.float32(), 3)
-        ),
-        "alignments3D/shift": pa.array([[2.0, 0.0]], pa.list_(pa.float32(), 2)),
-    }
-    columns.update({name: pa.array([size]) for name, size in sizes.items()})
-    return pa.table(columns)
+	columns = {
+		"alignments3D/pose": pa.array(
+			[[0.0, 0.0, 0.0]], pa.list_(pa.float32(), 3)
+		),
+		"alignments3D/shift": pa.array([[2.0, 0.0]], pa.list_(pa.float32(), 2)),
+	}
+	columns.update({name: pa.array([size]) for name, size in sizes.items()})
+	return pa.table(columns)
 
 
 def test_a_shift_takes_the_images_pixel_size_where_the_alignment_has_none():
-    table = _shifted(**{"blob/psize_A": 1.5})
+	table = _shifted(**{"blob/psize_A": 1.5})
 
-    (transform,) = Pose().load(table).values()
+	(transform,) = Pose().load(table).values()
 
-    assert pose.matrices(transform)[0, 0, 3] == pytest.approx(3.0)
+	assert pose.matrices(transform)[0, 0, 3] == pytest.approx(3.0)
 
 
 def test_a_shift_with_no_pixel_size_is_refused():
-    table = _shifted()
-    convention = Pose()
+	table = _shifted()
+	convention = Pose()
 
-    with pytest.raises(ValueError, match="alignments3D/shift is in pixels"):
-        convention.load(table)
+	with pytest.raises(ValueError, match="alignments3D/shift is in pixels"):
+		convention.load(table)
 
 
 def test_a_missing_cs_file_raises_file_not_found(tmp_path):
-    with pytest.raises(FileNotFoundError, match="No such file"):
-        CsReader().read_tables(str(tmp_path / "missing.cs"))
+	with pytest.raises(FileNotFoundError, match="No such file"):
+		CsReader().read_tables(str(tmp_path / "missing.cs"))
 
 
 @pytest.mark.parametrize(
-    "array",
-    [
-        pytest.param(np.zeros(3), id="no-fields"),
-        pytest.param(
-            np.zeros((2, 2), dtype=[("a", "f4")]), id="two-dimensional"
-        ),
-    ],
+	"array",
+	[
+		pytest.param(np.zeros(3), id="no-fields"),
+		pytest.param(
+			np.zeros((2, 2), dtype=[("a", "f4")]), id="two-dimensional"
+		),
+	],
 )
 def test_an_array_that_is_not_a_table_is_refused(tmp_path, array):
-    path = tmp_path / "plain.cs"
-    with path.open("wb") as out:
-        np.save(out, array)
+	path = tmp_path / "plain.cs"
+	with path.open("wb") as out:
+		np.save(out, array)
 
-    with pytest.raises(ValueError, match="not a cryoSPARC file: no fields"):
-        CsReader().read_tables(str(path))
+	with pytest.raises(ValueError, match="not a cryoSPARC file: no fields"):
+		CsReader().read_tables(str(path))
 
 
 def test_a_field_that_is_not_a_column_says_which(tmp_path):
-    path = tmp_path / "text.cs"
-    with path.open("wb") as out:
-        np.save(out, np.zeros(1, dtype=[("ok", "f4"), ("name", "U4")]))
+	path = tmp_path / "text.cs"
+	with path.open("wb") as out:
+		np.save(out, np.zeros(1, dtype=[("ok", "f4"), ("name", "U4")]))
 
-    with pytest.raises(ValueError, match="Field 'name' holds <U4"):
-        CsReader().read_tables(str(path))
+	with pytest.raises(ValueError, match="Field 'name' holds <U4"):
+		CsReader().read_tables(str(path))
 
 
 def test_a_cs_file_of_no_rows_is_one_empty_chunk(tmp_path):
-    path = tmp_path / "empty.cs"
-    with path.open("wb") as out:
-        np.save(out, np.zeros(0, dtype=[("uid", "u8")]))
+	path = tmp_path / "empty.cs"
+	with path.open("wb") as out:
+		np.save(out, np.zeros(0, dtype=[("uid", "u8")]))
 
-    chunks = list(CsReader().read_chunks(str(path), 4))
+	chunks = list(CsReader().read_chunks(str(path), 4))
 
-    assert [(o, t.table.num_rows) for o, t in chunks] == [(0, 0)]
-    assert chunks[0][1].table.column_names == ["uid"]
+	assert [(o, t.table.num_rows) for o, t in chunks] == [(0, 0)]
+	assert chunks[0][1].table.column_names == ["uid"]
 
 
 def test_a_cs_file_reads_only_the_fields_named(_raw):
-    reader = CsReader()
+	reader = CsReader()
 
-    (table,) = reader.read_tables_keeping(str(CS), {"uid", "blob/psize_A"})
-    (schema,) = reader.read_schemas(str(CS))
+	(table,) = reader.read_tables_keeping(str(CS), {"uid", "blob/psize_A"})
+	(schema,) = reader.read_schemas(str(CS))
 
-    assert table.table.column_names == ["uid", "blob/psize_A"]
-    assert table.table.column("uid").to_pylist() == _raw["uid"].tolist()
-    assert schema.column_names == _raw.dtype.names
+	assert table.table.column_names == ["uid", "blob/psize_A"]
+	assert table.table.column("uid").to_pylist() == _raw["uid"].tolist()
+	assert schema.column_names == _raw.dtype.names

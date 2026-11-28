@@ -78,16 +78,17 @@ bash scripts/local-gate.sh     # all of it, in CI's order
 
 Groups install without the project, so they do not rebuild the crate. The
 gate runs `cargo fmt --check`, build, test, clippy `-D warnings`, ruff,
-complexipy, mypy, pytest and both references with warnings as errors,
-rebuilding the extension first.
+`ruff format --check`, complexipy, mypy, pytest and both references with
+warnings as errors, rebuilding the extension first.
 
 PyO3's `extension-module` feature is enabled through `[tool.maturin]` and
 must stay off in `Cargo.toml`: with it, `cargo test` does not link.
 
 ## Code conventions
 
-- Four spaces in Python and Rust, two in YAML, 80 columns. `rustfmt` and
-  `ruff.toml` are the authority; CI enforces both.
+- Tabs in Python and Rust, counted as four columns of 80; spaces in YAML
+  (two), TOML (four) and Markdown code blocks. `.editorconfig`,
+  `rustfmt.toml` and `ruff.toml` are the authority; CI enforces them.
 - Examples import the package as `rxm`.
 - Every source file, tests included, opens with
   `# SPDX-License-Identifier: LGPL-2.1-or-later` (`// ` in Rust; after the

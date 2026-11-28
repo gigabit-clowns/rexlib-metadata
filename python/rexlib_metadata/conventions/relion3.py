@@ -20,143 +20,143 @@ from rexlib_metadata.conventions import relion
 from rexlib_metadata.conventions.relion import parsed
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+	from collections.abc import Iterable
 
-    import numpy as np
+	import numpy as np
 
-    from rexlib_metadata.convention import ArrowColumn, RawSchema
+	from rexlib_metadata.convention import ArrowColumn, RawSchema
 
 _SETTING = (
-    "_rlnVoltage",
-    "_rlnSphericalAberration",
-    "_rlnAmplitudeContrast",
-    "_rlnMagnification",
-    "_rlnDetectorPixelSize",
+	"_rlnVoltage",
+	"_rlnSphericalAberration",
+	"_rlnAmplitudeContrast",
+	"_rlnMagnification",
+	"_rlnDetectorPixelSize",
 )
 _DETECTOR = ("_rlnMagnification", "_rlnDetectorPixelSize")
 
 
 class _Relion30(ReadConvention):
-    """Applies where the file has no optics group of its own."""
+	"""Applies where the file has no optics group of its own."""
 
-    def matches(self, raw: RawSchema) -> bool:
-        """Apply where every source column is there and no optics group."""
-        return raw.has(*self.source_columns) and not raw.has("_rlnOpticsGroup")
+	def matches(self, raw: RawSchema) -> bool:
+		"""Apply where every source column is there and no optics group."""
+		return raw.has(*self.source_columns) and not raw.has("_rlnOpticsGroup")
 
 
 class OpticsGroup(_Relion30):
-    """The group of each row's microscope and detector setting."""
+	"""The group of each row's microscope and detector setting."""
 
-    source_columns = _SETTING
-    target_columns = ("optics_group",)
+	source_columns = _SETTING
+	target_columns = ("optics_group",)
 
-    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
-        """Return each distinct setting numbered from one, as first held."""
-        return self.in_context([table]).load(table)
+	def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
+		"""Return each distinct setting numbered from one, as first held."""
+		return self.in_context([table]).load(table)
 
-    def in_context(self, chunks: Iterable[pa.Table]) -> ReadConvention:
-        """Return the groups numbered as the whole table first holds them."""
-        held: pa.Array = pa.array([], pa.string())
-        for chunk in chunks:
-            found = cast("pa.Array", pc.unique(_setting(chunk)))
-            fresh = found.filter(pc.invert(pc.is_in(found, value_set=held)))
-            held = pa.concat_arrays([held, fresh])
-        return _Numbered(held)
+	def in_context(self, chunks: Iterable[pa.Table]) -> ReadConvention:
+		"""Return the groups numbered as the whole table first holds them."""
+		held: pa.Array = pa.array([], pa.string())
+		for chunk in chunks:
+			found = cast("pa.Array", pc.unique(_setting(chunk)))
+			fresh = found.filter(pc.invert(pc.is_in(found, value_set=held)))
+			held = pa.concat_arrays([held, fresh])
+		return _Numbered(held)
 
 
 class _Numbered(OpticsGroup):
-    """Groups numbered by their place among the settings of a whole table."""
+	"""Groups numbered by their place among the settings of a whole table."""
 
-    def __init__(self, held: pa.Array) -> None:
-        self._held = held
+	def __init__(self, held: pa.Array) -> None:
+		self._held = held
 
-    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
-        """Return each setting's place among those held, from one."""
-        place = pc.index_in(_setting(table), value_set=self._held)
-        group = pc.add(place, pa.scalar(1, pa.int32()))
-        return {"optics_group": pc.cast(group, pa.int32())}
+	def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
+		"""Return each setting's place among those held, from one."""
+		place = pc.index_in(_setting(table), value_set=self._held)
+		group = pc.add(place, pa.scalar(1, pa.int32()))
+		return {"optics_group": pc.cast(group, pa.int32())}
 
 
 class PixelSize(_Relion30):
-    """The pixel size, from the detector's in micrometres and the zoom."""
+	"""The pixel size, from the detector's in micrometres and the zoom."""
 
-    source_columns = _DETECTOR
-    target_columns = ("pixel_size",)
+	source_columns = _DETECTOR
+	target_columns = ("pixel_size",)
 
-    def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
-        """Return the detector pixel over the magnification, in Ångström."""
-        return {"pixel_size": _pixel_size(table)}
+	def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
+		"""Return the detector pixel over the magnification, in Ångström."""
+		return {"pixel_size": _pixel_size(table)}
 
 
 class Pose(relion.Pose):
-    """Relion's angles with Relion 3.0's origin, in pixels."""
+	"""Relion's angles with Relion 3.0's origin, in pixels."""
 
-    origin = relion.PIXEL_ORIGIN
-    source_columns = (*relion.Pose.angles, *origin, *_DETECTOR)
+	origin = relion.PIXEL_ORIGIN
+	source_columns = (*relion.Pose.angles, *origin, *_DETECTOR)
 
-    def matches(self, raw: RawSchema) -> bool:
-        """Apply where an origin is in pixels."""
-        return not raw.has("_rlnOpticsGroup") and relion.any_of(
-            raw, self.origin
-        )
+	def matches(self, raw: RawSchema) -> bool:
+		"""Apply where an origin is in pixels."""
+		return not raw.has("_rlnOpticsGroup") and relion.any_of(
+			raw, self.origin
+		)
 
-    def offsets(self, table: pa.Table) -> tuple[np.ndarray, ...]:
-        """Return each row's origin in Ångström.
+	def offsets(self, table: pa.Table) -> tuple[np.ndarray, ...]:
+		"""Return each row's origin in Ångström.
 
-        A non-zero origin needs a finite pixel size, and a block with no
-        detector has none.
-        """
-        if not set(_DETECTOR).issubset(table.column_names):
-            raise ValueError(
-                "an origin in pixels needs _rlnDetectorPixelSize and "
-                "_rlnMagnification to be in Ångström, and the block has "
-                "neither"
-            )
-        size = _pixel_size(table).to_numpy(zero_copy_only=False)
-        return tuple(
-            _scaled(relion.numbers(table, n), size, n) for n in self.origin
-        )
+		A non-zero origin needs a finite pixel size, and a block with no
+		detector has none.
+		"""
+		if not set(_DETECTOR).issubset(table.column_names):
+			raise ValueError(
+				"an origin in pixels needs _rlnDetectorPixelSize and "
+				"_rlnMagnification to be in Ångström, and the block has "
+				"neither"
+			)
+		size = _pixel_size(table).to_numpy(zero_copy_only=False)
+		return tuple(
+			_scaled(relion.numbers(table, n), size, n) for n in self.origin
+		)
 
 
 def _setting(table: pa.Table) -> ArrowColumn:
-    values = [
-        pc.cast(parsed(table.column(c), pa.float64()), pa.string())
-        for c in _SETTING
-    ]
-    return relion.joined_text(values, "\x1f", null_replacement="")
+	values = [
+		pc.cast(parsed(table.column(c), pa.float64()), pa.string())
+		for c in _SETTING
+	]
+	return relion.joined_text(values, "\x1f", null_replacement="")
 
 
 def _scaled(pixels: np.ndarray, size: np.ndarray, column: str) -> np.ndarray:
-    import numpy as np
+	import numpy as np
 
-    with np.errstate(invalid="ignore"):
-        angstrom = np.where(pixels == 0, 0.0, pixels * size)
-    if not np.isfinite(angstrom).all():
-        row = int(np.argmax(~np.isfinite(angstrom)))
-        raise ValueError(
-            f"{column} is {pixels[row]} px in row {row}, whose detector "
-            "gives no finite pixel size to put it in Ångström"
-        )
-    return angstrom
+	with np.errstate(invalid="ignore"):
+		angstrom = np.where(pixels == 0, 0.0, pixels * size)
+	if not np.isfinite(angstrom).all():
+		row = int(np.argmax(~np.isfinite(angstrom)))
+		raise ValueError(
+			f"{column} is {pixels[row]} px in row {row}, whose detector "
+			"gives no finite pixel size to put it in Ångström"
+		)
+	return angstrom
 
 
 def _pixel_size(table: pa.Table) -> ArrowColumn:
-    detector = parsed(table.column("_rlnDetectorPixelSize"), pa.float64())
-    magnification = parsed(table.column("_rlnMagnification"), pa.float64())
-    return pc.divide(pc.multiply(detector, 1e4), magnification)
+	detector = parsed(table.column("_rlnDetectorPixelSize"), pa.float64())
+	magnification = parsed(table.column("_rlnMagnification"), pa.float64())
+	return pc.divide(pc.multiply(detector, 1e4), magnification)
 
 
 def relion3_bundle() -> ConventionBundle:
-    """Return the conventions that read a Relion 3.0 file.
+	"""Return the conventions that read a Relion 3.0 file.
 
-    Read only: Relion 3.0 is written by nothing current, and a Relion 3.0
-    file read through these writes back as Relion 4, optics table and all.
-    """
-    return ConventionBundle(
-        "relion3",
-        read={
-            "particles": [OpticsGroup(), Pose()],
-            "optics": [OpticsGroup(), PixelSize()],
-            "micrographs": [OpticsGroup()],
-        },
-    )
+	Read only: Relion 3.0 is written by nothing current, and a Relion 3.0
+	file read through these writes back as Relion 4, optics table and all.
+	"""
+	return ConventionBundle(
+		"relion3",
+		read={
+			"particles": [OpticsGroup(), Pose()],
+			"optics": [OpticsGroup(), PixelSize()],
+			"micrographs": [OpticsGroup()],
+		},
+	)

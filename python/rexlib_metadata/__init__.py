@@ -22,11 +22,11 @@ from rexlib_metadata.registry import MetadataRegistry, global_registry
 from rexlib_metadata.result import Chunk, RawResult, ReadResult
 
 if TYPE_CHECKING:
-    import pandas as pd
-    import polars as pl
-    import pyarrow as pa
+	import pandas as pd
+	import polars as pl
+	import pyarrow as pa
 
-    from rexlib_metadata.schema import Schema
+	from rexlib_metadata.schema import Schema
 
 __version__: str = _version()
 
@@ -37,80 +37,80 @@ _CS = (".cs",)
 
 
 def _register_builtins(registry: MetadataRegistry) -> None:
-    registry.register_reader(_STAR, StarReader())
-    registry.register_writer(_STAR, StarWriter())
-    registry.register_bundle(_STAR, relion4_bundle())
-    registry.register_bundle(_STAR, relion3_bundle())
-    registry.register_reader(_XMD, StarReader())
-    registry.register_writer(_XMD, StarWriter(header=HEADER))
-    registry.register_bundle(_XMD, xmipp_bundle())
-    registry.register_reader(_SQLITE, SqliteReader())
-    registry.register_writer(_SQLITE, SqliteWriter())
-    registry.register_reader(_CS, CsReader())
-    registry.register_bundle(_CS, cryosparc_bundle())
+	registry.register_reader(_STAR, StarReader())
+	registry.register_writer(_STAR, StarWriter())
+	registry.register_bundle(_STAR, relion4_bundle())
+	registry.register_bundle(_STAR, relion3_bundle())
+	registry.register_reader(_XMD, StarReader())
+	registry.register_writer(_XMD, StarWriter(header=HEADER))
+	registry.register_bundle(_XMD, xmipp_bundle())
+	registry.register_reader(_SQLITE, SqliteReader())
+	registry.register_writer(_SQLITE, SqliteWriter())
+	registry.register_reader(_CS, CsReader())
+	registry.register_bundle(_CS, cryosparc_bundle())
 
 
 _register_builtins(global_registry)
 
 
 def new_registry(schema: Schema = SCHEMA) -> MetadataRegistry:
-    """Return a registry of what ships, reading and writing `schema`.
+	"""Return a registry of what ships, reading and writing `schema`.
 
-    What is registered on it, and the schema it fills, stay its own:
-    `rxm.read` and `rxm.write` go on as they were. A schema of your own
-    keeps the canonical tables you build on and adds what your lab needs.
-    """
-    registry = MetadataRegistry(schema)
-    _register_builtins(registry)
-    return registry
+	What is registered on it, and the schema it fills, stay its own:
+	`rxm.read` and `rxm.write` go on as they were. A schema of your own
+	keeps the canonical tables you build on and adds what your lab needs.
+	"""
+	registry = MetadataRegistry(schema)
+	_register_builtins(registry)
+	return registry
 
 
 def read(
-    path: str,
-    *,
-    columns: Iterable[str] | None = None,
-    bundle: ConventionBundle | Iterable[ConventionBundle] | None = None,
-    reader: Reader | None = None,
+	path: str,
+	*,
+	columns: Iterable[str] | None = None,
+	bundle: ConventionBundle | Iterable[ConventionBundle] | None = None,
+	reader: Reader | None = None,
 ) -> ReadResult:
-    """Return a lazy canonical result over the metadata file at `path`.
+	"""Return a lazy canonical result over the metadata file at `path`.
 
-    The reader and the conventions are chosen by the file's extension, and
-    no row is read until the result is materialised. The columns come back
-    under their canonical names; `result.raw` is the same file read as it
-    names its own. Passing `columns` shows only those canonical columns,
-    and only the tables that declare one of them; a write still carries
-    every other column of the file. Passing `reader` or `bundle` uses that
-    instead of the registered ones, so a file whose extension says nothing
-    of its dialect, or is not registered at all, can be read; `bundle` is
-    one bundle or several in priority order, `[mine, relion4_bundle()]`
-    putting yours in front of Relion's.
-    """
-    return global_registry.read(
-        path, columns=columns, bundle=bundle, reader=reader
-    )
+	The reader and the conventions are chosen by the file's extension, and
+	no row is read until the result is materialised. The columns come back
+	under their canonical names; `result.raw` is the same file read as it
+	names its own. Passing `columns` shows only those canonical columns,
+	and only the tables that declare one of them; a write still carries
+	every other column of the file. Passing `reader` or `bundle` uses that
+	instead of the registered ones, so a file whose extension says nothing
+	of its dialect, or is not registered at all, can be read; `bundle` is
+	one bundle or several in priority order, `[mine, relion4_bundle()]`
+	putting yours in front of Relion's.
+	"""
+	return global_registry.read(
+		path, columns=columns, bundle=bundle, reader=reader
+	)
 
 
 def write(
-    path: str,
-    tables: Mapping[str, pa.Table | pd.DataFrame | pl.DataFrame],
-    *,
-    bundle: ConventionBundle | Iterable[ConventionBundle] | None = None,
-    writer: Writer | None = None,
+	path: str,
+	tables: Mapping[str, pa.Table | pd.DataFrame | pl.DataFrame],
+	*,
+	bundle: ConventionBundle | Iterable[ConventionBundle] | None = None,
+	writer: Writer | None = None,
 ) -> None:
-    """Write canonical tables, read from a file or built in memory, to `path`.
+	"""Write canonical tables, read from a file or built in memory, to `path`.
 
-    `tables` maps a canonical table's name, as `"particles"`, to its rows as
-    pandas, polars or Arrow. The format is the extension's, as in a read.
-    """
-    global_registry.write(path, tables, bundle=bundle, writer=writer)
+	`tables` maps a canonical table's name, as `"particles"`, to its rows as
+	pandas, polars or Arrow. The format is the extension's, as in a read.
+	"""
+	global_registry.write(path, tables, bundle=bundle, writer=writer)
 
 
 __all__ = [
-    "Chunk",
-    "RawResult",
-    "ReadResult",
-    "__version__",
-    "new_registry",
-    "read",
-    "write",
+	"Chunk",
+	"RawResult",
+	"ReadResult",
+	"__version__",
+	"new_registry",
+	"read",
+	"write",
 ]

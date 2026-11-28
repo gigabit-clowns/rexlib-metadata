@@ -1,20 +1,17 @@
 target-version = "py310"
 line-length = 80
+indent-width = 4
 
 include = [
     "python/**/*.py",
+    "python/**/*.pyi",
     "tests/**/*.py",
     "benchmarks/**/*.py",
     "scripts/**/*.py"
 ]
 
 [lint]
-preview = true
-explicit-preview-rules = true
-select = [
-    "E301", "E302", "E303", "E304", "E305", "E306",
-    "E4", "E5", "E7", "E9", "F",
-]
+select = ["E4", "E5", "E7", "E9", "F"]
 extend-select = [
     "I",    # isort
     "UP",   # pyupgrade
@@ -30,6 +27,7 @@ extend-select = [
 ]
 
 ignore = [
+    "D206",    # docstrings are indented with tabs, as the formatter has them
     "PLC0415", # an optional dependency is imported where it is used
 ]
 
@@ -51,3 +49,6 @@ known-first-party = ["benchmarks", "rexlib_metadata"]
 
 [lint.pydocstyle]
 convention = "pep257"
+
+[format]
+indent-style = "tab"

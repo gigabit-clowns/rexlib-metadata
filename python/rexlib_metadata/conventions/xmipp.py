@@ -16,37 +16,37 @@ HEADER = "# XMIPP_STAR_1 *"
 
 
 class ImageReference(relion.ImageReference):
-    """Splits Xmipp's `index@path`, which counts from one as Relion does."""
+	"""Splits Xmipp's `index@path`, which counts from one as Relion does."""
 
-    source_columns = ("_image",)
+	source_columns = ("_image",)
 
 
 class Pose(relion.Pose):
-    """Xmipp's ZYZ angles, as a transform with no shift."""
+	"""Xmipp's ZYZ angles, as a transform with no shift."""
 
-    angles = ("_angleRot", "_angleTilt", "_anglePsi")
-    origin = ()
-    source_columns = angles
+	angles = ("_angleRot", "_angleTilt", "_anglePsi")
+	origin = ()
+	source_columns = angles
 
 
 class WriteImageReference(relion.WriteImageReference):
-    """Joins a path and a zero-based index into Xmipp's `index@path`."""
+	"""Joins a path and a zero-based index into Xmipp's `index@path`."""
 
-    target_columns = ("_image",)
+	target_columns = ("_image",)
 
 
 class WritePose(relion.WritePose):
-    """A transform's rotation as Xmipp's ZYZ angles; its shift is not held."""
+	"""A transform's rotation as Xmipp's ZYZ angles; its shift is not held."""
 
-    angles = Pose.angles
-    origin = ()
-    target_columns = angles
+	angles = Pose.angles
+	origin = ()
+	target_columns = angles
 
 
 def xmipp_bundle() -> ConventionBundle:
-    """Return the conventions that read and write an Xmipp file."""
-    return ConventionBundle(
-        "xmipp",
-        read={"particles": [ImageReference(), Pose()]},
-        write={"particles": [WriteImageReference(), WritePose()]},
-    )
+	"""Return the conventions that read and write an Xmipp file."""
+	return ConventionBundle(
+		"xmipp",
+		read={"particles": [ImageReference(), Pose()]},
+		write={"particles": [WriteImageReference(), WritePose()]},
+	)
