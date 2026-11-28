@@ -140,6 +140,21 @@ Read only (`conventions/cryosparc.py`).
 | `pixel_size`, `image_size`, `image_dimensionality` | `blob/psize_A`, `blob/shape` | |
 | `optics` | the particles' own rows | one row per group |
 
+## cryoSPARC CSV
+
+Read only (`conventions/cryosparc_csv.py`), from cryoSPARC v0.65 and
+earlier.
+
+| Canonical | cryoSPARC CSV | Note |
+|---|---|---|
+| `image_path`, `image_index` | `data_input_relpath`, `data_input_idx` | zero-based |
+| `transform` | `alignments.model.r.0`–`2`, `alignments.model.t.0`–`1`, `ctf_params.psize` | as a `.cs` pose: rotation vector (rad) → `A`, shift in pixels times the pixel size |
+| `defocus_u`, `defocus_v`, `defocus_angle` | `ctf_params.df1`, `df2`, `angast_deg` | |
+| `phase_shift` | `ctf_params.phase_shift` | radians, in degrees |
+| `optics_group` | `ctf_params.akv`, `cs`, `wgh`, `psize` | each distinct setting a group, numbered from 1 as first held |
+| `voltage`, `spherical_aberration`, `amplitude_contrast`, `pixel_size` | `ctf_params.akv`, `cs`, `wgh`, `psize` | |
+| `optics` | the particles' own rows | one row per group |
+
 A single-precision scalar field is read as its shortest decimal (2.7, not
 2.700000047683716).
 

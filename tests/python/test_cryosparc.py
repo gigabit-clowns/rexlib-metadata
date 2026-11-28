@@ -10,23 +10,12 @@ from rexlib_metadata import pose
 from rexlib_metadata.conventions.cryosparc import Pose
 from rexlib_metadata.formats.cryosparc import CsReader
 
-from .support import CS, assert_same, relion_matrix
+from .support import CS, assert_same, relion_matrix, rodrigues
 
 
 @pytest.fixture
 def _raw():
 	return np.load(CS)
-
-
-def _rodrigues(vector):
-	angle = np.linalg.norm(vector)
-	if angle == 0:
-		return np.eye(3)
-	x, y, z = vector / angle
-	cross = np.array([[0, -z, y], [z, 0, -x], [-y, x, 0]])
-	return (
-		np.eye(3) + np.sin(angle) * cross + (1 - np.cos(angle)) * cross @ cross
-	)
 
 
 def test_a_cs_file_is_one_table_typed_as_declared():
@@ -67,7 +56,7 @@ def test_a_pose_becomes_the_transpose_of_its_rotation(_raw):
 
 	for row, vector in enumerate(_raw["alignments3D/pose"].astype(float)):
 		np.testing.assert_allclose(
-			rotations[row], _rodrigues(vector).T, atol=1e-6
+			rotations[row], rodrigues(vector).T, atol=1e-6
 		)
 
 
@@ -86,7 +75,7 @@ def test_a_pose_with_no_tilt_or_a_half_turn_is_still_the_rotation(vector):
 
 	angles = [angle[0] for angle in pose.euler(out["transform"])]
 	np.testing.assert_allclose(
-		relion_matrix(*angles), _rodrigues(np.array(vector)), atol=1e-6
+		relion_matrix(*angles), rodrigues(np.array(vector)), atol=1e-6
 	)
 
 

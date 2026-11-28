@@ -27,9 +27,11 @@ int,string,float,float,float,float,float,…
 ```
 
 STAR's shape with commas, plus a `_dtypes` line typing every column and
-nesting spelled with dots. Needs a comma lexer for the state machine in
-`src/text/parser.rs`, which takes the lexer as an argument; the declared
-types are transcribed, never inferred. Not read yet.
+nesting spelled with dots; cryoSPARC v0.65 and earlier wrote it. Read by
+`formats/csv.py` through Arrow's CSV reader: one table, named on its
+`_table` line, each column `int`, `float` or `string` as declared, never
+inferred; blank lines around it skipped. Read only. The canonical mapping
+is in [canonical.md](canonical.md).
 
 ## FREALIGN / cisTEM `.par`
 

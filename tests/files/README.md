@@ -1,8 +1,8 @@
 # Fixtures
 
 `star/` and `xmd/` have a README of their own. The `.cs`, `.par` and CSV
-files are each trimmed from an EMPIAR deposition; `.cs` is read, `.par` and
-CSV not yet.
+files are each trimmed from an EMPIAR deposition; `.cs` and CSV are read,
+`.par` not yet.
 
 All three come from `ftp.ebi.ac.uk/empiar/world_availability/`, fetched on
 2026-10-31. EMPIAR releases everything it archives under

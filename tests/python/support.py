@@ -17,6 +17,7 @@ FILES = Path(__file__).parent.parent / "files"
 STAR = FILES / "star"
 XMD = FILES / "xmd"
 CS = FILES / "cs" / "J114_particles_exported.cs"
+CSV = FILES / "csv" / "final.csv"
 SUBTOMO = STAR / "relion3.1_subtomo.star"
 POLISHED = STAR / "relion3.0_polished.star"
 MICROGRAPHS = STAR / "relion3.0_micrographs.star"
@@ -51,6 +52,18 @@ def relion_matrix(rot, tilt, psi):
 			[-sg * cb * ca - cg * sa, -sg * cb * sa + cg * ca, sg * sb],
 			[sb * ca, sb * sa, cb],
 		]
+	)
+
+
+def rodrigues(vector):
+	"""Return the rotation of a rotation vector in radians."""
+	angle = np.linalg.norm(vector)
+	if angle == 0:
+		return np.eye(3)
+	x, y, z = vector / angle
+	cross = np.array([[0, -z, y], [z, 0, -x], [-y, x, 0]])
+	return (
+		np.eye(3) + np.sin(angle) * cross + (1 - np.cos(angle)) * cross @ cross
 	)
 
 
