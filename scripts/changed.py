@@ -2,7 +2,7 @@
 
 """Say whether a change since `base` reaches past some dependency groups.
 
-    python -m scripts.changed BASE "lint docs"
+    python -m scripts.changed BASE_SHA "lint docs"
 
 Prints `false` when the only file changed is `pyproject.toml`, and only in
 the groups named; `true` otherwise.
@@ -11,12 +11,14 @@ the groups named; `true` otherwise.
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 from typing import Any
 
 import tomllib
 
 MANIFEST = "pyproject.toml"
+SHA = re.compile("[0-9a-f]{40}")
 
 
 def _git(*arguments: str) -> str:
@@ -44,10 +46,16 @@ def reaches_past(base: str, groups: list[str]) -> bool:
     return _without(before, groups) != _without(after, groups)
 
 
+def _commit(text: str) -> str:
+    if not SHA.fullmatch(text):
+        raise argparse.ArgumentTypeError(f"{text!r} is not a full commit SHA")
+    return text
+
+
 def main() -> None:
     """Print the answer for the base and groups the command line names."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("base")
+    parser.add_argument("base", type=_commit)
     parser.add_argument("groups", type=str.split)
     arguments = parser.parse_args()
     print(str(reaches_past(arguments.base, arguments.groups)).lower())
