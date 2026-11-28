@@ -72,7 +72,7 @@ After every phase above, one pass over the whole repository.
       (#169–#175)
 - [x] Every `# type: ignore[...]` and `# noqa: ...` replaced by code that
       needs none
-- [ ] The clean-up the review asks for, in pull requests of their own
+- [x] The clean-up the review asks for, in pull requests of their own
 
 ## Deferred
 
