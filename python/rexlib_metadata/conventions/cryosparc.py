@@ -14,6 +14,7 @@ is read as the shortest decimal that names it, 2.7 rather than
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 import pyarrow as pa
@@ -125,6 +126,33 @@ class Pose(_Fields):
 		return {"transform": pose.transforms(a, _origin(table))}
 
 
+class Defocus(_Fields):
+	"""The CTF's two defocus values, in Ångström, and their angle."""
+
+	source_columns = ("ctf/df1_A", "ctf/df2_A", "ctf/df_angle_rad")
+	target_columns = ("defocus_u", "defocus_v", "defocus_angle")
+
+	def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
+		"""Return the angle in degrees, where the file holds radians."""
+		return {
+			"defocus_u": _double(table.column("ctf/df1_A")),
+			"defocus_v": _double(table.column("ctf/df2_A")),
+			"defocus_angle": degrees(_double(table.column("ctf/df_angle_rad"))),
+		}
+
+
+class PhaseShift(_Fields):
+	"""The phase plate's shift, in degrees."""
+
+	source_columns = ("ctf/phase_shift_rad",)
+	target_columns = ("phase_shift",)
+
+	def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
+		"""Return the shift in degrees, where the file holds radians."""
+		shift = _double(table.column("ctf/phase_shift_rad"))
+		return {"phase_shift": degrees(shift)}
+
+
 class OpticsGroup(_Fields):
 	"""The exposure group a row belongs to, or describes as optics."""
 
@@ -179,6 +207,11 @@ class ImageSize(_Fields):
 			"image_size": pc.cast(pc.list_element(shape, 0), pa.int64()),
 			"image_dimensionality": pc.cast(edges, pa.int32()),
 		}
+
+
+def degrees(radians: ArrowColumn) -> ArrowColumn:
+	"""Return an angle in radians in degrees."""
+	return pc.multiply(radians, pa.scalar(180.0 / math.pi))
 
 
 def _double(column: ArrowColumn) -> ArrowColumn:
@@ -255,6 +288,8 @@ def cryosparc_bundle() -> ConventionBundle:
 				MicrographName(),
 				Coordinates(),
 				Pose(),
+				Defocus(),
+				PhaseShift(),
 				OpticsGroup(),
 			],
 			"optics": [

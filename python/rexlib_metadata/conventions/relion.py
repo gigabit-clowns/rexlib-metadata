@@ -88,6 +88,13 @@ class Defocus(_Renaming):
 	target_columns = ("defocus_u", "defocus_v", "defocus_angle")
 
 
+class PhaseShift(_Renaming):
+	"""The phase plate's shift, in degrees."""
+
+	source_columns = ("_rlnPhaseShift",)
+	target_columns = ("phase_shift",)
+
+
 class Coordinates(_Renaming):
 	"""Where on the micrograph a particle sits, in pixels."""
 
@@ -260,6 +267,13 @@ class WriteDefocus(_Spelling):
 
 	source_columns = ("defocus_u", "defocus_v", "defocus_angle")
 	target_columns = ("_rlnDefocusU", "_rlnDefocusV", "_rlnDefocusAngle")
+
+
+class WritePhaseShift(_Spelling):
+	"""The phase plate's shift, in degrees."""
+
+	source_columns = ("phase_shift",)
+	target_columns = ("_rlnPhaseShift",)
 
 
 class WriteCoordinates(_Spelling):
@@ -463,6 +477,8 @@ def relion4_bundle() -> ConventionBundle:
 				Coordinates(),
 				CoordinateZ(),
 				Pose(),
+				Defocus(),
+				PhaseShift(),
 				CtfMaxResolution(),
 				OpticsGroup(),
 			],
@@ -478,6 +494,7 @@ def relion4_bundle() -> ConventionBundle:
 			"micrographs": [
 				Micrograph(),
 				Defocus(),
+				PhaseShift(),
 				CtfMaxResolution(),
 				OpticsGroup(),
 			],
@@ -489,6 +506,8 @@ def relion4_bundle() -> ConventionBundle:
 				WriteCoordinates(),
 				WriteCoordinateZ(),
 				WritePose(),
+				WriteDefocus(),
+				WritePhaseShift(),
 				WriteCtfMaxResolution(),
 				WriteOpticsGroup(),
 			],
@@ -504,6 +523,7 @@ def relion4_bundle() -> ConventionBundle:
 			"micrographs": [
 				WriteMicrographName(),
 				WriteDefocus(),
+				WritePhaseShift(),
 				WriteCtfMaxResolution(),
 				WriteOpticsGroup(),
 			],

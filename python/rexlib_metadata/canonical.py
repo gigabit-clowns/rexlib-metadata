@@ -47,12 +47,13 @@ CTF_QUALITY = SchemaTrait(
 	(ColumnDescriptor("ctf_max_resolution", pa.float64(), unit="A"),),
 )
 
-DEFOCUS = SchemaTrait(
-	"defocus",
+CTF = SchemaTrait(
+	"ctf",
 	(
 		ColumnDescriptor("defocus_u", pa.float64(), unit="A"),
 		ColumnDescriptor("defocus_v", pa.float64(), unit="A"),
 		ColumnDescriptor("defocus_angle", pa.float64(), unit="degrees"),
+		ColumnDescriptor("phase_shift", pa.float64(), unit="degrees"),
 	),
 )
 
@@ -85,6 +86,7 @@ PARTICLES = TableSchema(
 	MICROGRAPH,
 	CARTESIAN_POSITION,
 	POSE,
+	CTF,
 	CTF_QUALITY,
 	OPTICS_KEY,
 )
@@ -99,7 +101,7 @@ OPTICS = TableSchema(
 MICROGRAPHS = TableSchema(
 	"micrographs",
 	ColumnDescriptor("micrograph_path", pa.string(), required=True),
-	DEFOCUS,
+	CTF,
 	CTF_QUALITY,
 	OPTICS_KEY,
 )

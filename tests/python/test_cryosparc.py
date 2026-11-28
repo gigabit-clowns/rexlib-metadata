@@ -245,3 +245,18 @@ def test_a_cs_file_reads_only_the_fields_named(_raw):
 	assert table.table.column_names == ["uid", "blob/psize_A"]
 	assert table.table.column("uid").to_pylist() == _raw["uid"].tolist()
 	assert schema.column_names == _raw.dtype.names
+
+
+def test_a_particles_ctf_comes_back_in_angstrom_and_degrees(_raw):
+	df = rxm.read(str(CS))["particles"].to_pandas()
+
+	assert df["defocus_u"].tolist() == pytest.approx(
+		_raw["ctf/df1_A"].astype(float).tolist()
+	)
+	assert df["defocus_v"].tolist() == pytest.approx(
+		_raw["ctf/df2_A"].astype(float).tolist()
+	)
+	angle = np.degrees(_raw["ctf/df_angle_rad"].astype(float))
+	assert df["defocus_angle"].tolist() == pytest.approx(angle.tolist())
+	shift = np.degrees(_raw["ctf/phase_shift_rad"].astype(float))
+	assert df["phase_shift"].tolist() == pytest.approx(shift.tolist())
