@@ -54,11 +54,10 @@ jobs:
           GROUPS: lint docs develop bench coverage compare
         run: |
           build=true
-          base="$RUNNER_TEMP/base.toml"
           files=$(git diff --name-only "$BASE...HEAD")
           if [[ "$files" == pyproject.toml ]]; then
-            git show "$BASE:pyproject.toml" > "$base"
-            build=$(python3 -m scripts.changed "$base" pyproject.toml "$GROUPS")
+            build=$(git show "$BASE:pyproject.toml" |
+              python3 -m scripts.changed "$GROUPS")
           fi
           echo "build=$build" >> "$GITHUB_OUTPUT"
 
