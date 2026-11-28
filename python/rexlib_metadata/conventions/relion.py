@@ -131,7 +131,7 @@ class Pose(ReadConvention):
     def load(self, table: pa.Table) -> dict[str, ArrowColumn]:
         """Return the transform of each row's angles and origin.
 
-        A slice at a time, so that what the conversion holds stays small.
+        The rows are converted `_POSE_ROWS` at a time.
         """
         starts = range(0, max(table.num_rows, 1), _POSE_ROWS)
         slices = (table.slice(start, _POSE_ROWS) for start in starts)
@@ -215,8 +215,7 @@ class _Spelling(WriteConvention):
     """A convention that only renames, column for column, as text.
 
     The cast is Arrow's: the shortest text that reads back as the same
-    number. Relion's own files disagree about how many decimals to write,
-    so there is no habit of the format to imitate.
+    number.
     """
 
     def store(
@@ -359,11 +358,7 @@ class WriteImageDimensionality(_Spelling):
 
 
 def parsed(column: ArrowColumn, dtype: pa.DataType) -> ArrowColumn:
-    """Cast text to `dtype`, an empty value being a null.
-
-    A text format has no spelling for a null and writes it empty, so an
-    empty number is the null it was, not a value that fails to parse.
-    """
+    """Cast text to `dtype`, an empty value of a typed column being a null."""
     if pa.types.is_string(dtype):
         return pc.cast(column, dtype)
     return pc.cast(_empty_as_null(column), dtype)
