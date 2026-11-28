@@ -195,6 +195,33 @@ def test_two_tables_of_one_name_are_refused(tmp_path):
         writer.write_tables(str(tmp_path / "out.sqlite"), tables)
 
 
+def test_chunks_write_the_file_tables_write(tmp_path, monkeypatch):
+    reader, writer = SqliteReader(), SqliteWriter()
+    source = particles(tmp_path, rows=7)
+    whole, streamed = str(tmp_path / "whole.db"), str(tmp_path / "chunks.db")
+    writer.write_tables(whole, reader.read_tables(source))
+
+    monkeypatch.setattr(SqliteWriter, "write_tables", None)
+    writer.write_chunks(streamed, reader.read_chunks(source, 3))
+    monkeypatch.undo()
+
+    for a, b in zip(
+        reader.read_tables(whole), reader.read_tables(streamed), strict=True
+    ):
+        assert a.schema == b.schema
+        assert a.table.equals(b.table)
+
+
+def test_two_streamed_tables_of_one_name_are_refused(tmp_path):
+    chunks = [
+        (0, RawTable.of("t", pa.table({"a": [1]}))),
+        (1, RawTable.of("t", pa.table({"a": [2]}))),
+    ]
+
+    with pytest.raises(ValueError, match="share a name"):
+        SqliteWriter().write_chunks(str(tmp_path / "out.sqlite"), chunks)
+
+
 def test_schemas_are_what_a_whole_read_holds(tmp_path):
     path = particles(tmp_path)
     reader = SqliteReader()
