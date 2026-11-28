@@ -33,6 +33,8 @@ the REX suite (gigabit-clowns), but depends on nothing else in it.
 | `…/conventions/` | One module of conventions per dialect: Relion, Relion 3.0, Xmipp, cryoSPARC |
 | `…/engine.py` | The read and write engine |
 | `…/result.py` | `ReadResult`, `RawResult`, `Chunk` |
+| `…/reading.py` | Canonical tables built from raw ones, for reads and writes |
+| `…/rewrite.py` | A canonical view's write: the plan, the edit, the chunks |
 | `…/writing.py`, `join.py`, `_arrow.py` | Writing frames, the optics join, Arrow conversions |
 | `…/_rexlib.pyi` | Hand-written stubs for the compiled module |
 | `tests/python/`, `tests/files/` | pytest suites; real files, each with its origin |

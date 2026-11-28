@@ -7,11 +7,12 @@ import pyarrow as pa
 import pytest
 
 import rexlib_metadata as rxm
-from rexlib_metadata import result as result_module
+from rexlib_metadata import reading
 from rexlib_metadata.abc import Writer
 from rexlib_metadata.convention import RawTable
 from rexlib_metadata.formats.star import StarWriter
-from rexlib_metadata.result import RawResult, ReadResult
+from rexlib_metadata.result import RawResult
+from rexlib_metadata.rewrite import Rewrite
 
 FILES = Path(__file__).parent.parent / "files"
 SUBTOMO = FILES / "star" / "relion3.1_subtomo.star"
@@ -72,7 +73,7 @@ CASES = [
 
 def _written(view, out, write, rows_per_chunk, monkeypatch):
     with monkeypatch.context() as patched:
-        patched.setattr(result_module, "_ROWS", rows_per_chunk)
+        patched.setattr(reading, "ROWS", rows_per_chunk)
         view.write(str(out), **write)
     return out.read_bytes()
 
@@ -86,7 +87,7 @@ def test_a_file_written_in_chunks_is_the_file_written_whole(
 
     chunked = _written(view, tmp_path / f"c{suffix}", write, 2, monkeypatch)
     monkeypatch.setattr(StarWriter, "write_chunks", Writer.write_chunks)
-    monkeypatch.setattr(ReadResult, "_whole_needed", lambda *_: True)
+    monkeypatch.setattr(Rewrite, "_whole_needed", lambda *_: True)
     whole = _written(view, tmp_path / f"w{suffix}", write, 10**9, monkeypatch)
 
     assert chunked == whole
@@ -123,7 +124,7 @@ def test_relion30_with_two_settings_writes_in_chunks_as_whole(
 
     chunked = _written(view, tmp_path / "c.star", write, 2, monkeypatch)
     monkeypatch.setattr(StarWriter, "write_chunks", Writer.write_chunks)
-    monkeypatch.setattr(ReadResult, "_whole_needed", lambda *_: True)
+    monkeypatch.setattr(Rewrite, "_whole_needed", lambda *_: True)
     whole = _written(view, tmp_path / "w.star", write, 10**9, monkeypatch)
 
     assert chunked == whole
@@ -149,9 +150,9 @@ def test_a_streamed_write_never_reads_the_source_whole(
     write = edit(view)
 
     with monkeypatch.context() as patched:
-        patched.setattr(RawResult, "reread", _refused)
+        patched.setattr(RawResult, "_reread", _refused)
         view.write(str(tmp_path / "out.star"), **write)
-    monkeypatch.setattr(ReadResult, "_whole_needed", lambda *_: True)
+    monkeypatch.setattr(Rewrite, "_whole_needed", lambda *_: True)
     view.write(str(tmp_path / "whole.star"), **write)
 
     streamed = (tmp_path / "out.star").read_text()

@@ -330,8 +330,8 @@ def test_a_raw_table_reads_alone_however_it_is_read():
     second = raw.names[1]
     view = raw[second]
 
-    chunks = list(view.chunks(1000))
-    whole = view.reread()
+    chunks = list(view._chunks(1000))
+    whole = view._reread()
 
     assert [ordinal for ordinal, _ in chunks] == [0]
     assert chunks[0][1].table.equals(raw[second].to_arrow())
