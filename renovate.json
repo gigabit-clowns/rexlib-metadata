@@ -12,80 +12,69 @@
   "internalChecksFilter": "strict",
   "automerge": true,
   "poetry": {
-    "description": "Not a poetry project, but supersedes default pep manager if left enabled.",
+    "description": "Off: the pep621 manager reads pyproject.toml.",
     "enabled": false
   },
   "packageRules": [
     {
-      "description": [
-        "The organisation's own composites and reusable workflows, taken from main on purpose: a fix there reaches every repository of the suite at once, where a digest would need a pull request per repository to arrive.",
-        "helpers:pinGitHubActionDigests would pin them, so they are disabled here rather than pinned. The trust this gives up is trust in ourselves."
-      ],
+      "description": "The organisation's own composites and reusable workflows stay on main, unpinned.",
       "matchDepNames": ["gigabit-clowns/.github"],
       "enabled": false
     },
     {
-      "description": "A range's ceiling is the exact newest version CI has passed; any later release makes widen raise it, and CI decides whether it merges. Narrowing a range is a person's decision.",
+      "description": "A release past a range's ceiling widens the range to it.",
       "matchDepTypes": ["project.dependencies", "project.optional-dependencies"],
       "rangeStrategy": "widen"
     },
     {
-      "description": "Python version in CI matrix is a manual decision",
+      "description": "The CI matrix's Python versions are raised by hand.",
       "matchDepNames": ["python"],
       "enabled": false
     },
     {
-      "description": "Cap the polars 3.10 pin to releases that still support 3.10; 2.1.0 raised requires-python to >=3.11.",
+      "description": "The polars pin for python_version == '3.10'.",
       "matchDepNames": ["polars"],
       "matchCurrentVersion": ">=2.0.0,<2.1.0",
       "constraints": { "python": "3.10" },
       "constraintsFiltering": "strict"
     },
     {
-      "description": [
-        "The pyarrow pin for python_version == '3.10'; 26.0.0 raised requires-python to >=3.11.",
-        "Renovate drops the PEP 508 marker, so both pins of a split dependency look identical to it: matchCurrentVersion tells them apart, and the cap itself comes from each release's requires_python.",
-        "Only the old pin is capped, on purpose. A new pin or an unsplit dependency dropping an old Python should open a PR that fails CI, not freeze silently.",
-        "The constraint must be a bare version: pep440 has no subset(), so a range would filter out every release."
-      ],
+      "description": "The pyarrow pin for python_version == '3.10'.",
       "matchDepNames": ["pyarrow"],
       "matchCurrentVersion": "<26",
       "constraints": { "python": "3.10" },
       "constraintsFiltering": "strict"
     },
     {
-      "description": "The numpy test pin for python_version == '3.10'; 2.3.0 raised requires-python to >=3.11.",
+      "description": "The numpy test pin for python_version == '3.10'.",
       "matchDepNames": ["numpy"],
       "matchCurrentVersion": "<2.3",
       "constraints": { "python": "3.10" },
       "constraintsFiltering": "strict"
     },
     {
-      "description": "The numpy test pin for python_version == '3.11'; 2.5.0 raised requires-python to >=3.12.",
+      "description": "The numpy test pin for python_version == '3.11'.",
       "matchDepNames": ["numpy"],
       "matchCurrentVersion": ">=2.3,<2.5",
       "constraints": { "python": "3.11" },
       "constraintsFiltering": "strict"
     },
     {
-      "description": "The pandas test pin for python_version == '3.10'; 3.0.0 raised requires-python to >=3.11.",
+      "description": "The pandas test pin for python_version == '3.10'.",
       "matchDepNames": ["pandas"],
       "matchCurrentVersion": "<3",
       "constraints": { "python": "3.10" },
       "constraintsFiltering": "strict"
     },
     {
-      "description": "The python_version == '3.10' half of the pandas extra. A range has no current version to match, so the half is told apart by its raw value and capped below the release that dropped 3.10.",
+      "description": "The python_version == '3.10' half of the pandas extra, told apart by its raw value.",
       "matchDepNames": ["pandas"],
       "matchDepTypes": ["project.optional-dependencies"],
       "matchCurrentValue": "/<=2\\./",
       "allowedVersions": "<3"
     },
     {
-      "description": [
-        "arrow, pyo3 and pyo3-arrow are one upgrade: pyo3-arrow is built against one major of arrow and of pyo3, and lib.rs compiles only while ours are the same.",
-        "Renovate cannot read which majors a pyo3-arrow release takes, so they share one pull request, majors included. It fails CI while arrow or pyo3 is ahead of pyo3-arrow, and passes once a pyo3-arrow release catches up."
-      ],
+      "description": "arrow, pyo3 and pyo3-arrow in one pull request, majors included.",
       "matchDepNames": ["arrow", "pyo3", "pyo3-arrow"],
       "groupName": "arrow, pyo3 and pyo3-arrow",
       "separateMajorMinor": false

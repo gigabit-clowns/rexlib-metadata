@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name        = "rexlib-metadata"
 dynamic     = ["version"]
-description = "Read and write CryoEM metadata formats (STAR, XMD, SQLite) to Pandas/Polars DataFrames. Rust core, Python API, extensible by design."
+description = "Read and write CryoEM metadata (Relion STAR, Xmipp XMD, cryoSPARC .cs, SQLite) as pandas, polars or Arrow tables, through a Rust core."
 readme      = { file = "README.md", content-type = "text/markdown" }
 license       = "LGPL-2.1-or-later"
 license-files = ["LICENSE"]
