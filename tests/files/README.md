@@ -31,4 +31,4 @@ byte in the two text files and value for value in the `.cs`.
   `>J114/restack/batch_0_restacked.mrc`. That is cryoSPARC's way of marking
   a path as relative to its project, and a convention has to know it.
 
-`tests/python/test_fixtures.py` pins the shape of each file.
+The `.par` and CSV shapes are pinned in #195, for the readers to start from.

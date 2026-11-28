@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-from pathlib import Path
 
 import pandas as pd
 import pyarrow as pa
@@ -16,9 +15,7 @@ from rexlib_metadata.schema import (
     TableSchema,
 )
 
-from .frames import assert_same
-
-STAR = Path(__file__).parent.parent / "files" / "star"
+from .support import STAR, assert_same
 
 PARTICLES = pa.table({"image_index": [0, 1, 2, 3], "group": [2, 1, 2, 9]})
 GROUPS = pa.table({"group": [1, 2], "voltage": [200.0, 300.0]})

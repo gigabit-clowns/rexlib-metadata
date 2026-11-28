@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-from pathlib import Path
 
 import numpy as np
 import pyarrow as pa
@@ -11,29 +10,12 @@ from rexlib_metadata import pose
 from rexlib_metadata.conventions.cryosparc import Pose
 from rexlib_metadata.formats.cryosparc import CsReader
 
-from .frames import assert_same
-
-FILES = Path(__file__).parent.parent / "files"
-CS = FILES / "cs" / "J114_particles_exported.cs"
+from .support import CS, assert_same, relion_matrix
 
 
 @pytest.fixture
 def _raw():
     return np.load(CS)
-
-
-def _relion_matrix(rot, tilt, psi):
-    a, b, g = np.radians([rot, tilt, psi])
-    ca, sa, cb, sb, cg, sg = (
-        np.cos(a), np.sin(a), np.cos(b), np.sin(b), np.cos(g), np.sin(g)
-    )
-    return np.array(
-        [
-            [cg * cb * ca - sg * sa, cg * cb * sa + sg * ca, -cg * sb],
-            [-sg * cb * ca - cg * sa, -sg * cb * sa + cg * ca, sg * sb],
-            [sb * ca, sb * sa, cb],
-        ]
-    )
 
 
 def _rodrigues(vector):
@@ -106,7 +88,7 @@ def test_a_pose_with_no_tilt_or_a_half_turn_is_still_the_rotation(vector):
 
     angles = [angle[0] for angle in pose.euler(out["transform"])]
     np.testing.assert_allclose(
-        _relion_matrix(*angles), _rodrigues(np.array(vector)), atol=1e-6
+        relion_matrix(*angles), _rodrigues(np.array(vector)), atol=1e-6
     )
 
 

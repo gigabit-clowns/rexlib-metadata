@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
-from pathlib import Path
 
 import pandas as pd
 import pyarrow as pa
@@ -10,11 +9,7 @@ import rexlib_metadata as rxm
 from rexlib_metadata import pose
 from rexlib_metadata.formats.star import StarReader
 
-from .frames import assert_same
-
-FILES = Path(__file__).parent.parent / "files" / "star"
-POLISHED = str(FILES / "relion3.0_polished.star")
-MICROGRAPHS = str(FILES / "relion3.0_micrographs.star")
+from .support import MICROGRAPHS, POLISHED, assert_same
 
 
 def _pixel_size(raw):
@@ -23,7 +18,7 @@ def _pixel_size(raw):
 
 
 def test_a_relion30_file_reads_its_optics_from_its_particles():
-    result = rxm.read(POLISHED)
+    result = rxm.read(str(POLISHED))
     raw = result.raw.to_pandas()
 
     optics = result["optics"].to_pandas()
@@ -36,7 +31,7 @@ def test_a_relion30_file_reads_its_optics_from_its_particles():
 
 
 def test_a_relion30_offset_in_pixels_comes_back_in_angstrom():
-    result = rxm.read(POLISHED)
+    result = rxm.read(str(POLISHED))
     raw = result.raw.to_pandas()
 
     df = result["particles"].to_pandas()
@@ -47,13 +42,13 @@ def test_a_relion30_offset_in_pixels_comes_back_in_angstrom():
 
 
 def test_relion30_micrographs_are_one_optics_row():
-    optics = rxm.read(MICROGRAPHS)["optics"].to_pandas()
+    optics = rxm.read(str(MICROGRAPHS))["optics"].to_pandas()
 
     assert len(optics) == 1
 
 
 def test_relion30_micrographs_are_a_micrographs_table():
-    result = rxm.read(MICROGRAPHS)
+    result = rxm.read(str(MICROGRAPHS))
     raw = result.raw.to_pandas()
 
     micrographs = result["micrographs"].to_pandas()
@@ -69,11 +64,11 @@ def test_relion30_micrographs_are_a_micrographs_table():
 
 
 def test_a_particles_file_fills_no_micrographs_table():
-    assert "micrographs" not in rxm.read(POLISHED).names
+    assert "micrographs" not in rxm.read(str(POLISHED)).names
 
 
 def test_relion30_micrographs_write_back_as_relion4(tmp_path):
-    source = rxm.read(MICROGRAPHS)
+    source = rxm.read(str(MICROGRAPHS))
     out = str(tmp_path / "out.star")
 
     source.write(out)
@@ -89,7 +84,7 @@ def test_relion30_micrographs_write_back_as_relion4(tmp_path):
 
 
 def test_a_relion30_file_writes_back_as_relion4(tmp_path):
-    source = rxm.read(POLISHED)
+    source = rxm.read(str(POLISHED))
     out = str(tmp_path / "out.star")
 
     source.write(out)
@@ -112,7 +107,7 @@ def test_a_relion30_file_writes_back_as_relion4(tmp_path):
     ],
 )
 def test_a_relion30_file_reads_in_chunks_as_it_reads_whole(view):
-    table = view(rxm.read(POLISHED))
+    table = view(rxm.read(str(POLISHED)))
 
     chunks = [chunk.to_arrow() for chunk in table.chunks(2)]
 
@@ -127,7 +122,7 @@ def test_a_relion30_file_reads_in_chunks_as_it_reads_whole(view):
     ],
 )
 def test_relion30_micrographs_read_in_chunks_as_they_read_whole(name):
-    table = rxm.read(MICROGRAPHS)[name]
+    table = rxm.read(str(MICROGRAPHS))[name]
 
     chunks = [chunk.to_arrow() for chunk in table.chunks(2)]
 
@@ -168,7 +163,7 @@ class _Recording(StarReader):
 def test_the_groups_are_gathered_from_their_columns_alone():
     reader = _Recording()
     registry = rxm.new_registry()
-    result = registry.read(POLISHED, reader=reader)
+    result = registry.read(str(POLISHED), reader=reader)
 
     list(result["particles"].chunks(5))
 
@@ -265,7 +260,7 @@ def test_a_setting_written_two_ways_is_one_group(tmp_path):
 
 
 def test_relion30_micrographs_keep_their_defocus_angle():
-    result = rxm.read(MICROGRAPHS)
+    result = rxm.read(str(MICROGRAPHS))
     raw = result.raw.to_pandas()
 
     micrographs = result["micrographs"].to_pandas()
@@ -276,7 +271,7 @@ def test_relion30_micrographs_keep_their_defocus_angle():
 
 
 def test_joined_micrographs_carry_their_optics_on_each_row():
-    result = rxm.read(MICROGRAPHS)
+    result = rxm.read(str(MICROGRAPHS))
     micrographs = result["micrographs"].to_pandas()
     (optics,) = result["optics"].to_pandas().to_dict("records")
 
