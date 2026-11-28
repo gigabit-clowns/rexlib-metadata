@@ -125,8 +125,8 @@ class Pose(_Fields):
         return {"transform": pose.transforms(a, _origin(table))}
 
 
-class ParticleOpticsGroup(_Fields):
-    """The exposure group a particle belongs to."""
+class OpticsGroup(_Fields):
+    """The exposure group a row belongs to, or describes as optics."""
 
     source_columns = ("ctf/exp_group_id",)
     target_columns = ("optics_group",)
@@ -135,10 +135,6 @@ class ParticleOpticsGroup(_Fields):
         """Return the group counted from one."""
         group = pc.cast(table.column("ctf/exp_group_id"), pa.int32())
         return {"optics_group": pc.add(group, pa.scalar(1, pa.int32()))}
-
-
-class OpticsGroup(ParticleOpticsGroup):
-    """The exposure group a row of the optics table describes."""
 
 
 class Voltage(_Renaming):
@@ -259,7 +255,7 @@ def cryosparc_bundle() -> ConventionBundle:
                 MicrographName(),
                 Coordinates(),
                 Pose(),
-                ParticleOpticsGroup(),
+                OpticsGroup(),
             ],
             "optics": [
                 OpticsGroup(),

@@ -111,6 +111,26 @@ def test_a_relion_optics_table_becomes_canonical():
     assert df["image_dimensionality"][0] == 2
 
 
+def test_an_image_size_is_read_and_written_without_its_dimensionality(
+    tmp_path,
+):
+    path = tmp_path / "in.star"
+    path.write_text(
+        "data_optics\nloop_\n_rlnOpticsGroup\n_rlnImageSize\n1 256\n\n"
+        "data_particles\nloop_\n_rlnImageName\n_rlnOpticsGroup\n"
+        "1@a.mrcs 1\n"
+    )
+    out = tmp_path / "out.star"
+
+    optics = rxm.read(str(path))["optics"].to_pandas()
+    rxm.read(str(path)).write(str(out))
+
+    assert optics["image_size"].tolist() == [256]
+    assert "image_dimensionality" not in optics.columns
+    written = rxm.read(str(out)).raw["optics"].to_pandas()
+    assert written["_rlnImageSize"].tolist() == ["256"]
+
+
 def test_a_column_nobody_wrote_is_left_out():
     df = canonical("rln3.1_data_style.star", "particles")
 

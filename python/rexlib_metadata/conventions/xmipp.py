@@ -9,14 +9,8 @@ read from one has no shift.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from rexlib_metadata.convention import ConventionBundle
 from rexlib_metadata.conventions import relion
-
-if TYPE_CHECKING:
-    import numpy as np
-    import pyarrow as pa
 
 HEADER = "# XMIPP_STAR_1 *"
 
@@ -33,12 +27,6 @@ class Pose(relion.Pose):
     angles = ("_angleRot", "_angleTilt", "_anglePsi")
     origin = ()
     source_columns = angles
-
-    def offsets(self, table: pa.Table) -> tuple[np.ndarray, ...]:
-        """Return no shift."""
-        import numpy as np
-
-        return tuple(np.zeros(table.num_rows) for _ in relion.Pose.origin)
 
 
 class WriteImageReference(relion.WriteImageReference):
