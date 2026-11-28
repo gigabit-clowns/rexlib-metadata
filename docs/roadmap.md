@@ -13,7 +13,7 @@ Loose ends are issues, not lines here.
 | 1b Parser | Lexer, parser and builder split; quoting, comments; `Error` with path and line |
 | 2 Conventions | Schema, read conventions, bundles, the read engine; Relion 4 bundle for `.star`; `result.raw` |
 | 3 STAR write | `StarWriter`, write conventions, `result.write(path)`, `rxm.write(path, tables)` from memory; roundtrip over real files |
-| 4 Forwarding | `columns=`; a write rereads the source and carries every column, with `updates=` and `rows=` |
+| 4 Forwarding | `columns=`; a write rereads the source and carries every column, with `updated`, `take` and `where` |
 | 5 Chunks | `result[name].chunks(n)` streams in bounded memory |
 | 6 Multi-table, CD | Every block surfaced, `result.names`; development release on push to `main` |
 | 6b Second format prep | Shared `src/text/` state machine, `reader=` / `bundle=` / `writer=`, real `.cs`, `.par`, CSV fixtures |

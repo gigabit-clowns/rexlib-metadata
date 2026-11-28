@@ -25,32 +25,32 @@ def _moved(transforms, by):
     return [transform + by * along_x for transform in transforms]
 
 
-def _plain(_):
-    return {}
+def _plain(view):
+    return view
 
 
 def _shifted(view):
     frame = view.to_pandas()
     frame["transform"] = _moved(frame["transform"], 1.5)
-    return {"updates": frame[["transform"]]}
+    return view.updated(frame[["transform"]])
 
 
 def _every_third(view):
-    return {"rows": list(range(0, len(view.to_pandas()), 3))}
+    return view.take(list(range(0, len(view.to_pandas()), 3)))
 
 
 def _a_mask(view):
-    return {"rows": [n % 2 == 0 for n in range(len(view.to_pandas()))]}
+    return view.where([n % 2 == 0 for n in range(len(view.to_pandas()))])
 
 
 def _kept_and_shifted(view):
     frame = view.to_pandas().iloc[::3].copy()
     frame["transform"] = _moved(frame["transform"], -2.0)
-    return {"rows": frame.index, "updates": frame[["transform"]]}
+    return view.take(frame.index).updated(frame[["transform"]])
 
 
 def _backwards(view):
-    return {"rows": list(range(len(view.to_pandas())))[::-1]}
+    return view.take(list(range(len(view.to_pandas())))[::-1])
 
 
 CASES = [
@@ -71,10 +71,10 @@ CASES = [
 ]
 
 
-def _written(view, out, write, rows_per_chunk, monkeypatch):
+def _written(view, out, rows_per_chunk, monkeypatch):
     with monkeypatch.context() as patched:
         patched.setattr(reading, "ROWS", rows_per_chunk)
-        view.write(str(out), **write)
+        view.write(str(out))
     return out.read_bytes()
 
 
@@ -82,13 +82,12 @@ def _written(view, out, write, rows_per_chunk, monkeypatch):
 def test_a_file_written_in_chunks_is_the_file_written_whole(
     tmp_path, monkeypatch, source, suffix, name, edit
 ):
-    view = rxm.read(str(source))[name]
-    write = edit(view)
+    view = edit(rxm.read(str(source))[name])
 
-    chunked = _written(view, tmp_path / f"c{suffix}", write, 2, monkeypatch)
+    chunked = _written(view, tmp_path / f"c{suffix}", 2, monkeypatch)
     monkeypatch.setattr(StarWriter, "write_chunks", Writer.write_chunks)
     monkeypatch.setattr(Rewrite, "_whole_needed", lambda *_: True)
-    whole = _written(view, tmp_path / f"w{suffix}", write, 10**9, monkeypatch)
+    whole = _written(view, tmp_path / f"w{suffix}", 10**9, monkeypatch)
 
     assert chunked == whole
 
@@ -109,23 +108,24 @@ def _two_settings(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "rows",
+    "edit",
     [
-        pytest.param([0, 1], id="first-setting"),
-        pytest.param([7, 8], id="second-setting"),
-        pytest.param([n < 5 for n in range(10)], id="mask"),
+        pytest.param(lambda view: view.take([0, 1]), id="first-setting"),
+        pytest.param(lambda view: view.take([7, 8]), id="second-setting"),
+        pytest.param(
+            lambda view: view.where([n < 5 for n in range(10)]), id="mask"
+        ),
     ],
 )
 def test_relion30_with_two_settings_writes_in_chunks_as_whole(
-    tmp_path, monkeypatch, rows
+    tmp_path, monkeypatch, edit
 ):
-    view = rxm.read(str(_two_settings(tmp_path)))["particles"]
-    write = {"rows": rows}
+    view = edit(rxm.read(str(_two_settings(tmp_path)))["particles"])
 
-    chunked = _written(view, tmp_path / "c.star", write, 2, monkeypatch)
+    chunked = _written(view, tmp_path / "c.star", 2, monkeypatch)
     monkeypatch.setattr(StarWriter, "write_chunks", Writer.write_chunks)
     monkeypatch.setattr(Rewrite, "_whole_needed", lambda *_: True)
-    whole = _written(view, tmp_path / "w.star", write, 10**9, monkeypatch)
+    whole = _written(view, tmp_path / "w.star", 10**9, monkeypatch)
 
     assert chunked == whole
     groups = rxm.read(str(tmp_path / "c.star"))["optics"].to_pandas()
@@ -146,14 +146,13 @@ def test_relion30_with_two_settings_writes_in_chunks_as_whole(
 def test_a_streamed_write_never_reads_the_source_whole(
     tmp_path, monkeypatch, source, edit
 ):
-    view = rxm.read(str(source))["particles"]
-    write = edit(view)
+    view = edit(rxm.read(str(source))["particles"])
 
     with monkeypatch.context() as patched:
         patched.setattr(RawResult, "_reread", _refused)
-        view.write(str(tmp_path / "out.star"), **write)
+        view.write(str(tmp_path / "out.star"))
     monkeypatch.setattr(Rewrite, "_whole_needed", lambda *_: True)
-    view.write(str(tmp_path / "whole.star"), **write)
+    view.write(str(tmp_path / "whole.star"))
 
     streamed = (tmp_path / "out.star").read_text()
     assert streamed == (tmp_path / "whole.star").read_text()
@@ -164,20 +163,28 @@ def _refused(_):
 
 
 @pytest.mark.parametrize(
-    ("rows", "message"),
+    ("edit", "message"),
     [
-        pytest.param([True, False], "mask of 2 where table", id="mask"),
-        pytest.param([0, 57], "outside table 'particles'", id="outside"),
+        pytest.param(
+            lambda view: view.where([True, False]),
+            "mask holds 2 booleans where table",
+            id="mask",
+        ),
+        pytest.param(
+            lambda view: view.take([0, 57]),
+            "outside table 'particles'",
+            id="outside",
+        ),
     ],
 )
 def test_rows_that_do_not_fit_a_streamed_table_leave_no_file(
-    tmp_path, rows, message
+    tmp_path, edit, message
 ):
     out = str(tmp_path / "out.star")
-    view = rxm.read(str(SUBTOMO))["particles"]
+    view = edit(rxm.read(str(SUBTOMO))["particles"])
 
     with pytest.raises(ValueError, match=message):
-        view.write(out, rows=rows)
+        view.write(out)
 
     assert list(tmp_path.iterdir()) == []
 

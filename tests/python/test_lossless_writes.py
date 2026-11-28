@@ -99,7 +99,7 @@ def test_an_update_to_a_pose_reaches_the_file(tmp_path):
     out = tmp_path / "out.star"
     particles = rxm.read(psi_only(tmp_path))["particles"]
 
-    particles.write(str(out), updates=_turned([99.0, 98.0]))
+    particles.updated(_turned([99.0, 98.0])).write(str(out))
 
     again = rxm.read(str(out)).raw["particles"].to_pandas()
     assert again["_rlnAnglePsi"].tolist() == ["99", "98"]
@@ -115,7 +115,7 @@ def test_an_update_no_convention_writes_raises(tmp_path):
     updates = _turned([99.0, 98.0])
 
     with pytest.raises(ValueError, match="'transform'"):
-        particles.write(out, bundle=images, updates=updates)
+        particles.updated(updates).write(out, bundle=images)
 
 
 def test_two_extensions_of_one_writer_are_one_format(tmp_path):
@@ -146,7 +146,7 @@ def test_a_missing_number_survives_a_round_trip(tmp_path):
     updates = particles.to_pandas()[["coord_x"]]
     updates.loc[0, "coord_x"] = math.nan
 
-    particles.write(str(out), updates=updates)
+    particles.updated(updates).write(str(out))
 
     again = rxm.read(str(out))["particles"].to_pandas()
     assert math.isnan(again["coord_x"][0])
@@ -169,7 +169,7 @@ def test_a_null_pose_is_written_empty(tmp_path):
     updates = _turned([99.0, 98.0])
     nulled = pa.array([None, updates.column(0)[1].as_py()], pose.TRANSFORM)
 
-    particles.write(str(out), updates=pa.table({"transform": nulled}))
+    particles.updated(pa.table({"transform": nulled})).write(str(out))
 
     again = rxm.read(str(out)).raw["particles"].to_pandas()
     assert again["_rlnAnglePsi"].tolist() == ["", "98"]

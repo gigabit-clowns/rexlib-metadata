@@ -9,13 +9,23 @@ from typing import TYPE_CHECKING
 
 import pyarrow as pa
 
-from rexlib_metadata._arrow import to_pandas
+from rexlib_metadata._arrow import as_arrow_table, to_pandas
 from rexlib_metadata.convention import RawSchema, RawTable, as_bundles
+from rexlib_metadata.editing import (
+    Edit,
+    as_mask,
+    as_positions,
+    merged,
+    own_updates,
+    positions,
+    shown,
+    streamed,
+)
 from rexlib_metadata.engine import produced_tables, source_columns
 from rexlib_metadata.join import joined_all
 from rexlib_metadata.reading import Reading, block_chunks, narrowed_all
 from rexlib_metadata.rewrite import Rewrite
-from rexlib_metadata.writing import replaced
+from rexlib_metadata.writing import replaced, typed
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence, Set
@@ -23,10 +33,11 @@ if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
 
+    from rexlib_metadata._arrow import Frame
     from rexlib_metadata.abc import Reader, Writer
     from rexlib_metadata.convention import ConventionBundle
+    from rexlib_metadata.editing import Mask, Positions, Rows
     from rexlib_metadata.registry import MetadataRegistry
-    from rexlib_metadata.rewrite import Rows
     from rexlib_metadata.schema import Relation, Schema, TableSchema
 
 
@@ -207,6 +218,8 @@ class ReadResult:
         self._table = table
         self._columns = None if columns is None else tuple(columns)
         self._joined = False
+        self._rows: pa.Array | None = None
+        self._updates: Frame | None = None
         self._source = Reading(raw, self._bundles, schema)
         _check_declared(self._columns, schema)
 
@@ -249,6 +262,41 @@ class ReadResult:
         view._joined = True
         return view
 
+    def take(self, positions: Rows) -> ReadResult:
+        """Return this view keeping only the rows at `positions`, in order.
+
+        `positions` count from zero, as `df.index` of a filtered frame, and
+        may come in any order. Nothing is read until the rows are asked for;
+        a position outside the table raises then.
+        """
+        return self._selecting(as_positions(positions))
+
+    def where(self, mask: Rows) -> ReadResult:
+        """Return this view keeping only the rows where `mask` is true.
+
+        `mask` holds one boolean per row of the table, a null keeping
+        nothing. Nothing is read until the rows are asked for.
+        """
+        return self._selecting(as_mask(mask))
+
+    def updated(self, updates: Frame) -> ReadResult:
+        """Return this view with the columns of `updates` in their place.
+
+        `updates`, pandas, polars or Arrow, holds one row per row the view
+        shows, in the same order: after `take` or `where`, one per row
+        kept. Each column takes the place of its namesake in the table
+        shown, or joins it; a column of a table joined in may only hold
+        what it holds already. A write carries every other column.
+        """
+        if self._updates is not None:
+            raise ValueError(
+                "A view is updated once: give every column to one "
+                "updated()"
+            )
+        view = self._copy()
+        view._updates = updates
+        return view
+
     def to_arrow(self) -> pa.Table:
         """Read the file, if it has not been read, and return it as Arrow."""
         return self._one()
@@ -281,21 +329,41 @@ class ReadResult:
     def _chunks_of(
         self, schema: TableSchema, size: int
     ) -> Iterator[Chunk]:
+        name = schema.name
+        pointed_at = bool(self._schema.related_to(name))
+        kept = None
+        if self._rows is not None and not pointed_at:
+            kept = streamed(self._rows, name)
+        if self._rows is not None and kept is None:
+            yield from _sliced(name, self._one(), size)
+            return
         found = self._raw._schemas()
-        related = self._related_whole(schema.name, found)
+        related = self._related_whole(name, found)
+        edit = self._edit(name, kept)
+        for table in self._canonical_chunks(schema, found, size, pointed_at):
+            yield self._chunk(schema, table, related, edit)
+        if edit is not None:
+            edit.check()
+
+    def _canonical_chunks(
+        self,
+        schema: TableSchema,
+        found: tuple[RawSchema, ...],
+        size: int,
+        pointed_at: bool,
+    ) -> Iterator[pa.Table]:
         columns = self._raw_columns()
         raw = narrowed_all(found, columns)
         ordinal = self._ordinal_of(schema, found)
         source = self._source
-        if self._schema.related_to(schema.name):
+        if pointed_at:
             whole = source.built(schema.name, raw[ordinal], ordinal, columns)
             for start in range(0, max(whole.num_rows, 1), size):
-                yield self._chunk(schema, whole.slice(start, size), related)
+                yield whole.slice(start, size)
             return
         bound = source.bound(schema.name, raw[ordinal], ordinal)
         for piece in block_chunks(self._raw, size, ordinal, columns):
-            table = source.filled([piece], schema.name, bound)
-            yield self._chunk(schema, table, related)
+            yield source.filled([piece], schema.name, bound)
 
     def _ordinal_of(
         self, schema: TableSchema, raw: tuple[RawSchema, ...]
@@ -310,8 +378,13 @@ class ReadResult:
         schema: TableSchema,
         table: pa.Table,
         related: tuple[tuple[Relation, pa.Table], ...],
+        edit: Edit | None,
     ) -> Chunk:
+        if edit is not None:
+            table = edit.rows_of(table)
         table = joined_all(table, related)
+        if edit is not None:
+            table = self._updated(table, edit)
         return Chunk(schema.name, self._shown(table, schema.name))
 
     def _related_whole(
@@ -388,25 +461,17 @@ class ReadResult:
         *,
         bundle: ConventionBundle | Iterable[ConventionBundle] | None = None,
         writer: Writer | None = None,
-        updates: pa.Table | pd.DataFrame | pl.DataFrame | None = None,
-        rows: Rows | None = None,
     ) -> None:
         """Write the whole file this result was read from to `path`.
 
         The source is read again, so that every canonical table and every
-        column reaches the destination whatever this result shows, and the
-        columns of `updates` take the place of their namesakes in the one
-        canonical table this result shows. It is read and written a chunk
-        at a time, the tables others point at read whole first, unless a
-        table others do not point at shares its raw table or `rows` holds
-        positions out of order.
-
-        `rows` keeps only some rows of that table, in the order given:
-        their positions, as `df.index` of a filtered frame, or a mask of
-        one boolean per row. Every column of the rows kept is written, the
-        ones no convention covers included, and the other tables whole.
-        `updates` holds a row for every row written, in the same order:
-        one per row of the table, or one per row `rows` keeps.
+        column reaches the destination whatever this result shows, the one
+        table it shows as `take`, `where` and `updated` left it: only the
+        rows kept, every column of them, the ones no convention covers
+        included, and the other tables whole. It is read and written a
+        chunk at a time, the tables others point at read whole first,
+        unless a table others do not point at shares its raw table or
+        `take` holds positions out of order.
 
         The writer and the conventions come from the destination's
         extension, the way a read takes them from the source's, unless
@@ -415,9 +480,9 @@ class ReadResult:
         read again by the reader it was read with. A column of the file
         that no convention writes, and a block no canonical table covers,
         are carried over untouched when the destination's writer is the
-        source's, and left out when it is not. A column of `updates` that
-        no write convention consumes raises, and so does a write that
-        would hold nothing. The file is written beside the destination
+        source's, and left out when it is not. A column `updated` gave that
+        no write convention consumes raises, and so does a write that would
+        hold nothing. The file is written beside the destination
         and moved over it at the end.
         """
         registry = self._raw.registry
@@ -426,11 +491,57 @@ class ReadResult:
         bundles = as_bundles(bundle)
         if bundles is None:
             bundles = registry.bundles_for(path)
-        shown = None
-        if updates is not None or rows is not None:
-            shown = self._one_name(self._raw._schemas())
+        name = None
+        if self._rows is not None or self._updates is not None:
+            name = self._one_name(self._raw._schemas())
         rewrite = Rewrite(self._source, self._joined, writer, bundles)
-        rewrite.write(path, shown, updates, rows)
+        rewrite.write(path, name, self._updates, self._rows)
+
+    def _selecting(self, rows: pa.Array) -> ReadResult:
+        if self._rows is not None or self._updates is not None:
+            raise ValueError(
+                "Rows are kept once, and before updated(): give them to one "
+                "take() or where()"
+            )
+        view = self._copy()
+        view._rows = rows
+        return view
+
+    def _copy(self) -> ReadResult:
+        view = ReadResult(
+            self._raw, self._bundles, self._schema, self._table, self._columns
+        )
+        view._joined = self._joined
+        view._rows = self._rows
+        view._updates = self._updates
+        return view
+
+    def _edit(
+        self, name: str, kept: Mask | Positions | None = None
+    ) -> Edit | None:
+        if self._rows is None and self._updates is None:
+            return None
+        frame = None
+        if self._updates is not None:
+            tables = shown(self._schema, name, self._joined)
+            frame = typed(as_arrow_table(self._updates), tables, "updates")
+        return Edit(name, frame, kept)
+
+    def _edited(self, table: pa.Table, name: str) -> pa.Table:
+        edit = self._edit(name)
+        if edit is None:
+            return table
+        if self._rows is not None:
+            table = table.take(positions(self._rows, table.num_rows, name))
+        table = self._updated(table, edit)
+        edit.check()
+        return table
+
+    def _updated(self, table: pa.Table, edit: Edit) -> pa.Table:
+        frame = edit.updates_of(table.num_rows)
+        if frame is None:
+            return table
+        return merged(table, own_updates(frame, table, self._schema, edit.name))
 
     def _raw_tables(self) -> tuple[RawTable, ...]:
         columns = self._raw_columns()
@@ -470,7 +581,7 @@ class ReadResult:
         table = self._source.filled(filling, name)
         if self._joined:
             table = joined_all(table, self._related(raw_tables, name, chosen))
-        return self._shown(table, name)
+        return self._shown(self._edited(table, name), name)
 
     def _one_name(self, raw: Sequence[RawSchema]) -> str:
         names = self._names(raw)
@@ -523,6 +634,11 @@ def _projected(
             f"{', '.join(repr(name) for name in absent)} in this file"
         )
     return table.select(wanted)
+
+
+def _sliced(name: str, table: pa.Table, size: int) -> Iterator[Chunk]:
+    for start in range(0, max(table.num_rows, 1), size):
+        yield Chunk(name, table.slice(start, size))
 
 
 def _check_size(size: int) -> None:
