@@ -18,7 +18,7 @@ from rexlib_metadata.engine import write_canonical
 from rexlib_metadata.join import joined_all
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Mapping, Sequence
 
     from rexlib_metadata._arrow import Frame
     from rexlib_metadata.convention import ConventionBundle
@@ -91,15 +91,41 @@ def canonical_frame(name: str, frame: Frame, schema: Schema) -> pa.Table:
     """Return `frame` as canonical table `name`, each column as declared."""
     table = _table_named(name, schema)
     arrow = as_arrow_table(frame)
-    _check_known(arrow, table)
+    typed_frame = typed(arrow, [table], f"frame '{name}'")
     _check_required(arrow, table)
+    return typed_frame
+
+
+def typed(
+    frame: pa.Table, tables: Sequence[TableSchema], what: str
+) -> pa.Table:
+    """Return `frame` with each column cast to the type `tables` declare.
+
+    A column none of `tables` declares, or a value its declared type
+    cannot hold, raises, naming the frame as `what`.
+    """
     return pa.table(
-        [
-            arrow.column(column).cast(table.column(column).dtype)
-            for column in arrow.column_names
-        ],
-        names=arrow.column_names,
+        [_cast(frame, column, tables, what) for column in frame.column_names],
+        names=frame.column_names,
     )
+
+
+def _cast(
+    frame: pa.Table, column: str, tables: Sequence[TableSchema], what: str
+) -> pa.ChunkedArray:
+    declared = next((t.column(column) for t in tables if column in t), None)
+    if declared is None:
+        shown = ", ".join(repr(t.name) for t in tables)
+        raise ValueError(
+            f"{what} holds '{column}', which no table of {shown} declares"
+        )
+    try:
+        return frame.column(column).cast(declared.dtype)
+    except (pa.ArrowInvalid, pa.ArrowNotImplementedError) as error:
+        raise ValueError(
+            f"{what} column '{column}' holds a value its declared type, "
+            f"{declared.dtype}, cannot hold: {error}"
+        ) from error
 
 
 def _table_named(name: str, schema: Schema) -> TableSchema:
@@ -110,15 +136,6 @@ def _table_named(name: str, schema: Schema) -> TableSchema:
             f"are {declared}"
         )
     return schema[name]
-
-
-def _check_known(arrow: pa.Table, table: TableSchema) -> None:
-    unknown = [c for c in arrow.column_names if c not in table]
-    if unknown:
-        raise ValueError(
-            f"Table '{table.name}' declares no "
-            f"{', '.join(repr(c) for c in unknown)}"
-        )
 
 
 def _check_required(arrow: pa.Table, table: TableSchema) -> None:

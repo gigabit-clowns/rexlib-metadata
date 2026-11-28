@@ -305,7 +305,7 @@ def test_a_narrowed_read_writes_back_into_its_own_block(tmp_path):
     ("updates", "error"),
     [
         pytest.param(
-            {"foo": [1.0]}, "'foo', which none of 'particles'", id="unknown"
+            {"foo": [1.0]}, "'foo', which no table of 'particles'", id="unknown"
         ),
         pytest.param(
             {"optics_group": [1.5]}, "'optics_group' holds a value", id="lossy"
