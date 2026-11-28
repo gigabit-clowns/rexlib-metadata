@@ -41,9 +41,12 @@ C           PSI   THETA     PHI       SHX       SHY     MAG  FILM      DF1 …
 ```
 
 One comment line naming the columns, then fixed-width numeric rows: no block,
-no table name, no types. Needs parsing by position, since fixed-width columns
-run into each other. Its table name is `""`, as STAR's bare `data_`. Not read
-yet.
+no table name, no types. Read by `formats/par.py` by position, since
+fixed-width columns run into each other: each name ends where its column
+ends, and `C` and the first value split on whitespace. A later line that
+starts with `C` is a comment. One table, `""`, as STAR's bare `data_`,
+every value text. Read only. The file names no image stack, so a canonical
+read names it: `frealign_bundle(stack=...)`.
 
 ## cryoSPARC `.cs`
 

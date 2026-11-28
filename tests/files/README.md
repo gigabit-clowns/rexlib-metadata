@@ -1,8 +1,7 @@
 # Fixtures
 
 `star/` and `xmd/` have a README of their own. The `.cs`, `.par` and CSV
-files are each trimmed from an EMPIAR deposition; `.cs` and CSV are read,
-`.par` not yet.
+files are each trimmed from an EMPIAR deposition, and each is read.
 
 All three come from `ftp.ebi.ac.uk/empiar/world_availability/`, fetched on
 2026-10-31. EMPIAR releases everything it archives under
@@ -30,5 +29,3 @@ byte in the two text files and value for value in the `.cs`.
 - Every `blob/path` in the `.cs` starts with `>`, as
   `>J114/restack/batch_0_restacked.mrc`. That is cryoSPARC's way of marking
   a path as relative to its project, and a convention has to know it.
-
-The `.par` and CSV shapes are pinned in #195, for the readers to start from.

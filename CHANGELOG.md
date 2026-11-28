@@ -5,6 +5,7 @@ First release: read and write CryoEM metadata as pandas, polars or Arrow.
 - A particle's pose is one 3x4 `transform`, Scipion's with the shift in Ångström; `rexlib_metadata.pose` gives matrices or Relion's angles.
 - cryoSPARC `.cs` read: poses and shifts, exposure groups as optics; converts to Relion.
 - cryoSPARC v0.65 `.csv` read: poses, shifts and CTF, each microscope setting an optics group; converts to Relion.
+- FREALIGN `.par` read: poses, shifts and defocus, in the stack `frealign_bundle(stack=...)` names; converts to Relion.
 - A particle's CTF (`defocus_u`, `defocus_v`, `defocus_angle`, `phase_shift`), from Relion and cryoSPARC, and written to Relion.
 - A `micrographs` table (path, defocus, CTF resolution, optics group): Relion 4 read and written, Relion 3.0 read and written back as Relion 4.
 - Relion 3.0 files read: each particle's microscope becomes an optics group, offsets come back in Ångström, and a write gives Relion 4.
