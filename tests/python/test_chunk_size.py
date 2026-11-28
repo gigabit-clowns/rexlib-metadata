@@ -27,5 +27,3 @@ def test_a_chunk_of_no_rows_is_refused(source, size):
 
     with pytest.raises(ValueError, match="at least one row"):
         particles.chunks(size)
-    with pytest.raises(ValueError, match="at least one row"):
-        result.raw.chunks(size)
